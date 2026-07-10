@@ -1,3 +1,4 @@
+import { WorkspaceProvider } from "@/lib/providers/workspace-provider";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 
@@ -13,12 +14,14 @@ type AppShellProps = {
  */
 export function AppShell({ user, children }: AppShellProps) {
   return (
-    <div className="flex min-h-svh flex-col">
-      <Header user={user} />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="min-w-0 flex-1">{children}</main>
+    <WorkspaceProvider>
+      <div className="flex min-h-svh flex-col">
+        <Header user={user} />
+        <div className="flex flex-1">
+          <Sidebar />
+          <main className="min-w-0 flex-1">{children}</main>
+        </div>
       </div>
-    </div>
+    </WorkspaceProvider>
   );
 }

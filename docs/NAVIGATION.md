@@ -20,7 +20,8 @@ Redirect to `/login` if there is no session.
 | Route | Page | Purpose |
 | ----- | ---- | ------- |
 | `/projects` | Projects | **Primary authenticated landing page** — list of the user's projects |
-| `/projects/[id]` | Project | A single project's workspace (see [WORKSPACE.md](./WORKSPACE.md)) |
+| `/projects/[id]` | Project → Overview | Project workspace home |
+| `/projects/[id]/{uploads,gallery,identities,templates,jobs,settings}` | Project tabs | Workspace sections (see [WORKSPACE_API.md](./WORKSPACE_API.md)) |
 | `/gallery` | Gallery | All generated + uploaded media |
 | `/uploads` | Uploads | Upload + manage reference media |
 | `/templates` | Templates | Reusable prompt/config presets |

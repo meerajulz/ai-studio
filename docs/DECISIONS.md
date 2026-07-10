@@ -405,3 +405,34 @@ Global user-level settings only; per-generation configuration with no project me
 Status
 Accepted as **direction** — documented in [WORKSPACE.md]; **not implemented yet** (no
 schema change). Revisit when building generation settings.
+
+---
+
+# Decision 018
+
+Date
+2026-07-10
+
+Decision
+Build the Project Workspace as a **tabbed, Notion/Linear-style layout** using nested
+routes under `app/(protected)/projects/[id]/` — a shared `layout.tsx` fetches the project
+once (owner-scoped) and renders `ProjectLayout` (header + tab links) around each tab page
+(`page.tsx`, `uploads/`, `gallery/`, `identities/`, `templates/`, `jobs/`, `settings/`).
+Introduce a **workspace context** (`lib/providers/workspace-provider.tsx`, wrapped in
+`AppShell`) that holds the active project so components can read it without
+prop-drilling — used now by the breadcrumb to show the project name instead of its id.
+
+Reason
+Nested routing gives real, linkable tabs with per-tab loading (`loading.tsx`) and keeps
+the owner check in one place. The workspace context is the practical mechanism for the
+"current project" concept (DECISIONS #017) and cleanly powers the breadcrumb; later it can
+expose per-project defaults (models, aspect ratio, templates).
+
+Alternatives
+Client-only tab switching (no routes, not linkable); passing the project through props
+everywhere; a global state library (Zustand) instead of context.
+
+Status
+Accepted — implemented (shell only). Overview + 6 placeholder tabs, breadcrumb name,
+loading/empty states; verified via build + owner-scoped route tests. No uploads/blob/
+gallery/AI yet.

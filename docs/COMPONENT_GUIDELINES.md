@@ -40,10 +40,13 @@ Pages inside the shell should NOT re-declare Sidebar/Header — just their conte
 
 ### `ProjectLayout`
 Layout for a single project workspace (`/projects/[id]`), nested **inside** `AppShell`.
-Provides project-scoped sub-navigation/tabs (overview, gallery, uploads, …) and the
-project header. See [WORKSPACE.md](./WORKSPACE.md).
+Renders the project header + tabbed section nav (Overview, Uploads, Gallery, Identities,
+Templates, Jobs, Settings) and publishes the active project to the workspace context
+(`lib/providers/workspace-provider.tsx`) so the breadcrumb shows the project name. The
+`[id]/layout.tsx` server layout fetches the project (owner-scoped) and passes it in.
+See [WORKSPACE.md](./WORKSPACE.md) / [WORKSPACE_API.md](./WORKSPACE_API.md).
 ```
-props: { projectId: string; children: React.ReactNode }
+props: { project: { id: string; name: string; description: string | null }; children: React.ReactNode }
 ```
 
 ### `Breadcrumb`

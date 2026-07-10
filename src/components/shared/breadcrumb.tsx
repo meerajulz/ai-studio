@@ -6,6 +6,7 @@ import { Fragment } from "react";
 import { ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useWorkspace } from "@/lib/providers/workspace-provider";
 
 /** Human labels for known route segments; unknown segments are title-cased. */
 const LABELS: Record<string, string> = {
@@ -35,6 +36,7 @@ export function Breadcrumb({
   className?: string;
 }) {
   const pathname = usePathname();
+  const { project } = useWorkspace();
 
   const crumbs: Crumb[] =
     items ??
@@ -42,7 +44,9 @@ export function Breadcrumb({
       .split("/")
       .filter(Boolean)
       .map((segment, i, arr) => ({
-        label: labelFor(segment),
+        // Show the active project's name in place of its id.
+        label:
+          project && segment === project.id ? project.name : labelFor(segment),
         href: i < arr.length - 1 ? `/${arr.slice(0, i + 1).join("/")}` : undefined,
       }));
 

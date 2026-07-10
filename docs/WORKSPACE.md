@@ -43,33 +43,36 @@ The workspace renders inside `AppShell` → `ProjectLayout` (see
 
 ```
 AppShell
-└── ProjectLayout  (project header + Breadcrumb: Projects / <name>)
-    └── project sub-navigation (tabs/sections):
-        • Overview     – summary, recent activity
-        • Identities   – manage identities + reference media
-        • Uploads      – upload/manage reference media
-        • Generate     – prompt editor → image/video generation
+└── ProjectLayout  (project header + tabbed nav; publishes active project to
+    │               the workspace context so the breadcrumb shows: Projects / <name>)
+    └── section tabs:
+        • Overview     – project home: stats, quick generate, recent activity
+        • Uploads      – reference media (input)
         • Gallery      – this project's generated media
+        • Identities   – reusable identities/styles
         • Templates    – project prompt/config presets
-        • Settings     – rename/delete project
+        • Jobs         – background generation jobs + progress
+        • Settings     – project preferences/defaults
 ```
 
-> Sub-navigation sections are **scoped to the project** — distinct from the global
-> Sidebar (which navigates between top-level areas).
+> Section tabs are **scoped to the project** — distinct from the global Sidebar (which
+> navigates between top-level areas). See [WORKSPACE_API.md](./WORKSPACE_API.md) for each
+> tab's responsibilities.
 
-## Routing (planned)
+## Routing (implemented — shell only)
 
 | Route | View |
 | ----- | ---- |
 | `/projects/[id]` | Overview |
-| `/projects/[id]/identities` | Identities |
 | `/projects/[id]/uploads` | Uploads |
-| `/projects/[id]/generate` | Prompt editor / generation |
-| `/projects/[id]/gallery` | Project gallery |
+| `/projects/[id]/gallery` | Gallery |
+| `/projects/[id]/identities` | Identities |
 | `/projects/[id]/templates` | Templates |
-| `/projects/[id]/settings` | Project settings |
+| `/projects/[id]/jobs` | Jobs |
+| `/projects/[id]/settings` | Settings |
 
-_(Exact sub-routes finalized when the workspace is built — backend-first for now.)_
+The `[id]/layout.tsx` fetches the project once (owner-scoped, 404 otherwise) and renders
+`ProjectLayout` around each tab page.
 
 ## Data ownership
 
@@ -86,6 +89,7 @@ implement both `LoadingState` and `EmptyState`
 
 ## Status
 
-Design only — **not implemented yet**. The current authenticated landing is `/projects`
-(temporary `/dashboard` kept for auth verification, see [NAVIGATION.md](./NAVIGATION.md)).
-Backend-first: uploads, gallery, and AI generation pages come later.
+**Workspace shell implemented** — the tabbed structure, project header, breadcrumb
+integration (via the workspace context), Overview widgets, and per-tab loading/empty
+states are live. The tabs themselves are **placeholders**: uploads, storage (Vercel Blob),
+gallery, identities, jobs, and AI generation are not built yet.

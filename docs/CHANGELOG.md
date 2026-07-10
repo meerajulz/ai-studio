@@ -24,6 +24,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   `PageContainer` / `SectionTitle` / `EmptyState` / `LoadingState`. Placeholder pages for
   Projects, Gallery, Uploads, Templates, Settings. Responsive (mobile menu via sheet).
   Root `/` now redirects by session.
+- **Project Workspace** (Milestone 6): tabbed workspace under
+  `app/(protected)/projects/[id]/` — a shared `layout.tsx` fetches the project once
+  (owner-scoped, 404 otherwise) and renders `ProjectLayout` (project header + section
+  tabs) around each tab. **Overview** (stats + quick-generate + recent-activity widgets,
+  all empty) plus placeholder tabs: Uploads, Gallery, Identities, Templates, Jobs,
+  Settings. Responsive tabs, `loading.tsx` skeleton, per-tab `EmptyState`. New
+  **workspace context** (`lib/providers/workspace-provider.tsx`, wrapped in `AppShell`)
+  publishes the active project so the `Breadcrumb` shows the project name instead of its
+  id. New doc `WORKSPACE_API.md`. No uploads/blob/gallery/AI yet.
 - **Project Management** (first domain feature): projects list at `/projects` with
   `ProjectCard` grid, `LoadingState`, `EmptyState`, and create/edit/delete via a form
   dialog + delete confirmation dialog. CRUD through owner-scoped **Server Actions**

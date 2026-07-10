@@ -39,6 +39,9 @@
 - [x] Project Management — `/projects` CRUD (owner-scoped Server Actions + Zod +
       TanStack Query), ProjectCard grid, loading/empty states, delete confirmation;
       `/projects/[id]` renders the ProjectLayout workspace shell.
+- [x] Project Workspace — tabbed `/projects/[id]` (Overview + Uploads/Gallery/Identities/
+      Templates/Jobs/Settings placeholders), workspace context + breadcrumb name,
+      responsive tabs, loading/empty states. Shell only.
 
 ## In Progress
 
