@@ -352,3 +352,56 @@ Status
 Accepted — **implemented**. `AppShell` + Sidebar/Header + shared components built;
 `app/(protected)/` centralizes the guard; landing flipped to `/projects` (dashboard kept
 temporarily). Verified via build + live guard/nav test.
+
+---
+
+# Decision 016
+
+Date
+2026-07-10
+
+Decision
+Domain data pattern (first used for Projects): **Server Actions** in `src/actions/` for
+all reads/mutations, each resolving the Better Auth session and scoping queries by
+`userId` (owner-only via `updateMany`/`deleteMany` where `userId`); **Zod** validation
+shared from `src/lib/validations/`; **TanStack Query** on the client
+(`src/hooks/use-<entity>.ts`) for loading state + cache invalidation. Providers
+(`QueryProvider` + Sonner `Toaster`) live in the root layout.
+
+Reason
+Server Actions keep data logic on the server (no separate API layer), ownership scoping
+enforces multi-user isolation, and TanStack Query gives loading/empty/error states +
+automatic refetch on mutation. This is the reference pattern for identities, uploads,
+generations, etc.
+
+Alternatives
+Route handlers + fetch; server-component data fetching only (no client cache); RSC
+mutations without TanStack Query.
+
+Status
+Accepted — implemented for Projects (list/create/update/delete), verified via build +
+ownership tests.
+
+---
+
+# Decision 017
+
+Date
+2026-07-10
+
+Decision
+Treat a **Project as a self-contained creative workspace**, not just a folder. Each
+project will (later) carry its own creative defaults — preferred image/video model,
+default aspect ratio, prompt templates — plus its identities, uploads, generations, and
+gallery, so switching projects switches all AI defaults automatically.
+
+Reason
+Smoother UX: users move between contexts (e.g. Instagram campaign vs YouTube) without
+reconfiguring models/settings each time. Strong long-term product foundation.
+
+Alternatives
+Global user-level settings only; per-generation configuration with no project memory.
+
+Status
+Accepted as **direction** — documented in [WORKSPACE.md]; **not implemented yet** (no
+schema change). Revisit when building generation settings.

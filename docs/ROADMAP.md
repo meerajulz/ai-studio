@@ -36,6 +36,9 @@
       Responsive; centralized auth guard.
 - [x] Authentication Polish — Card-based login/register, `PasswordInput` toggle, spinner
       loading + `FormError` states, richer `UserNav`. Behavior unchanged.
+- [x] Project Management — `/projects` CRUD (owner-scoped Server Actions + Zod +
+      TanStack Query), ProjectCard grid, loading/empty states, delete confirmation;
+      `/projects/[id]` renders the ProjectLayout workspace shell.
 
 ## In Progress
 

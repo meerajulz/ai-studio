@@ -39,6 +39,17 @@ Next.js 16 App Router (RSC, Turbopack)
 
 ## Key data flows
 
+### Project CRUD (implemented)
+1. Client components (`components/projects/`) call **TanStack Query** hooks
+   (`hooks/use-projects.ts`).
+2. Query/mutation fns are **Server Actions** in `actions/projects.ts` — each resolves the
+   Better Auth session and scopes every query by `userId` (owner-only).
+3. Mutations invalidate the `["projects"]` query key, so the list refetches automatically.
+4. Providers (`lib/providers/query-provider.tsx` + Sonner `Toaster`) are wired in the root
+   layout; toasts give success/error feedback.
+
+This is the reference pattern for future domain features (identities, uploads, generations).
+
 ### Upload → AI generation → gallery
 1. Client uploads media via `components/upload/` → `lib/blob/` → Vercel Blob.
 2. A Server Action in `actions/` records metadata via `lib/db/` (Prisma).

@@ -18,6 +18,23 @@ Project
   └── Templates         (reusable prompt/config presets)
 ```
 
+## A Project is a creative workspace, not just a folder
+
+A Project should be **self-contained**: switching from an "Instagram campaign" to a
+"YouTube" project should change the creative defaults automatically, with no manual
+reconfiguration. Planned per-project settings (future — not implemented yet):
+
+- Preferred **image model** (e.g. Flux, GPT Image, Imagen, …)
+- Preferred **video model** (e.g. Veo, Kling, Runway, …)
+- Default **aspect ratio** / output settings
+- Project-scoped **prompt templates**
+- Generation **history**, **identities**, **uploads**, and **output gallery** (already
+  modelled as project relations)
+
+These will likely live as columns/JSON on `Project` (or a `ProjectSettings` relation) with
+sensible defaults, applied automatically when generating inside that project. Tracked as a
+direction in [DECISIONS.md](./DECISIONS.md) — no schema change yet.
+
 ## Layout
 
 The workspace renders inside `AppShell` → `ProjectLayout` (see

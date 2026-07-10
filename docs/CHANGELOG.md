@@ -24,6 +24,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   `PageContainer` / `SectionTitle` / `EmptyState` / `LoadingState`. Placeholder pages for
   Projects, Gallery, Uploads, Templates, Settings. Responsive (mobile menu via sheet).
   Root `/` now redirects by session.
+- **Project Management** (first domain feature): projects list at `/projects` with
+  `ProjectCard` grid, `LoadingState`, `EmptyState`, and create/edit/delete via a form
+  dialog + delete confirmation dialog. CRUD through owner-scoped **Server Actions**
+  (`actions/projects.ts`) with **Zod** validation (`lib/validations/project.ts`), consumed
+  via **TanStack Query** hooks (`hooks/use-projects.ts`, cache key `["projects"]`).
+  Added `QueryProvider` + Sonner `Toaster` to the root layout. Clicking a project opens
+  `/projects/[id]`, which renders the new `ProjectLayout` workspace shell (owner-checked;
+  404 otherwise). No uploads/gallery/AI yet.
 - **Authentication UI polish** (behavior unchanged): login/register on a `Card` with brand
   header; new `PasswordInput` (show/hide toggle); spinner loading state + disabled inputs
   while submitting; `FormError` banner for server errors; richer `UserNav` dropdown
