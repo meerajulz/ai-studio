@@ -6,9 +6,14 @@
 > [PROJECT_SPEC.md](./PROJECT_SPEC.md) · [DECISIONS.md](./DECISIONS.md) ·
 > [ROADMAP.md](./ROADMAP.md) (Sprint 2 – Core Backend)
 >
-> **Planned for:** 2026-07-10 · Tomorrow's focus is **Step 1 — Database Design**.
-> Decisions to lock and the target schema live in the linked
-> ["Database design — decisions to lock"](#database-design----decisions-to-lock-first) section below and in DATABASE.md.
+> **Session of 2026-07-10 — progress:**
+> - ✅ **Step 1 — Database Design** (schema, `init` migration, Neon, runtime client)
+> - ✅ **Step 2 — Authentication** (Better Auth email/password + auth UI + temp dashboard)
+> - ▶ **Next: Step 3 — File Storage (Vercel Blob)**
+>
+> Steps 4–7 (Gallery, AI Layer, Prompt Builder, real Dashboard) remain. See
+> [ROADMAP.md](./ROADMAP.md) for the current sprint view and [CHANGELOG.md](./CHANGELOG.md)
+> for what shipped.
 
 ## Current Status
 

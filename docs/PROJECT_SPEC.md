@@ -32,7 +32,7 @@ integrations 6. Frontend
 
 ### Version 0.1
 
--   Authentication
+-   Authentication ✅
 -   Upload images
 -   Gallery
 -   Prompt editor
@@ -106,10 +106,10 @@ lib/ - ai/ - auth/ - blob/ - db/ - providers/ - utils/ - validations/
 ## Build Order
 
 1.  Foundation ✅
-2.  Finalize architecture
-3.  Database design
-4.  Authentication
-5.  File uploads
+2.  Finalize architecture ✅
+3.  Database design ✅
+4.  Authentication ✅
+5.  File uploads ← next
 6.  Blob storage
 7.  Gallery
 8.  Job queue
