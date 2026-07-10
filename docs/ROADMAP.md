@@ -16,25 +16,26 @@
 - [x] Prisma installed
 - [x] Folder structure
 - [x] Documentation structure
+- [x] Database architecture (Prisma + Neon Postgres, schema + `init` migration)
+- [x] Environment variables (`DATABASE_URL`)
 
 ---
 
 ## In Progress
 
-- [ ] Database architecture
-- [ ] Authentication (Better Auth)
-- [ ] Environment variables
-- [ ] Storage strategy
+- [ ] Authentication (Better Auth) ← **next**
+- [ ] Storage strategy (Vercel Blob)
 
 ---
 
 # Sprint 2 – Core Backend
 
-- [ ] Prisma schema
-- [ ] User model
-- [ ] Project model
-- [ ] Identity model
-- [ ] Generation model
+- [x] Prisma schema
+- [x] User model
+- [x] Project model
+- [x] Identity model
+- [x] Generation model
+- [x] Prisma client runtime (`src/lib/db/` + `@prisma/adapter-neon`) — verified vs Neon
 - [ ] Upload API
 - [ ] Gallery API
 

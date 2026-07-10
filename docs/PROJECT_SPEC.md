@@ -14,7 +14,9 @@ or combined without changing the rest of the codebase.
 
 Completed: - Next.js (App Router) - TypeScript - Tailwind CSS -
 shadcn/ui - Prisma - Zod - React Hook Form - TanStack Query - Framer
-Motion - Folder structure - docs/ directory
+Motion - Folder structure - docs/ directory - Database (Prisma 7 +
+Neon PostgreSQL: schema, `init` migration) - Prisma runtime client
+(`src/lib/db/`, singleton, `@prisma/adapter-neon`, verified vs Neon)
 
 ## Development Philosophy
 

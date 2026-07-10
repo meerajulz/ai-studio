@@ -255,14 +255,16 @@ Date
 
 Decision
 Prisma 7 config: connection URL lives in `prisma.config.ts` (not `schema.prisma`); the
-runtime `PrismaClient` will use a driver adapter (planned: `@prisma/adapter-neon`).
+runtime `PrismaClient` uses the `@prisma/adapter-neon` driver adapter, wrapped in a
+`globalThis` singleton under `src/lib/db/`. **Implemented and verified against Neon.**
 
 Reason
 Required by Prisma 7 — `datasource.url` in the schema is no longer allowed; the client
-needs an adapter or Accelerate.
+needs an adapter or Accelerate. Neon's serverless driver suits the Vercel target, and
+the singleton avoids connection exhaustion during dev hot-reload.
 
 Alternatives
 `@prisma/adapter-pg` (node-postgres); Prisma Accelerate.
 
 Status
-Accepted
+Accepted — implemented
