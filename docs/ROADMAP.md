@@ -24,10 +24,13 @@
 ## Completed (cont.)
 
 - [x] Authentication (Better Auth — email/password, verified end-to-end)
+- [x] Minimal auth UI for verification — `/login`, `/register`, temp `/dashboard`
+      (shadcn Form + RHF + Zod, server-side guards). Unstyled.
 
 ## In Progress
 
-- [ ] Storage strategy (Vercel Blob) ← **next**
+- [ ] Protected Dashboard (real, styled) ← **next**
+- [ ] Storage strategy (Vercel Blob)
 
 ---
 

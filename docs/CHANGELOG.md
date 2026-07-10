@@ -27,6 +27,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   migration. Server config in `src/lib/auth/` (`auth.ts` + `index.ts`), browser client
   (`client.ts`), and the catch-all route `src/app/api/auth/[...all]/route.ts`. Sign-up and
   sign-in verified end-to-end (rows persisted; cascade delete confirmed).
+- **Auth UI (minimal, for verification):** `/login` and `/register` pages using the
+  shadcn `Form` component with React Hook Form + Zod (`src/lib/validations/auth.ts`) and
+  the Better Auth client — loading states, field + server error messages, redirect to
+  `/dashboard` on success, and server-side guards that redirect authed users away from
+  login/register. Temporary `/dashboard` with a `UserMenu` (name / email / sign out).
+  Added `src/components/ui/form.tsx` (was missing). Full flow verified via server
+  redirects + session gating. Unstyled — verification only.
 
 ### Changed
 - Moved `app/`, `components/`, `lib/` into `src/`.
