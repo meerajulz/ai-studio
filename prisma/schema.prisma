@@ -5,9 +5,230 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// ============================================================
+// Enums
+// ============================================================
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum GenerationStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum JobStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+// ============================================================
+// Auth
+// NOTE: Better Auth (Step 2) will own/finalize the auth models
+// (User/Session/Account/Verification). This User is Better-Auth-shaped
+// so domain relations below can reference it now; reconcile when wiring auth.
+// ============================================================
+
+model User {
+  id            String   @id @default(cuid())
+  name          String?
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  projects        Project[]
+  identities      Identity[]
+  uploads         UploadedMedia[]
+  generations     Generation[]
+  generatedMedia  GeneratedMedia[]
+  templates       Template[]
+  favoritePrompts FavoritePrompt[]
+  jobs            Job[]
+}
+
+// ============================================================
+// Domain
+// ============================================================
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  identities  Identity[]
+  uploads     UploadedMedia[]
+  generations Generation[]
+
+  @@index([userId])
+}
+
+model Identity {
+  id        String   @id @default(cuid())
+  name      String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  referenceMedia UploadedMedia[]
+  generations    Generation[]
+
+  @@index([userId])
+  @@index([projectId])
+}
+
+model UploadedMedia {
+  id        String    @id @default(cuid())
+  type      MediaType
+  blobUrl   String
+  mimeType  String?
+  width     Int?
+  height    Int?
+  sizeBytes Int?
+  createdAt DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  identityId String?
+  identity   Identity? @relation(fields: [identityId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([identityId])
+}
+
+model Generation {
+  id        String           @id @default(cuid())
+  type      MediaType
+  prompt    String
+  provider  String // e.g. "flux", "veo" — string, not enum (provider-agnostic)
+  model     String
+  params    Json? // provider-specific settings
+  status    GenerationStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  identityId String?
+  identity   Identity? @relation(fields: [identityId], references: [id], onDelete: SetNull)
+
+  templateId String?
+  template   Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  job     Job?
+  results GeneratedMedia[]
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([identityId])
+  @@index([status])
+}
+
+model GeneratedMedia {
+  id              String    @id @default(cuid())
+  type            MediaType
+  blobUrl         String
+  mimeType        String?
+  width           Int?
+  height          Int?
+  durationSeconds Int? // videos
+  sizeBytes       Int?
+  createdAt       DateTime  @default(now())
+
+  generationId String
+  generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([generationId])
+  @@index([userId])
+}
+
+model Job {
+  id            String    @id @default(cuid())
+  status        JobStatus @default(PENDING)
+  progress      Int       @default(0) // 0..100
+  attempts      Int       @default(0)
+  providerJobId String? // id returned by the AI provider
+  error         String?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  generationId String     @unique
+  generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Template {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  prompt      String
+  config      Json? // reusable prompt options (style, camera, lighting, …)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  generations Generation[]
+
+  @@index([userId])
+}
+
+model FavoritePrompt {
+  id        String   @id @default(cuid())
+  text      String
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

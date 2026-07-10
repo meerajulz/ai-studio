@@ -201,3 +201,68 @@ Convert to `src/lib/utils/index.ts` (folder). Revisit if `utils` grows.
 
 Status
 Accepted
+
+---
+
+# Decision 010
+
+Date
+2026-07-10
+
+Decision
+Host PostgreSQL on Neon (serverless), deploy on Vercel.
+
+Reason
+Free tier, excellent Postgres, automatic backups, database branching, a web UI, and
+first-class Prisma + Vercel integration.
+
+Alternatives
+Supabase; Railway; local Postgres; PlanetScale.
+
+Status
+Accepted
+
+---
+
+# Decision 011
+
+Date
+2026-07-10
+
+Decision
+Initial Prisma schema: 9 models (User, Project, Identity, UploadedMedia, Generation,
+GeneratedMedia, Job, Template, FavoritePrompt). `provider`/`model` stored as strings +
+`params Json`; `Generation`↔`Job` 1:1; uploaded vs generated media kept as separate
+tables; per-user cascade deletes; `cuid()` ids.
+
+Reason
+Matches the spec, stays provider-agnostic (Decision 007), and separates request/result
+from execution/queue state.
+
+Alternatives
+Unified `Media` table with a `kind` discriminator; Postgres enums for providers; folding
+job fields into `Generation`.
+
+Status
+Accepted
+
+---
+
+# Decision 012
+
+Date
+2026-07-10
+
+Decision
+Prisma 7 config: connection URL lives in `prisma.config.ts` (not `schema.prisma`); the
+runtime `PrismaClient` will use a driver adapter (planned: `@prisma/adapter-neon`).
+
+Reason
+Required by Prisma 7 — `datasource.url` in the schema is no longer allowed; the client
+needs an adapter or Accelerate.
+
+Alternatives
+`@prisma/adapter-pg` (node-postgres); Prisma Accelerate.
+
+Status
+Accepted
