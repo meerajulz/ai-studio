@@ -70,3 +70,6 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Prisma generator output path → `src/generated/prisma` (was `../app/generated/prisma`);
   `.gitignore` updated to match.
+- `UserNav` dropdown crashed on open (`MenuGroupContext is missing`): Base UI's
+  `DropdownMenuLabel` (= `Menu.GroupLabel`) requires a surrounding `Menu.Group`. The
+  account header is display-only, so it's now a plain `div`.

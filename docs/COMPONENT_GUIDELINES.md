@@ -20,6 +20,11 @@
 - Props are typed; no `any`. Accept `className` and forward it (merge with `cn`).
 - Compose primitives from `ui/`; don't re-implement buttons/cards.
 
+**Base UI notes** (these primitives are Base UI, not Radix — APIs differ):
+- Composition uses the `render` prop, not Radix `asChild`.
+- `DropdownMenuLabel` = `Menu.GroupLabel` and **must** be inside a `DropdownMenuGroup`.
+  For a display-only header (e.g. account info), use a plain `div`, not the label.
+
 ## Layout / structural
 
 ### `AppShell`
