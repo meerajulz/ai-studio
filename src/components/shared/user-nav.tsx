@@ -9,7 +9,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -44,7 +43,7 @@ export function UserNav({ name, email }: { name: string; email: string }) {
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuLabel className="flex items-center gap-2 py-2 font-normal">
+        <div className="flex items-center gap-2 px-2 py-1.5">
           <Avatar className="size-8">
             <AvatarFallback>{initials(name)}</AvatarFallback>
           </Avatar>
@@ -54,7 +53,7 @@ export function UserNav({ name, email }: { name: string; email: string }) {
               {email}
             </span>
           </div>
-        </DropdownMenuLabel>
+        </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => router.push("/settings")}>
           <Settings className="size-4" />
