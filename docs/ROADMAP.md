@@ -21,10 +21,13 @@
 
 ---
 
+## Completed (cont.)
+
+- [x] Authentication (Better Auth — email/password, verified end-to-end)
+
 ## In Progress
 
-- [ ] Authentication (Better Auth) ← **next**
-- [ ] Storage strategy (Vercel Blob)
+- [ ] Storage strategy (Vercel Blob) ← **next**
 
 ---
 

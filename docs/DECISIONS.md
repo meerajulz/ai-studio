@@ -268,3 +268,29 @@ Alternatives
 
 Status
 Accepted — implemented
+
+---
+
+# Decision 013
+
+Date
+2026-07-10
+
+Decision
+Use Better Auth for authentication, starting with email + password, via the Prisma
+adapter over the Neon `prisma` client. Auth models (`User`, `Session`, `Account`,
+`Verification`) live in `schema.prisma` (hand-written to match Better Auth's core
+schema, kept consistent with the domain models — no `@@map`). Server config in
+`src/lib/auth/`, browser client in `src/lib/auth/client.ts`, catch-all route at
+`src/app/api/auth/[...all]/route.ts`.
+
+Reason
+Modern, TypeScript-first, integrates cleanly with the App Router and Prisma. Confirms
+Decision 005. Hand-writing the models avoided the CLI failing to resolve the `@/` path
+alias and kept table naming consistent with the domain schema.
+
+Alternatives
+Better Auth CLI `generate` (path-alias resolution risk); NextAuth/Auth.js; Clerk.
+
+Status
+Accepted — implemented, sign-up/sign-in verified end-to-end

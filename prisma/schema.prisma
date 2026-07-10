@@ -41,20 +41,24 @@ enum JobStatus {
 
 // ============================================================
 // Auth
-// NOTE: Better Auth (Step 2) will own/finalize the auth models
-// (User/Session/Account/Verification). This User is Better-Auth-shaped
-// so domain relations below can reference it now; reconcile when wiring auth.
+// Auth models (User/Session/Account/Verification) follow the Better Auth
+// core schema. Domain relations (projects, generations, …) hang off User.
 // ============================================================
 
 model User {
   id            String   @id @default(cuid())
-  name          String?
+  name          String
   email         String   @unique
   emailVerified Boolean  @default(false)
   image         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // Better Auth relations
+  sessions Session[]
+  accounts Account[]
+
+  // Domain relations
   projects        Project[]
   identities      Identity[]
   uploads         UploadedMedia[]
@@ -63,6 +67,52 @@ model User {
   templates       Template[]
   favoritePrompts FavoritePrompt[]
   jobs            Job[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
 }
 
 // ============================================================

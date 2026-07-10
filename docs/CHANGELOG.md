@@ -22,6 +22,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 - **Prisma runtime client** (`src/lib/db/`): singleton `PrismaClient` using
   `@prisma/adapter-neon`, with `client.ts`, `index.ts` barrel, and a `README.md`.
   Verified end-to-end against Neon.
+- **Authentication (Better Auth)**: email + password via the Prisma adapter over Neon.
+  Added `Session`, `Account`, `Verification` models (+ `User` relations); `better_auth`
+  migration. Server config in `src/lib/auth/` (`auth.ts` + `index.ts`), browser client
+  (`client.ts`), and the catch-all route `src/app/api/auth/[...all]/route.ts`. Sign-up and
+  sign-in verified end-to-end (rows persisted; cascade delete confirmed).
 
 ### Changed
 - Moved `app/`, `components/`, `lib/` into `src/`.
