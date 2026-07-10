@@ -8,7 +8,7 @@
 
 | Folder | Contents |
 | ------ | -------- |
-| `src/components/ui/` | Primitives (shadcn/Base UI): `Button`, `Card`, `Input`, `Form`, … |
+| `src/components/ui/` | Primitives (shadcn/Base UI): `Button`, `Card`, `Input`, `PasswordInput` (show/hide toggle), `Form`, … |
 | `src/components/shared/` | App-wide building blocks: `AppShell`, `ProjectLayout`, `Sidebar`, `Header`, `Breadcrumb`, `PageContainer`, `SectionTitle`, `EmptyState`, `LoadingState` |
 | `src/components/gallery/` | `MediaCard` and gallery pieces |
 | `src/components/upload/` | `UploadCard` and upload pieces |

@@ -24,6 +24,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   `PageContainer` / `SectionTitle` / `EmptyState` / `LoadingState`. Placeholder pages for
   Projects, Gallery, Uploads, Templates, Settings. Responsive (mobile menu via sheet).
   Root `/` now redirects by session.
+- **Authentication UI polish** (behavior unchanged): login/register on a `Card` with brand
+  header; new `PasswordInput` (show/hide toggle); spinner loading state + disabled inputs
+  while submitting; `FormError` banner for server errors; richer `UserNav` dropdown
+  (avatar + name/email, Settings placeholder, Sign out).
 - `src/`-based folder structure (`actions/`, `components/{ui,forms,gallery,upload,shared}`,
   `hooks/`, `lib/{ai,auth,blob,db,validations,providers}`, `services/`, `store/`,
   `types/`, `styles/`).

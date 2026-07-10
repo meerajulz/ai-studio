@@ -34,6 +34,8 @@
       SectionTitle, EmptyState, LoadingState); Projects is the primary authenticated
       landing; placeholder pages for Projects/Gallery/Uploads/Templates/Settings.
       Responsive; centralized auth guard.
+- [x] Authentication Polish — Card-based login/register, `PasswordInput` toggle, spinner
+      loading + `FormError` states, richer `UserNav`. Behavior unchanged.
 
 ## In Progress
 

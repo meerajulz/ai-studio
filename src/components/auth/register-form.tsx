@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Loader2 } from "lucide-react";
 
 import { registerSchema, type RegisterInput } from "@/lib/validations/auth";
 import { signUp } from "@/lib/auth/client";
@@ -16,7 +17,9 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
+import { FormError } from "@/components/auth/form-error";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -38,7 +41,7 @@ export function RegisterForm() {
     });
 
     if (error) {
-      setServerError(error.message ?? "Sign up failed");
+      setServerError(error.message ?? "Sign up failed. Please try again.");
       return;
     }
 
@@ -50,6 +53,8 @@ export function RegisterForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
+        {serverError ? <FormError message={serverError} /> : null}
+
         <FormField
           control={form.control}
           name="name"
@@ -57,7 +62,12 @@ export function RegisterForm() {
             <FormItem>
               <FormLabel>Name</FormLabel>
               <FormControl>
-                <Input placeholder="Jane Doe" {...field} />
+                <Input
+                  autoComplete="name"
+                  placeholder="Jane Doe"
+                  disabled={isSubmitting}
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -70,7 +80,13 @@ export function RegisterForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input type="email" placeholder="you@example.com" {...field} />
+                <Input
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  disabled={isSubmitting}
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -83,19 +99,26 @@ export function RegisterForm() {
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input type="password" {...field} />
+                <PasswordInput
+                  autoComplete="new-password"
+                  disabled={isSubmitting}
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        {serverError ? (
-          <p className="text-destructive text-sm">{serverError}</p>
-        ) : null}
-
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Creating account…" : "Create account"}
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Creating account…
+            </>
+          ) : (
+            "Create account"
+          )}
         </Button>
       </form>
     </Form>
