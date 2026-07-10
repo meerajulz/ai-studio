@@ -19,7 +19,10 @@ Neon PostgreSQL: schema, `init` migration) - Prisma runtime client
 (`src/lib/db/`, singleton, `@prisma/adapter-neon`, verified vs Neon) -
 Authentication (Better Auth email/password via Prisma adapter, verified) -
 Auth flow UI (login/register/temp dashboard: shadcn Form + RHF + Zod,
-server-side route guards; unstyled, verification-only)
+server-side route guards; unstyled, verification-only) - Protected
+Application Shell (AppShell + Sidebar/Header/Breadcrumb, shared UI
+components) - Project Management (`/projects` CRUD via owner-scoped Server
+Actions + TanStack Query; `/projects/[id]` workspace shell)
 
 ## Development Philosophy
 

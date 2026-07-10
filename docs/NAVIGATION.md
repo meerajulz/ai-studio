@@ -55,10 +55,12 @@ const session = await auth.api.getSession({ headers: await headers() });
 if (!session) redirect("/login");
 ```
 
-Auth pages (`/login`, `/register`) do the inverse (`if (session) redirect("/dashboard")`).
+Auth pages (`/login`, `/register`) do the inverse (`if (session) redirect("/projects")`).
 
-> Future: consider a shared **route-group layout guard** (`app/(protected)/layout.tsx`)
-> so the check lives in one place instead of every page (noted in DECISIONS #014).
+> **Implemented:** the guard is centralized in the route-group layout
+> `app/(protected)/layout.tsx` (via `AppShell`), so protected pages don't repeat it
+> (DECISIONS #014/#015). Individual pages still call `getSession(...)` when they need the
+> user's data (e.g. the project detail page scopes its query by `userId`).
 
 ## Layout structure
 
@@ -99,7 +101,7 @@ See [COMPONENT_GUIDELINES.md](./COMPONENT_GUIDELINES.md) for `AppShell`, `Sideba
 ## Primary flows
 
 ```
-/register → /dashboard → /projects → /projects/[id] → (upload → generate) → /gallery
-/login → /dashboard
+/register → /projects → /projects/[id] → (upload → generate) → /gallery
+/login → /projects
 Sign out → /login
 ```

@@ -6,14 +6,14 @@
 ## High priority
 
 - [ ] **Vercel Blob storage** + upload helpers (`src/lib/blob/`) — next milestone
-- [ ] Real **Protected Dashboard** (styled layout/sidebar, replace temp dashboard)
 - [ ] Clean up stray `~/package-lock.json` confusing Next.js workspace-root detection
 
 ## Medium priority
 
-- [ ] TanStack Query client / providers in `src/lib/providers/`
+- [ ] Per-project settings (preferred models, aspect ratio, templates) — DECISIONS #017
 - [ ] First AI provider adapter (`src/lib/ai/`) + `ImageProvider` / `VideoProvider`
 - [ ] Upload API + Gallery API (Sprint 2)
+- [ ] Breadcrumb: show project name instead of id on `/projects/[id]`
 
 ## Low priority / nice-to-have
 
@@ -33,3 +33,7 @@
 - [x] Authentication (Better Auth email/password) + `better_auth` migration
 - [x] Minimal auth UI (`/login`, `/register`, temp `/dashboard`) — RHF + Zod + shadcn Form
 - [x] Sync docs (TODO, DATABASE) with implemented schema + auth
+- [x] Protected Application Shell + Authentication Polish
+- [x] TanStack Query provider + Sonner Toaster in root layout
+- [x] Project Management — `/projects` CRUD (Server Actions + Zod + TanStack Query),
+      `/projects/[id]` workspace shell
