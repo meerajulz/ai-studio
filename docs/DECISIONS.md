@@ -349,4 +349,6 @@ Make `/dashboard` the permanent home; per-page layout instead of a shared shell;
 `/dashboard` immediately (rejected — would disrupt the tested auth redirect).
 
 Status
-Accepted — documentation only; shell not yet implemented (backend-first, awaiting review)
+Accepted — **implemented**. `AppShell` + Sidebar/Header + shared components built;
+`app/(protected)/` centralizes the guard; landing flipped to `/projects` (dashboard kept
+temporarily). Verified via build + live guard/nav test.

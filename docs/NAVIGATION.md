@@ -42,9 +42,9 @@ Dashboard (temp)              Projects
 Projects                      Project Workspace
 ```
 
-- **Now:** login/register/`/` redirect to `/dashboard` (Better Auth's default, tested).
-- **After Projects ships:** change the redirect target to `/projects` (one small change);
-  keep `/dashboard` reachable only for auth debugging until it's removed.
+- **Now (implemented):** `/`, `/login`, and `/register` redirect authenticated users to
+  **`/projects`** — the primary landing page.
+- `/dashboard` remains reachable inside the shell for **auth verification only**, until removed.
 
 ## Access rules
 
@@ -69,7 +69,7 @@ Breadcrumb, and content area:
 ```
 AppShell
 ┌───────────────────────────────────────────┐
-│ Header  (logo · Breadcrumb · UserMenu)     │
+│ Header (Logo · Breadcrumb · Search · User) │
 ├──────────┬────────────────────────────────┤
 │ Sidebar  │ PageContainer                   │
 │          │   SectionTitle                  │
@@ -85,7 +85,9 @@ AppShell
   Sidebar + Header + Breadcrumb around `{children}`.
 - **Sidebar** = primary nav (Projects, Gallery, Uploads, Templates, Settings). Active
   item reflects the current route.
-- **Header** = branding, `Breadcrumb` (current location), and the user menu / sign-out.
+- **Header** = full-width top bar: `Logo`, `Breadcrumb` (current location), a placeholder
+  `Search`, and the `UserNav` (avatar → name/email/sign out). On mobile it also holds the
+  menu button that opens the Sidebar in a sheet.
 - **Breadcrumb** = shows the path, e.g. `Projects / Summer Campaign / Gallery`.
 - Project workspaces additionally use **`ProjectLayout`** inside `AppShell`
   (see [WORKSPACE.md](./WORKSPACE.md)).

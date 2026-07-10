@@ -18,6 +18,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   UploadCard).
 - **WORKSPACE.md** (project workspace structure) and **UX_PRINCIPLES.md** (interaction
   principles).
+- **Protected Application Shell**: `AppShell` root layout under `app/(protected)/` with a
+  centralized session guard; `Sidebar` (active-route nav), `Header` (Logo, `Breadcrumb`
+  derived from pathname, placeholder `Search`, `UserNav` avatar dropdown), and shared
+  `PageContainer` / `SectionTitle` / `EmptyState` / `LoadingState`. Placeholder pages for
+  Projects, Gallery, Uploads, Templates, Settings. Responsive (mobile menu via sheet).
+  Root `/` now redirects by session.
 - `src/`-based folder structure (`actions/`, `components/{ui,forms,gallery,upload,shared}`,
   `hooks/`, `lib/{ai,auth,blob,db,validations,providers}`, `services/`, `store/`,
   `types/`, `styles/`).
@@ -49,6 +55,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   Application Shell**. Introduced **`AppShell`** (authenticated root layout), **`Breadcrumb`**,
   and **`ProjectLayout`** in the component guidelines. All collections must implement both
   `LoadingState` and `EmptyState`.
+- Authenticated landing switched from `/dashboard` to **`/projects`** (dashboard kept for
+  auth verification). `/login`, `/register`, `/` redirect to `/projects` when authed.
+- Removed `components/auth/user-menu.tsx` (superseded by the shared `UserNav`).
 - Moved `app/`, `components/`, `lib/` into `src/`.
 - Updated `@/*` path alias → `src/*`; `components.json` css path → `src/app/globals.css`.
 - Prisma 7: removed `datasource.url` from `schema.prisma` (now in `prisma.config.ts`);

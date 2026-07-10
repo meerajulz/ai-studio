@@ -43,7 +43,7 @@ export function RegisterForm() {
     }
 
     // Better Auth signs the user in on sign-up.
-    router.push("/dashboard");
+    router.push("/projects");
     router.refresh();
   }
 

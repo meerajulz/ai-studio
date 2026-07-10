@@ -42,8 +42,10 @@ props: { projectId: string; children: React.ReactNode }
 
 ### `Breadcrumb`
 Shows the current location in the Header, e.g. `Projects / Summer Campaign / Gallery`.
+Derives crumbs from the pathname by default; pass `items` to override (e.g. to show a
+project name instead of its id).
 ```
-props: { items: { label: string; href?: string }[] }
+props: { items?: { label: string; href?: string }[]; className?: string }
 ```
 
 ### `PageContainer`
@@ -54,9 +56,11 @@ props: { children, className?, size?: "sm" | "default" | "wide" }
 ```
 
 ### `Header`
-Top bar: branding, current page title, user menu.
+Full-width top bar: `Logo`, `Breadcrumb`, placeholder `Search`, and `UserNav`
+(avatar dropdown → name/email/sign out). Holds the mobile menu button that opens the
+Sidebar in a sheet.
 ```
-props: { title?: string; user?: { name: string; email: string } }
+props: { user: { name: string; email: string } }
 ```
 
 ### `Sidebar`

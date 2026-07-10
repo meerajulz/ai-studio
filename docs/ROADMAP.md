@@ -27,11 +27,17 @@
 - [x] Minimal auth UI for verification — `/login`, `/register`, temp `/dashboard`
       (shadcn Form + RHF + Zod, server-side guards). Unstyled.
 
+## Completed (cont.)
+
+- [x] Protected Application Shell — AppShell root layout (`app/(protected)/`), Sidebar +
+      Header (Logo/Breadcrumb/Search/UserNav) + shared components (PageContainer,
+      SectionTitle, EmptyState, LoadingState); Projects is the primary authenticated
+      landing; placeholder pages for Projects/Gallery/Uploads/Templates/Settings.
+      Responsive; centralized auth guard.
+
 ## In Progress
 
-- [ ] Protected Application Shell (AppShell root layout, Sidebar/Header/Breadcrumb;
-      Projects as the primary authenticated landing page) ← **next**
-- [ ] Storage strategy (Vercel Blob)
+- [ ] Storage strategy (Vercel Blob) ← **next**
 
 ---
 
