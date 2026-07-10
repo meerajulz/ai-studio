@@ -9,7 +9,7 @@
 | Folder | Contents |
 | ------ | -------- |
 | `src/components/ui/` | Primitives (shadcn/Base UI): `Button`, `Card`, `Input`, `Form`, … |
-| `src/components/shared/` | App-wide building blocks: `PageContainer`, `Header`, `Sidebar`, `SectionTitle`, `EmptyState`, `LoadingState` |
+| `src/components/shared/` | App-wide building blocks: `AppShell`, `ProjectLayout`, `Sidebar`, `Header`, `Breadcrumb`, `PageContainer`, `SectionTitle`, `EmptyState`, `LoadingState` |
 | `src/components/gallery/` | `MediaCard` and gallery pieces |
 | `src/components/upload/` | `UploadCard` and upload pieces |
 | `src/components/forms/` | Form-specific composites |
@@ -21,6 +21,30 @@
 - Compose primitives from `ui/`; don't re-implement buttons/cards.
 
 ## Layout / structural
+
+### `AppShell`
+The **root layout for all authenticated pages** (`app/(protected)/layout.tsx`). Runs the
+session guard once, then renders the Sidebar + Header + Breadcrumb around the page.
+```
+props: { children: React.ReactNode }
+renders: <Sidebar/> + <Header/> (with <Breadcrumb/>) + <main>{children}</main>
+```
+Pages inside the shell should NOT re-declare Sidebar/Header — just their content
+(wrapped in `PageContainer`).
+
+### `ProjectLayout`
+Layout for a single project workspace (`/projects/[id]`), nested **inside** `AppShell`.
+Provides project-scoped sub-navigation/tabs (overview, gallery, uploads, …) and the
+project header. See [WORKSPACE.md](./WORKSPACE.md).
+```
+props: { projectId: string; children: React.ReactNode }
+```
+
+### `Breadcrumb`
+Shows the current location in the Header, e.g. `Projects / Summer Campaign / Gallery`.
+```
+props: { items: { label: string; href?: string }[] }
+```
 
 ### `PageContainer`
 Wraps every page's content with consistent width + padding.
@@ -50,6 +74,11 @@ render: text-sm font-medium (+ optional muted description + right-aligned action
 ```
 
 ## State components
+
+> **Rule — every collection must implement BOTH `LoadingState` and `EmptyState`.**
+> Any list/grid of data (projects, media, uploads, templates, …) renders three explicit
+> branches: **loading → `LoadingState`**, **empty → `EmptyState`**, **content**. Never
+> show a blank screen or a bare spinner. (See the composition example + page checklist.)
 
 ### `EmptyState`
 Shown when a list/collection has no items.

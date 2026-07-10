@@ -321,3 +321,32 @@ layout guard (may adopt the layout-guard pattern for the real dashboard later).
 
 Status
 Accepted — implemented, full flow verified (redirects + session gating)
+
+---
+
+# Decision 015
+
+Date
+2026-07-10
+
+Decision
+Build a **Protected Application Shell** (renamed from "Protected Dashboard") as the next
+milestone. **Projects** (`/projects`) becomes the primary authenticated landing page; the
+temporary `/dashboard` is kept only for auth verification and the landing redirect stays
+`/dashboard` until Projects ships, then flips to `/projects`. Introduce **`AppShell`** as
+the authenticated root layout (`app/(protected)/layout.tsx`) housing Sidebar + Header +
+**`Breadcrumb`**, plus **`ProjectLayout`** for project workspaces. All collections must
+implement both `LoadingState` and `EmptyState`. New docs: WORKSPACE.md, UX_PRINCIPLES.md.
+
+Reason
+"Everything belongs to a Project" (VISION) → Projects is the natural home, not a generic
+dashboard. Keeping `/dashboard` during the transition avoids breaking the already-verified
+auth flow (a smooth evolution: Login→Dashboard→Projects, later Login→Projects→Workspace).
+A single `AppShell` centralizes the session guard and layout so pages stay consistent.
+
+Alternatives
+Make `/dashboard` the permanent home; per-page layout instead of a shared shell; remove
+`/dashboard` immediately (rejected — would disrupt the tested auth redirect).
+
+Status
+Accepted — documentation only; shell not yet implemented (backend-first, awaiting review)

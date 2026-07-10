@@ -29,7 +29,8 @@
 
 ## In Progress
 
-- [ ] Protected Dashboard (real, styled) ← **next**
+- [ ] Protected Application Shell (AppShell root layout, Sidebar/Header/Breadcrumb;
+      Projects as the primary authenticated landing page) ← **next**
 - [ ] Storage strategy (Vercel Blob)
 
 ---

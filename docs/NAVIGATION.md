@@ -9,9 +9,9 @@
 
 | Route | Page | Notes |
 | ----- | ---- | ----- |
-| `/` | Landing / redirect | Redirects to `/dashboard` if authed, else `/login` |
-| `/login` | Sign in | Redirects to `/dashboard` if already authed |
-| `/register` | Create account | Redirects to `/dashboard` if already authed |
+| `/` | Landing / redirect | Redirects authed users to the landing page (see below), else `/login` |
+| `/login` | Sign in | Redirects authed users to the landing page |
+| `/register` | Create account | Redirects authed users to the landing page |
 
 ### Protected (authenticated)
 
@@ -19,13 +19,32 @@ Redirect to `/login` if there is no session.
 
 | Route | Page | Purpose |
 | ----- | ---- | ------- |
-| `/dashboard` | Dashboard | Overview / entry point (temp user menu today) |
-| `/projects` | Projects | List of the user's projects |
-| `/projects/[id]` | Project | A single project's workspace |
+| `/projects` | Projects | **Primary authenticated landing page** — list of the user's projects |
+| `/projects/[id]` | Project | A single project's workspace (see [WORKSPACE.md](./WORKSPACE.md)) |
 | `/gallery` | Gallery | All generated + uploaded media |
 | `/uploads` | Uploads | Upload + manage reference media |
 | `/templates` | Templates | Reusable prompt/config presets |
 | `/settings` | Settings | Account & preferences |
+| `/dashboard` | Dashboard (temporary) | Kept only for auth verification (temp user menu). Not the long-term landing page. |
+
+### Authenticated landing page (today → later)
+
+We keep `/dashboard` for now so the already-verified auth flow doesn't break, then switch
+the landing target to `/projects` once Projects is built:
+
+```
+Today                         Later
+-----                         -----
+Login                         Login
+  ↓                             ↓
+Dashboard (temp)              Projects
+  ↓                             ↓
+Projects                      Project Workspace
+```
+
+- **Now:** login/register/`/` redirect to `/dashboard` (Better Auth's default, tested).
+- **After Projects ships:** change the redirect target to `/projects` (one small change);
+  keep `/dashboard` reachable only for auth debugging until it's removed.
 
 ## Access rules
 
@@ -43,11 +62,14 @@ Auth pages (`/login`, `/register`) do the inverse (`if (session) redirect("/dash
 
 ## Layout structure
 
-Protected routes share an app shell:
+Protected routes are wrapped by **`AppShell`** — the root layout component for all
+authenticated pages (`app/(protected)/layout.tsx`). It provides the Sidebar, Header,
+Breadcrumb, and content area:
 
 ```
+AppShell
 ┌───────────────────────────────────────────┐
-│ Header  (logo · page title · UserMenu)     │
+│ Header  (logo · Breadcrumb · UserMenu)     │
 ├──────────┬────────────────────────────────┤
 │ Sidebar  │ PageContainer                   │
 │          │   SectionTitle                  │
@@ -59,13 +81,18 @@ Protected routes share an app shell:
 └──────────┴────────────────────────────────┘
 ```
 
-- **Sidebar** = primary nav for protected area (Projects, Gallery, Uploads, Templates,
-  Settings). Active item reflects the current route.
-- **Header** = branding, current page title, and the user menu / sign-out.
-- Public routes (login/register) use a **centered, sidebar-less** layout.
+- **`AppShell`** = the authenticated root layout; runs the session guard once and renders
+  Sidebar + Header + Breadcrumb around `{children}`.
+- **Sidebar** = primary nav (Projects, Gallery, Uploads, Templates, Settings). Active
+  item reflects the current route.
+- **Header** = branding, `Breadcrumb` (current location), and the user menu / sign-out.
+- **Breadcrumb** = shows the path, e.g. `Projects / Summer Campaign / Gallery`.
+- Project workspaces additionally use **`ProjectLayout`** inside `AppShell`
+  (see [WORKSPACE.md](./WORKSPACE.md)).
+- Public routes (login/register) use a **centered, shell-less** layout.
 
-See [COMPONENT_GUIDELINES.md](./COMPONENT_GUIDELINES.md) for `Sidebar`, `Header`,
-`PageContainer`.
+See [COMPONENT_GUIDELINES.md](./COMPONENT_GUIDELINES.md) for `AppShell`, `Sidebar`,
+`Header`, `Breadcrumb`, `PageContainer`, `ProjectLayout`.
 
 ## Primary flows
 

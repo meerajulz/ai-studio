@@ -16,6 +16,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   map + app shell), **COMPONENT_GUIDELINES.md** (reusable components: PageContainer,
   Header, Sidebar, SectionTitle, EmptyState, LoadingState, ProjectCard, MediaCard,
   UploadCard).
+- **WORKSPACE.md** (project workspace structure) and **UX_PRINCIPLES.md** (interaction
+  principles).
 - `src/`-based folder structure (`actions/`, `components/{ui,forms,gallery,upload,shared}`,
   `hooks/`, `lib/{ai,auth,blob,db,validations,providers}`, `services/`, `store/`,
   `types/`, `styles/`).
@@ -41,6 +43,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   redirects + session gating. Unstyled — verification only.
 
 ### Changed
+- Architecture (pre-shell): **Projects** is the primary authenticated landing page;
+  temporary `/dashboard` kept only for auth verification (landing switches to `/projects`
+  once Projects ships). Roadmap milestone renamed **Protected Dashboard → Protected
+  Application Shell**. Introduced **`AppShell`** (authenticated root layout), **`Breadcrumb`**,
+  and **`ProjectLayout`** in the component guidelines. All collections must implement both
+  `LoadingState` and `EmptyState`.
 - Moved `app/`, `components/`, `lib/` into `src/`.
 - Updated `@/*` path alias → `src/*`; `components.json` css path → `src/app/globals.css`.
 - Prisma 7: removed `datasource.url` from `schema.prisma` (now in `prisma.config.ts`);
