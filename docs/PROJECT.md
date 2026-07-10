@@ -73,7 +73,8 @@ _Add auth, blob, and AI provider keys here as they're introduced._
 
 ## Related docs
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) · [DATABASE.md](./DATABASE.md) · [API.md](./API.md)
-- [AI_PROVIDERS.md](./AI_PROVIDERS.md) · [PROMPTS.md](./PROMPTS.md)
-- [ROADMAP.md](./ROADMAP.md) · [TODO.md](./TODO.md) · [DECISIONS.md](./DECISIONS.md)
-- [CHANGELOG.md](./CHANGELOG.md)
+- **Product:** [VISION.md](./VISION.md) · [PROJECT_SPEC.md](./PROJECT_SPEC.md)
+- **Architecture:** [ARCHITECTURE.md](./ARCHITECTURE.md) · [DATABASE.md](./DATABASE.md) · [API.md](./API.md) · [AI_PROVIDERS.md](./AI_PROVIDERS.md) · [PROMPTS.md](./PROMPTS.md)
+- **UI/UX:** [UI_DESIGN.md](./UI_DESIGN.md) · [NAVIGATION.md](./NAVIGATION.md) · [COMPONENT_GUIDELINES.md](./COMPONENT_GUIDELINES.md) · [UX_PRINCIPLES.md](./UX_PRINCIPLES.md)
+- **Workspace:** [WORKSPACE.md](./WORKSPACE.md) · [WORKSPACE_API.md](./WORKSPACE_API.md)
+- **Process:** [ROADMAP.md](./ROADMAP.md) · [TODO.md](./TODO.md) · [DECISIONS.md](./DECISIONS.md) · [CHANGELOG.md](./CHANGELOG.md)

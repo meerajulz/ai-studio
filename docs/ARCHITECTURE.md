@@ -26,16 +26,20 @@ Next.js 16 App Router (RSC, Turbopack)
 | `lib/blob/`        | Upload/download helpers for Vercel Blob.                              |
 | `lib/db/`          | Prisma client singleton + query helpers.                              |
 | `lib/validations/` | Zod schemas shared between forms, actions, and API.                   |
-| `lib/providers/`   | React context providers (Query client, theme, tooltip, etc.).         |
+| `lib/providers/`   | React context providers: `QueryProvider` (TanStack Query), `WorkspaceProvider` (active project), Tooltip. |
 | `store/`           | Client-side state.                                                     |
-| `components/`      | Presentation. `ui/` (shadcn), plus `forms/ gallery/ upload/ shared/`.  |
+| `components/`      | Presentation. `ui/` (shadcn), plus `projects/ shared/ auth/ forms/ gallery/ upload/`. |
 
 ## Rendering model
 
 - **Server Components** by default — data fetching happens on the server.
 - **Client Components** (`"use client"`) only where interactivity/browser APIs are needed.
-- The root layout wraps the app in client providers (e.g. `TooltipProvider`); see
-  `src/lib/providers/` as these grow.
+- The root layout wraps the app in client providers (`QueryProvider`, `TooltipProvider`,
+  Sonner `Toaster`). The `AppShell` adds `WorkspaceProvider` so authenticated pages share
+  the **active project** (the workspace context — powers the breadcrumb name, and later
+  per-project defaults). See DECISIONS #018 and [WORKSPACE.md](./WORKSPACE.md).
+- Nested route layouts scope data: `app/(protected)/layout.tsx` guards auth once, and
+  `projects/[id]/layout.tsx` fetches the project once for all its tabs.
 
 ## Key data flows
 
