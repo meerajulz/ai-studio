@@ -11,6 +11,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 - Project documentation set under `docs/` (PROJECT, ARCHITECTURE, ROADMAP, DATABASE,
   AI_PROVIDERS, API, PROMPTS, CHANGELOG, DECISIONS, TODO, VISION, PROJECT_SPEC,
   NEXT_SESSION_PLAN).
+- UI foundation docs (before building more UI): **UI_DESIGN.md** (tokens, typography,
+  spacing, radius, buttons, cards, animations), **NAVIGATION.md** (public/protected route
+  map + app shell), **COMPONENT_GUIDELINES.md** (reusable components: PageContainer,
+  Header, Sidebar, SectionTitle, EmptyState, LoadingState, ProjectCard, MediaCard,
+  UploadCard).
 - `src/`-based folder structure (`actions/`, `components/{ui,forms,gallery,upload,shared}`,
   `hooks/`, `lib/{ai,auth,blob,db,validations,providers}`, `services/`, `store/`,
   `types/`, `styles/`).
