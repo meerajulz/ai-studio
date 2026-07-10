@@ -294,3 +294,30 @@ Better Auth CLI `generate` (path-alias resolution risk); NextAuth/Auth.js; Clerk
 
 Status
 Accepted — implemented, sign-up/sign-in verified end-to-end
+
+---
+
+# Decision 014
+
+Date
+2026-07-10
+
+Decision
+Auth flow UI: `/login` and `/register` use the shadcn `Form` component with React Hook
+Form + Zod (`src/lib/validations/auth.ts`) and the Better Auth browser client. Route
+protection is enforced **server-side** in each page via
+`auth.api.getSession({ headers: await headers() })` + `redirect()` — authed users are
+redirected away from auth pages, unauth users away from protected pages. A temporary
+`/dashboard` renders a `UserMenu` (name/email/sign out) purely to verify the flow.
+
+Reason
+Server-side guards avoid the auth-state flash of client-only checks and are harder to
+bypass. RHF + Zod gives typed validation reused from `lib/validations`. Keeping the
+verification UI unstyled matches "backend-first" (Decision 008).
+
+Alternatives
+Client-side guards with `useSession`; middleware-based redirects; a shared route-group
+layout guard (may adopt the layout-guard pattern for the real dashboard later).
+
+Status
+Accepted — implemented, full flow verified (redirects + session gating)
