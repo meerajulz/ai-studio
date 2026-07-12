@@ -24,6 +24,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   `PageContainer` / `SectionTitle` / `EmptyState` / `LoadingState`. Placeholder pages for
   Projects, Gallery, Uploads, Templates, Settings. Responsive (mobile menu via sheet).
   Root `/` now redirects by session.
+- **Storage Foundation** (Milestone 7A): modular `src/lib/blob/` package for Vercel Blob —
+  `constants.ts` (limits/allowed MIME/token/path builder), `types.ts` (`MediaKind`,
+  `StoredBlob`, `AssetMetadata`), `validation.ts` (MIME + size), `errors.ts`
+  (`StorageError` + codes), `server.ts` (`uploadAsset`/`deleteAsset` via `put`/`del`),
+  `client.ts` (`uploadAssetFromBrowser`), `index.ts` (shared barrel). Env
+  `BLOB_READ_WRITE_TOKEN` + `.env.example` (now committable via `.gitignore` exception).
+  New `docs/MEDIA_PIPELINE.md`. Validation/error logic verified (12 tests); no UI yet.
 - **Project Workspace** (Milestone 6): tabbed workspace under
   `app/(protected)/projects/[id]/` — a shared `layout.tsx` fetches the project once
   (owner-scoped, 404 otherwise) and renders `ProjectLayout` (project header + section

@@ -5,7 +5,22 @@
 
 ## High priority
 
-- [ ] **Vercel Blob storage** + upload helpers (`src/lib/blob/`) — next milestone
+### Storage Foundation (7A) — done
+- [x] Configure Vercel Blob (`@vercel/blob`, `BLOB_READ_WRITE_TOKEN`)
+- [x] Blob helper library (`src/lib/blob/` client/server/validation/constants/errors/types)
+- [x] Upload validation (MIME + size)
+- [x] Delete helper
+- [x] Shared storage types + centralized error handling (`StorageError`)
+- [x] Environment variables (`.env.example`)
+
+### Upload System (7B) — next
+- [ ] `/api/uploads` handle-upload route (issues client tokens)
+- [ ] Drag & drop upload (Uploads tab)
+- [ ] Upload queue · progress · retry · cancel
+- [ ] Persist `UploadedMedia` records associated with the current project
+- [ ] Extend `UploadedMedia` for the asset model (pathname, originalFilename, duration)
+
+### Housekeeping
 - [ ] Clean up stray `~/package-lock.json` confusing Next.js workspace-root detection
 
 ## Medium priority
@@ -17,7 +32,7 @@
 
 ## Low priority / nice-to-have
 
-- [ ] Add `.env.example` (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`)
+- [x] Add `.env.example` (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `BLOB_READ_WRITE_TOKEN`)
 - [ ] Add `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL` to Vercel env before deploy
 - [ ] CI pipeline (typecheck, build) on Node ≥ 20.19
 - [ ] Optional: nvm auto-switch on `cd` (deferred — user declined editing `~/.zshrc`)

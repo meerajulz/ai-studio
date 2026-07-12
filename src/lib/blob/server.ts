@@ -1,0 +1,77 @@
+import { del, put } from "@vercel/blob";
+
+import { BLOB_TOKEN_ENV } from "./constants";
+import { StorageError } from "./errors";
+import { mediaKindForMime } from "./validation";
+import type { MediaKind, StoredBlob } from "./types";
+
+type UploadBody = string | ArrayBuffer | Blob | Buffer | ReadableStream;
+
+function getBlobToken(): string {
+  const token = process.env[BLOB_TOKEN_ENV];
+  if (!token) {
+    throw new StorageError(
+      "MISSING_TOKEN",
+      `${BLOB_TOKEN_ENV} is not set. Create a Vercel Blob store and add its token to .env.`,
+    );
+  }
+  return token;
+}
+
+function byteSize(data: UploadBody): number {
+  if (typeof Blob !== "undefined" && data instanceof Blob) return data.size;
+  if (data instanceof ArrayBuffer) return data.byteLength;
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(data)) return data.length;
+  if (typeof data === "string") return Buffer.byteLength(data);
+  return 0; // streams: unknown up front
+}
+
+/** Upload a file to blob storage (server side). */
+export async function uploadAsset(params: {
+  pathname: string;
+  data: UploadBody;
+  contentType?: string;
+  addRandomSuffix?: boolean;
+}): Promise<StoredBlob> {
+  const token = getBlobToken();
+  try {
+    const res = await put(params.pathname, params.data, {
+      access: "public",
+      token,
+      contentType: params.contentType,
+      addRandomSuffix: params.addRandomSuffix ?? true,
+    });
+    const contentType =
+      res.contentType ?? params.contentType ?? "application/octet-stream";
+    const kind: MediaKind = mediaKindForMime(contentType) ?? "image";
+    return {
+      url: res.url,
+      pathname: res.pathname,
+      contentType,
+      size: byteSize(params.data),
+      kind,
+      uploadedAt: new Date(),
+    };
+  } catch (error) {
+    if (error instanceof StorageError) throw error;
+    throw new StorageError(
+      "UPLOAD_FAILED",
+      error instanceof Error ? error.message : "Upload failed.",
+    );
+  }
+}
+
+/** Delete one or more assets by blob URL (or pathname). */
+export async function deleteAsset(
+  urlOrPathname: string | string[],
+): Promise<void> {
+  const token = getBlobToken();
+  try {
+    await del(urlOrPathname, { token });
+  } catch (error) {
+    throw new StorageError(
+      "DELETE_FAILED",
+      error instanceof Error ? error.message : "Delete failed.",
+    );
+  }
+}

@@ -45,7 +45,12 @@
 
 ## In Progress
 
-- [ ] Storage strategy (Vercel Blob) ← **next**
+- [x] Storage Foundation (7A) — `src/lib/blob/` package (client/server/validation/
+      constants/errors/types), Vercel Blob upload/delete helpers, MIME + size validation,
+      `MEDIA_PIPELINE.md`, `.env.example`. No UI.
+- [ ] Upload System (7B) — Uploads tab: drag & drop, queue, progress, retry/cancel,
+      persist `UploadedMedia` per project ← **next**
+- [ ] Gallery (8) · Identity Manager (9) · AI generation
 
 ---
 

@@ -436,3 +436,36 @@ Status
 Accepted — implemented (shell only). Overview + 6 placeholder tabs, breadcrumb name,
 loading/empty states; verified via build + owner-scoped route tests. No uploads/blob/
 gallery/AI yet.
+
+---
+
+# Decision 019
+
+Date
+2026-07-10
+
+Decision
+Build the storage layer **before** any upload UI (like Prisma before features): a modular
+`src/lib/blob/` package on Vercel Blob, split into `constants` / `types` / `validation` /
+`errors` / `server` / `client` / `index`. Server (`put`/`del`) and browser (`upload`)
+helpers live in separate entry points; the barrel exports only the shared/isomorphic
+pieces. Validation (MIME + size) and error handling (`StorageError`) are pure and
+provider-agnostic. Treat uploaded media as first-class **assets** (blob location +
+metadata + project/owner + filename + future tags/AI-usage), captured in
+`AssetMetadata` / MEDIA_PIPELINE.md.
+
+Reason
+Separating infrastructure from the feature that uses it keeps upload/gallery/identity
+work simple and testable. The asset model avoids a redesign when reuse/search/history
+features arrive. Keeping validation provider-agnostic means the storage backend could be
+swapped later.
+
+Alternatives
+Build upload UI + storage together; a single blob module; store media as plain "files"
+without an asset model; another storage backend (S3/R2) — Vercel Blob chosen for
+first-class Vercel integration (DECISIONS #010 stack).
+
+Status
+Accepted — implemented (7A). Package + validation/errors verified (12 tests). Real
+upload/delete require `BLOB_READ_WRITE_TOKEN` (Vercel Blob store) — to verify once set.
+`UploadedMedia` persistence + Uploads UI come in 7B.
