@@ -33,8 +33,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   `BLOB_READ_WRITE_TOKEN` + `.env.example` (now committable via `.gitignore` exception).
   New `docs/MEDIA_PIPELINE.md` (documents the token requirement + how to add it on Vercel
   when a connected store only exposes `BLOB_STORE_ID`/`BLOB_WEBHOOK_PUBLIC_KEY`).
-  Validation/error logic is pure and typechecked; no UI yet and no upload/delete called
-  until 7B, so the token isn't needed to build or run today.
+  Validation/error logic is pure and typechecked. Uploads use **private** access
+  (`access: "private"`) to match the private `ai-studio-media` store; added
+  `getSignedUrl()` (Vercel Blob `issueSignedToken` → `presignUrl`) to mint short-lived
+  view URLs, and `SIGN_URL_FAILED` error code. **Verified end-to-end against the live
+  store** via `scripts/verify-blob.ts` (upload → raw URL 403 → signed URL serves bytes →
+  delete → 404). No UI yet.
 - **Project Workspace** (Milestone 6): tabbed workspace under
   `app/(protected)/projects/[id]/` — a shared `layout.tsx` fetches the project once
   (owner-scoped, 404 otherwise) and renders `ProjectLayout` (project header + section

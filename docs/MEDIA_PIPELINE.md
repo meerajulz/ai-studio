@@ -51,12 +51,22 @@ adding `pathname`, `originalFilename`, and `durationSeconds`.
 | `types.ts` | `MediaKind`, `StoredBlob`, `AssetMetadata`, validation result types |
 | `validation.ts` | Pure MIME + size validation (`validateFile`, `assertValidFile`) |
 | `errors.ts` | `StorageError` + codes (centralized error handling) |
-| `server.ts` | `uploadAsset`, `deleteAsset` (Vercel Blob `put`/`del`), `isBlobConfigured()` |
+| `server.ts` | `uploadAsset`, `deleteAsset`, `getSignedUrl`, `isBlobConfigured()` |
 | `client.ts` | `uploadAssetFromBrowser` (client upload flow — used in 7B) |
 | `index.ts` | Barrel for the shared/isomorphic exports (not server/client) |
 
 **Limits:** images ≤ 10 MB, videos ≤ 200 MB. **Types:** jpeg/png/webp/gif/avif,
 mp4/webm/quicktime.
+
+### Access model — **private** store + signed URLs
+
+The `ai-studio-media` store is **private** (Decision 021): uploads use `access: "private"`,
+so an asset's raw blob URL is **not** publicly reachable (returns `403`). To display media,
+call `getSignedUrl(pathname)` — it mints a short-lived (default 1h) signed URL via Vercel
+Blob's `issueSignedToken` → `presignUrl` flow. So the pipeline stores each asset's
+`pathname` and signs a fresh URL when the Gallery/Identities render it, rather than caching
+a permanent public URL. Verified end-to-end against the live store (upload → 403 on raw URL
+→ signed URL serves → delete → 404).
 
 ### Config — `BLOB_READ_WRITE_TOKEN` (required for real uploads)
 

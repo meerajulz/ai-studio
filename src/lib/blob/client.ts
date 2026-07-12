@@ -15,7 +15,7 @@ export async function uploadAssetFromBrowser(params: {
   onProgress?: (percentage: number) => void;
 }): Promise<StoredBlob> {
   const res = await upload(params.pathname, params.file, {
-    access: "public",
+    access: "private",
     handleUploadUrl: params.handleUploadUrl ?? "/api/uploads",
     contentType: params.file.type,
     onUploadProgress: params.onProgress

@@ -4,7 +4,8 @@ export type StorageErrorCode =
   | "INVALID_MIME_TYPE"
   | "FILE_TOO_LARGE"
   | "UPLOAD_FAILED"
-  | "DELETE_FAILED";
+  | "DELETE_FAILED"
+  | "SIGN_URL_FAILED";
 
 /** Centralized error type for the storage layer. */
 export class StorageError extends Error {

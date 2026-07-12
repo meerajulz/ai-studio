@@ -466,10 +466,10 @@ without an asset model; another storage backend (S3/R2) — Vercel Blob chosen f
 first-class Vercel integration (DECISIONS #010 stack).
 
 Status
-Accepted — implemented (7A) and deployed to Vercel. Package builds + typechecks; pure
-validation/error logic. Added `isBlobConfigured()` for graceful degradation. Real
-upload/delete require `BLOB_READ_WRITE_TOKEN` (Vercel Blob store) — to verify once set.
-`UploadedMedia` persistence + Uploads UI come in 7B.
+Accepted — implemented (7A), deployed to Vercel, and **verified end-to-end against the
+live Blob store** (`scripts/verify-blob.ts`: upload → signed-URL read → delete). Added
+`isBlobConfigured()` for graceful degradation. Access model finalized as private — see
+Decision 021. `UploadedMedia` persistence + Uploads UI come in 7B.
 
 ---
 
@@ -501,3 +501,35 @@ integration/Accelerate; keep the eager singleton and require `DATABASE_URL` at b
 Status
 Accepted — implemented; local clean build verified with `src/generated/prisma` removed
 and with `DATABASE_URL` unset.
+
+---
+
+# Decision 021
+
+Date
+2026-07-12
+
+Decision
+Store media in a **private** Vercel Blob store (`ai-studio-media`). Uploads use
+`access: "private"`, so raw blob URLs are not publicly reachable; media is served via
+**short-lived signed URLs** minted server-side by `getSignedUrl(pathname)` (Vercel Blob
+`issueSignedToken` → `presignUrl`, default 1h TTL). Persistence stores each asset's
+`pathname`; Gallery/Identities request a fresh signed URL per render rather than caching a
+permanent URL.
+
+Reason
+The media is personal and identity-based (faces, reference photos), so public-by-URL
+access is inappropriate even with unguessable suffixes. A private store keeps assets
+authenticated; signing on demand scopes access and lets URLs expire. The store was already
+created as private, and this was validated end-to-end before building the Upload API to
+avoid discovering an access mismatch mid-feature.
+
+Alternatives
+Public store with unguessable random-suffix URLs (simpler, direct `<img src>`, rejected
+for privacy); making the store public to match the original `access: "public"` code;
+proxying every asset through a Next route that streams `get()` (more server load than
+signed URLs).
+
+Status
+Accepted — implemented and **verified end-to-end against the live private store**
+(`scripts/verify-blob.ts`: upload → raw URL 403 → signed URL serves → delete → 404).
