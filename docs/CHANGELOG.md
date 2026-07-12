@@ -28,9 +28,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   `constants.ts` (limits/allowed MIME/token/path builder), `types.ts` (`MediaKind`,
   `StoredBlob`, `AssetMetadata`), `validation.ts` (MIME + size), `errors.ts`
   (`StorageError` + codes), `server.ts` (`uploadAsset`/`deleteAsset` via `put`/`del`),
-  `client.ts` (`uploadAssetFromBrowser`), `index.ts` (shared barrel). Env
+  `client.ts` (`uploadAssetFromBrowser`), `index.ts` (shared barrel), plus
+  `isBlobConfigured()` so callers can detect a missing token and degrade gracefully. Env
   `BLOB_READ_WRITE_TOKEN` + `.env.example` (now committable via `.gitignore` exception).
-  New `docs/MEDIA_PIPELINE.md`. Validation/error logic verified (12 tests); no UI yet.
+  New `docs/MEDIA_PIPELINE.md` (documents the token requirement + how to add it on Vercel
+  when a connected store only exposes `BLOB_STORE_ID`/`BLOB_WEBHOOK_PUBLIC_KEY`).
+  Validation/error logic is pure and typechecked; no UI yet and no upload/delete called
+  until 7B, so the token isn't needed to build or run today.
 - **Project Workspace** (Milestone 6): tabbed workspace under
   `app/(protected)/projects/[id]/` — a shared `layout.tsx` fetches the project once
   (owner-scoped, 404 otherwise) and renders `ProjectLayout` (project header + section
@@ -92,6 +96,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   runtime connects via a driver adapter.
 
 ### Fixed
+- **Vercel deploy** (3 issues): (1) the gitignored `src/generated/prisma` wasn't generated
+  on Vercel → added `prisma generate` via `postinstall` and the `build` script; (2)
+  `prisma.config.ts` imports `dotenv/config` but `dotenv` was only a transitive dep →
+  declared it explicitly so `prisma generate` resolves under a clean `npm ci`; (3)
+  `src/lib/db/client.ts` threw `DATABASE_URL is not set` at import time, failing
+  `next build` page-data collection → the client is now instantiated lazily (a `Proxy`
+  that connects + checks env on first query), so the build no longer needs `DATABASE_URL`.
 - Prisma generator output path → `src/generated/prisma` (was `../app/generated/prisma`);
   `.gitignore` updated to match.
 - `UserNav` dropdown crashed on open (`MenuGroupContext is missing`): Base UI's

@@ -7,12 +7,22 @@ import type { MediaKind, StoredBlob } from "./types";
 
 type UploadBody = string | ArrayBuffer | Blob | Buffer | ReadableStream;
 
+/**
+ * Whether blob storage is configured (a read/write token is present). Lets callers
+ * (e.g. the Uploads UI in 7B) degrade gracefully instead of hitting a thrown error.
+ * On Vercel, connecting a Blob store to the project injects `BLOB_READ_WRITE_TOKEN`
+ * automatically; locally, set it in `.env` (see `.env.example`).
+ */
+export function isBlobConfigured(): boolean {
+  return Boolean(process.env[BLOB_TOKEN_ENV]);
+}
+
 function getBlobToken(): string {
   const token = process.env[BLOB_TOKEN_ENV];
   if (!token) {
     throw new StorageError(
       "MISSING_TOKEN",
-      `${BLOB_TOKEN_ENV} is not set. Create a Vercel Blob store and add its token to .env.`,
+      `${BLOB_TOKEN_ENV} is not set. Connect a Vercel Blob store to the project (or add the token to .env).`,
     );
   }
   return token;

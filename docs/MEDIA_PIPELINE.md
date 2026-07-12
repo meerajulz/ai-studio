@@ -51,13 +51,30 @@ adding `pathname`, `originalFilename`, and `durationSeconds`.
 | `types.ts` | `MediaKind`, `StoredBlob`, `AssetMetadata`, validation result types |
 | `validation.ts` | Pure MIME + size validation (`validateFile`, `assertValidFile`) |
 | `errors.ts` | `StorageError` + codes (centralized error handling) |
-| `server.ts` | `uploadAsset`, `deleteAsset` (Vercel Blob `put`/`del`) |
+| `server.ts` | `uploadAsset`, `deleteAsset` (Vercel Blob `put`/`del`), `isBlobConfigured()` |
 | `client.ts` | `uploadAssetFromBrowser` (client upload flow — used in 7B) |
 | `index.ts` | Barrel for the shared/isomorphic exports (not server/client) |
 
-**Config:** set `BLOB_READ_WRITE_TOKEN` in `.env` (see `.env.example`).
 **Limits:** images ≤ 10 MB, videos ≤ 200 MB. **Types:** jpeg/png/webp/gif/avif,
 mp4/webm/quicktime.
+
+### Config — `BLOB_READ_WRITE_TOKEN` (required for real uploads)
+
+`server.ts` reads `BLOB_READ_WRITE_TOKEN` and passes it to `@vercel/blob`; without it,
+`uploadAsset`/`deleteAsset` throw `MISSING_TOKEN`. `isBlobConfigured()` reports its
+presence so the UI can degrade gracefully. `BLOB_STORE_ID` and `BLOB_WEBHOOK_PUBLIC_KEY`
+(injected alongside a connected store) do **not** replace it — they only identify the
+store and verify webhook signatures.
+
+- **Vercel:** connecting a Blob store to the project normally injects
+  `BLOB_READ_WRITE_TOKEN` automatically. If only `BLOB_STORE_ID` /
+  `BLOB_WEBHOOK_PUBLIC_KEY` appear, add it manually: **Storage → the Blob store →
+  `.env.local`/Connect tab → copy `BLOB_READ_WRITE_TOKEN`**, then paste it under
+  **Settings → Environment Variables** and redeploy.
+- **Local:** set it in `.env` (see `.env.example`).
+
+Nothing calls upload/delete until the Uploads feature (7B), so the app builds and runs
+without the token today; it's only needed once uploads are wired up.
 
 ## Path convention
 

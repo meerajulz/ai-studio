@@ -466,6 +466,38 @@ without an asset model; another storage backend (S3/R2) — Vercel Blob chosen f
 first-class Vercel integration (DECISIONS #010 stack).
 
 Status
-Accepted — implemented (7A). Package + validation/errors verified (12 tests). Real
+Accepted — implemented (7A) and deployed to Vercel. Package builds + typechecks; pure
+validation/error logic. Added `isBlobConfigured()` for graceful degradation. Real
 upload/delete require `BLOB_READ_WRITE_TOKEN` (Vercel Blob store) — to verify once set.
 `UploadedMedia` persistence + Uploads UI come in 7B.
+
+---
+
+# Decision 020
+
+Date
+2026-07-12
+
+Decision
+Make the app build reliably on Vercel: (1) generate the Prisma client at build via a
+`postinstall` + a `prisma generate` prefix on the `build` script, since the generated
+client (`src/generated/prisma`) is gitignored; (2) declare `dotenv` as an explicit
+devDependency because `prisma.config.ts` imports `dotenv/config`; (3) instantiate the
+`PrismaClient` singleton **lazily** behind a `Proxy` in `src/lib/db/client.ts` so
+importing the db layer during `next build` page-data collection does not require
+`DATABASE_URL` — the connection and env check happen on first query.
+
+Reason
+The gitignored generated client and an import-time `DATABASE_URL` check both broke the
+Vercel build (module-not-found, then `DATABASE_URL is not set`). Generating on build and
+deferring instantiation keeps runtime behavior identical while decoupling the build from
+runtime secrets and generated artifacts.
+
+Alternatives
+Commit the generated client (rejected — build output in git); use a Prisma Vercel
+integration/Accelerate; keep the eager singleton and require `DATABASE_URL` at build time
+(rejected — couples build to runtime secrets).
+
+Status
+Accepted — implemented; local clean build verified with `src/generated/prisma` removed
+and with `DATABASE_URL` unset.

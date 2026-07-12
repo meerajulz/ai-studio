@@ -43,11 +43,14 @@
       Templates/Jobs/Settings placeholders), workspace context + breadcrumb name,
       responsive tabs, loading/empty states. Shell only.
 
+- [x] Storage Foundation (7A) — `src/lib/blob/` package (client/server/validation/
+      constants/errors/types), Vercel Blob upload/delete helpers + `isBlobConfigured()`,
+      MIME + size validation, `MEDIA_PIPELINE.md`, `.env.example`. Deployed to Vercel
+      (build fixes: prisma generate on build, dotenv declared, lazy Prisma client). No UI;
+      real uploads await `BLOB_READ_WRITE_TOKEN` + 7B.
+
 ## In Progress
 
-- [x] Storage Foundation (7A) — `src/lib/blob/` package (client/server/validation/
-      constants/errors/types), Vercel Blob upload/delete helpers, MIME + size validation,
-      `MEDIA_PIPELINE.md`, `.env.example`. No UI.
 - [ ] Upload System (7B) — Uploads tab: drag & drop, queue, progress, retry/cancel,
       persist `UploadedMedia` per project ← **next**
 - [ ] Gallery (8) · Identity Manager (9) · AI generation
