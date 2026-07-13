@@ -49,11 +49,15 @@
       (build fixes: prisma generate on build, dotenv declared, lazy Prisma client). No UI;
       real uploads await `BLOB_READ_WRITE_TOKEN` + 7B.
 
+- [x] Upload System (7B) — Uploads tab: drag & drop, queue, progress, retry/cancel, persist
+      `UploadedMedia` (images + videos) per project. New **media layer** (`src/lib/media/`)
+      that feature code depends on; `/api/uploads` scoped-token route; owner-scoped
+      throughout. Verified end-to-end against the live private store + DB
+      (`scripts/verify-uploads.ts`).
+
 ## In Progress
 
-- [ ] Upload System (7B) — Uploads tab: drag & drop, queue, progress, retry/cancel,
-      persist `UploadedMedia` per project ← **next**
-- [ ] Gallery (8) · Identity Manager (9) · AI generation
+- [ ] Gallery (8) ← **next** · Identity Manager (9) · AI generation
 
 ---
 
@@ -65,7 +69,7 @@
 - [x] Identity model
 - [x] Generation model
 - [x] Prisma client runtime (`src/lib/db/` + `@prisma/adapter-neon`) — verified vs Neon
-- [ ] Upload API
+- [x] Upload API (`/api/uploads` scoped-token route + media layer)
 - [ ] Gallery API
 
 ---

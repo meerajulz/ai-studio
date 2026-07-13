@@ -157,14 +157,18 @@ model Identity {
 }
 
 model UploadedMedia {
-  id        String    @id @default(cuid())
-  type      MediaType
-  blobUrl   String
-  mimeType  String?
-  width     Int?
-  height    Int?
-  sizeBytes Int?
-  createdAt DateTime  @default(now())
+  id               String    @id @default(cuid())
+  type             MediaType
+  blobUrl          String // raw (private) blob URL — used for deletion
+  pathname         String // blob key within the store — used to sign view URLs
+  originalFilename String? // the file name the user uploaded
+  mimeType         String?
+  width            Int? // images + videos
+  height           Int?
+  durationSeconds  Int? // videos
+  sizeBytes        Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)

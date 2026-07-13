@@ -533,3 +533,64 @@ signed URLs).
 Status
 Accepted — implemented and **verified end-to-end against the live private store**
 (`scripts/verify-blob.ts`: upload → raw URL 403 → signed URL serves → delete → 404).
+
+# Decision 022
+
+Date
+2026-07-13
+
+Decision
+Introduce a dedicated **media layer** (`src/lib/media/`) that sits between feature code and
+the blob layer. Feature code (Server Actions, the upload route, components, hooks) depends
+**only** on the media layer — never on `src/lib/blob/*` directly. The split of
+responsibilities is: blob layer = how to store/sign/delete bytes; media layer = what an
+"asset" is, who owns it, how it's persisted (`UploadedMedia`), and how stored assets become
+signed, renderable URLs. `media/server.ts` (persist/list/delete/ownership + client-token
+issuance), `media/client.ts` (browser upload + dimension probing), `media/types.ts`
+(the `UploadedAsset` contract), `media/index.ts` (shared-types barrel).
+
+Reason
+Keeps the layers clean as the roadmap grows (Gallery, Identities, then AI outputs) — every
+media consumer builds on one owner-scoped boundary instead of re-deriving storage + auth +
+persistence rules. Ownership is enforced in exactly one place (the media layer), and the
+blob layer stays a thin, provider-shaped storage primitive we could swap. Explicitly avoids
+coupling uploads to AI: uploads are just media.
+
+Alternatives
+Call blob helpers straight from Server Actions/components (rejected — scatters ownership and
+persistence logic, couples features to the SDK); a generic "storage service" that also owned
+AI outputs (premature — GeneratedMedia has a different lifecycle; revisit when AI lands).
+
+Status
+Accepted — implemented; verified via `scripts/verify-uploads.ts` (persist → sign → list →
+owner-authorization → delete against the live store + DB).
+
+# Decision 023
+
+Date
+2026-07-13
+
+Decision
+For the browser upload flow, persist the `UploadedMedia` record with an **explicit Server
+Action** (`createUpload`) that the client calls after `@vercel/blob` finishes storing the
+bytes — **not** via the Blob `onUploadCompleted` webhook. The `/api/uploads` route still
+implements `handleUpload`, but only to authorize + mint a scoped client token
+(`onBeforeGenerateToken`: verify the user owns the project, lock the token to that project's
+path + allowed MIME types + max size). Width/height/duration are probed client-side and sent
+to the persist action, which re-validates ownership, path prefix, MIME, and size.
+
+Reason
+The `onUploadCompleted` webhook cannot reach `localhost`, so relying on it would make local
+verification impossible and split persistence across environments. An explicit action makes
+the persist step deterministic, lets us attach client-probed dimensions, and re-checks
+authorization at the data boundary so a crafted request can't attach a blob to another
+user's project. Token issuance stays the single choke point for upload authorization.
+
+Alternatives
+Persist in `onUploadCompleted` (rejected — no localhost delivery, no client-probed
+dimensions); server-side multipart upload proxying bytes through the app (rejected — defeats
+the point of direct-to-Blob client uploads and adds server load).
+
+Status
+Accepted — implemented and verified (image + video upload, signed URLs, metadata, delete,
+owner authorization).

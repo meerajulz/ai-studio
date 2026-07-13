@@ -13,12 +13,18 @@
 - [x] Shared storage types + centralized error handling (`StorageError`)
 - [x] Environment variables (`.env.example`)
 
-### Upload System (7B) — next
-- [ ] `/api/uploads` handle-upload route (issues client tokens)
-- [ ] Drag & drop upload (Uploads tab)
-- [ ] Upload queue · progress · retry · cancel
-- [ ] Persist `UploadedMedia` records associated with the current project
-- [ ] Extend `UploadedMedia` for the asset model (pathname, originalFilename, duration)
+### Upload System (7B) — done
+- [x] `/api/uploads` handle-upload route (issues scoped client tokens; owner-checked)
+- [x] Media layer (`src/lib/media/`) — feature code depends on this, not the blob layer
+- [x] Drag & drop upload (Uploads tab) + click-to-browse, multiple
+- [x] Upload queue · progress · retry · cancel (`use-upload-manager`, `p-limit`)
+- [x] Persist `UploadedMedia` records associated with the current project
+- [x] Extend `UploadedMedia` for the asset model (pathname, originalFilename, duration, updatedAt)
+- [x] Verify end-to-end vs the live private store + DB (`scripts/verify-uploads.ts`)
+
+### Gallery (8) — next
+- [ ] Gallery page: display uploaded (+ later generated) media across the project
+- [ ] Reusable `MediaCard` (promote from the upload tile) + signed-URL rendering
 
 ### Housekeeping
 - [ ] Clean up stray `~/package-lock.json` confusing Next.js workspace-root detection

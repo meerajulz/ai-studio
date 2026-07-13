@@ -1,20 +1,11 @@
-import { Upload } from "lucide-react";
+import { isBlobConfigured } from "@/lib/blob/server";
+import { UploadsView } from "@/components/upload/uploads-view";
 
-import { SectionTitle } from "@/components/shared/section-title";
-import { EmptyState } from "@/components/shared/empty-state";
-
-export default function ProjectUploadsPage() {
-  return (
-    <div className="grid gap-6">
-      <SectionTitle
-        title="Uploads"
-        description="Reference media used as input for this project."
-      />
-      <EmptyState
-        icon={Upload}
-        title="No uploads yet"
-        description="Uploading arrives with storage integration."
-      />
-    </div>
-  );
+export default async function ProjectUploadsPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  return <UploadsView projectId={id} blobReady={isBlobConfigured()} />;
 }

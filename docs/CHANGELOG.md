@@ -8,6 +8,31 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Upload System** (Milestone 7B): the Uploads tab of a project workspace now supports real
+  image **and** video uploads to the private Blob store. **Media layer** (`src/lib/media/`,
+  Decision 022) that all feature code depends on instead of the blob layer directly:
+  `server.ts` (`persistUpload`/`listProjectUploads`/`deleteUpload` + project-ownership
+  guard + client-token issuance), `client.ts` (`uploadProjectMedia` — browser upload +
+  best-effort width/height/duration probing), `types.ts` (`UploadedAsset` contract),
+  `index.ts` (shared-types barrel). **`/api/uploads`** route implements `@vercel/blob`
+  `handleUpload` to authorize + mint a **scoped client token** (`onBeforeGenerateToken`
+  verifies the user owns the target project and locks the token to that project's path +
+  allowed MIME types + 200 MB ceiling); metadata is persisted by an explicit `createUpload`
+  Server Action after the upload (not the localhost-unreachable `onUploadCompleted` webhook —
+  Decision 023). Owner-scoped Server Actions in `actions/uploads.ts`; shared `requireUserId`
+  helper (`lib/auth/session.ts`, also adopted by `actions/projects.ts`). **UI** under
+  `src/components/upload/`: `UploadDropzone` (drag & drop + click-to-browse, multiple),
+  `UploadQueueItem` (progress bar, cancel, retry, remove), `UploadedMediaCard`
+  (image/video thumbnail via signed URL + delete), `DeleteUploadDialog`, and `UploadsView`
+  (three-state grid: `LoadingState`/`EmptyState`/content + "storage not configured" notice).
+  Client hooks: `use-uploads.ts` (TanStack Query list + delete, key `["uploads", projectId]`)
+  and `use-upload-manager.ts` (transient queue with `p-limit` concurrency of 3, friendly
+  validation errors via Sonner). **DB:** extended `UploadedMedia` (`pathname`,
+  `originalFilename`, `durationSeconds`, `updatedAt`) via migration
+  `add_upload_media_metadata`. **Verified end-to-end against the live private store + DB**
+  via `scripts/verify-uploads.ts` (upload image + video → raw URL 403 / signed URL 200 →
+  metadata persisted → owner authorization denied for another user → delete). Build +
+  `tsc --noEmit` pass. No Gallery/Identity/AI work — uploads stay decoupled from AI.
 - Project documentation set under `docs/` (PROJECT, ARCHITECTURE, ROADMAP, DATABASE,
   AI_PROVIDERS, API, PROMPTS, CHANGELOG, DECISIONS, TODO, VISION, PROJECT_SPEC,
   NEXT_SESSION_PLAN).

@@ -12,7 +12,7 @@
 | `src/components/shared/` | App-wide building blocks: `AppShell`, `ProjectLayout`, `Sidebar`, `Header`, `Breadcrumb`, `PageContainer`, `SectionTitle`, `EmptyState`, `LoadingState` |
 | `src/components/projects/` | `ProjectCard`, project form/delete dialogs, `ProjectsView` |
 | `src/components/gallery/` | `MediaCard` and gallery pieces |
-| `src/components/upload/` | `UploadCard` and upload pieces |
+| `src/components/upload/` | `UploadsView`, `UploadDropzone`, `UploadQueueItem`, `UploadedMediaCard`, `DeleteUploadDialog` |
 | `src/components/forms/` | Form-specific composites |
 | `src/components/auth/` | Auth forms + user menu (existing) |
 
@@ -126,14 +126,22 @@ props: {
 shows: thumbnail (fixed aspect ratio), type badge, hover actions
 ```
 
-### `UploadCard`
-Upload dropzone / in-progress upload tile.
+### Upload components (`src/components/upload/`) — implemented (7B)
+The Uploads tab is composed from these; state lives in two hooks — `useUploads` (persisted
+data, TanStack Query) and `useUploadManager` (transient in-flight queue).
 ```
-props: {
-  status: "idle" | "uploading" | "done" | "error";
-  progress?: number; fileName?: string; onDrop?: (files: File[]) => void; className?
-}
+UploadsView       props: { projectId: string; blobReady: boolean }
+  — orchestrates dropzone + queue + the three-state persisted grid + delete dialog.
+UploadDropzone    props: { onFiles: (files: File[]) => void; disabled?; className? }
+  — drag & drop + click-to-browse; `accept` from ALLOWED_MIME_TYPES; multiple.
+UploadQueueItem   props: { item: UploadItem; onCancel; onRetry; onRemove }
+  — one in-flight upload: Progress bar while active; retry/remove on error/cancel.
+UploadedMediaCard props: { asset: UploadedAsset; onDelete: (a) => void; className? }
+  — persisted tile: image/video thumbnail via signed URL, type Badge, hover delete.
+DeleteUploadDialog props: { projectId; open; onOpenChange; asset: UploadedAsset | null }
 ```
+> `UploadedMediaCard` is intentionally minimal — the reusable gallery `MediaCard` is a later
+> milestone (8). Don't build gallery features into the upload tile.
 
 ## Composition example
 

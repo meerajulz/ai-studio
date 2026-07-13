@@ -1,19 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
-
-import { auth } from "@/lib/auth";
+import { requireUserId } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { projectInputSchema, type ProjectInput } from "@/lib/validations/project";
-
-/** Resolve the current user id or throw — every action is scoped to the owner. */
-async function requireUserId() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    throw new Error("Unauthorized");
-  }
-  return session.user.id;
-}
 
 const projectSelect = {
   id: true,

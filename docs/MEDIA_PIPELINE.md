@@ -39,9 +39,10 @@ redesign. An asset carries:
 - **Creation date**
 - _(planned)_ **tags**, **AI usage history** (which generations used it)
 
-The storage layer's `AssetMetadata` type (`src/lib/blob/types.ts`) already models this
-shape; `UploadedMedia` will be extended to match when persistence lands (7B) — likely
-adding `pathname`, `originalFilename`, and `durationSeconds`.
+The storage layer's `AssetMetadata` type (`src/lib/blob/types.ts`) models this shape;
+`UploadedMedia` was extended to match when persistence landed (7B) — it now stores
+`pathname` (to sign/delete), `originalFilename`, `width`/`height`, `durationSeconds`,
+`sizeBytes`, and `updatedAt`.
 
 ## Storage layer (`src/lib/blob/`) — implemented (7A)
 
@@ -86,6 +87,37 @@ store and verify webhook signatures.
 Nothing calls upload/delete until the Uploads feature (7B), so the app builds and runs
 without the token today; it's only needed once uploads are wired up.
 
+## Media layer (`src/lib/media/`) — implemented (7B)
+
+The application-level boundary for media. **Feature code (Server Actions, the upload route,
+components, hooks) depends on this, not on `src/lib/blob/*` directly** (Decision 022). The
+blob layer knows how to store/sign/delete bytes; the media layer knows what an *asset* is,
+who owns it, how it's persisted, and how a stored asset becomes a signed, renderable URL.
+
+| File | Responsibility |
+| ---- | -------------- |
+| `types.ts` | `UploadedAsset` (UI contract, signed `url`), `PersistUploadInput`, `MediaDimensions` |
+| `server.ts` | `persistUpload`, `listProjectUploads`, `deleteUpload` (all owner-scoped) + `handleProjectUpload` (client-token issuance with ownership check) |
+| `client.ts` | `uploadProjectMedia` — browser upload (wraps the blob client) + best-effort width/height/duration probing |
+| `index.ts` | Barrel for shared types only (import `server`/`client` directly) |
+
+### Upload flow (browser → private store → DB)
+
+```
+UploadDropzone → useUploadManager (queue, p-limit=3, progress/cancel/retry)
+      ↓  uploadProjectMedia (probe dimensions, build project path)
+@vercel/blob client upload ──► POST /api/uploads  (handleProjectUpload → onBeforeGenerateToken)
+      │                              └─ auth + assertProjectOwnership + lock path/types/size → scoped token
+      ↓  bytes go straight to Blob (private)
+createUpload Server Action ──► persistUpload  (re-validate ownership + path + MIME + size → UploadedMedia row)
+      ↓
+useUploads (TanStack Query) ──► listProjectUploads → fresh signed URL per asset → UploadedMediaCard
+```
+
+Metadata is persisted by the explicit `createUpload` action **after** the upload, not by the
+Blob `onUploadCompleted` webhook (which can't reach localhost) — Decision 023. Verified
+end-to-end against the live private store + DB via `scripts/verify-uploads.ts`.
+
 ## Path convention
 
 Assets are stored under their project: `projects/<projectId>/uploads/<filename>` (with a
@@ -93,6 +125,7 @@ random suffix to avoid collisions). See `buildUploadPathname`.
 
 ## Not built yet
 
-- **7B Upload System** — Uploads tab: drag & drop, queue, progress, retry/cancel, and
-  persisting `UploadedMedia` records associated with the current project.
-- **8 Gallery**, **9 Identities**, then AI generation.
+- **8 Gallery** — a project-wide (and later app-wide) view of stored media; will promote the
+  minimal upload tile into a reusable `MediaCard`.
+- **9 Identities**, then AI generation (`GeneratedMedia` outputs flow back through this same
+  pipeline). Uploads stay decoupled from AI — an upload is just media.
