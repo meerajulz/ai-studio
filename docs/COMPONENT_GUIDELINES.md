@@ -156,33 +156,36 @@ UploadQueueItem props: { item: UploadItem; onCancel; onRetry; onRemove }
 > The old `UploadedMediaCard`/`DeleteUploadDialog` were removed in Milestone 8 — Uploads and
 > Gallery now share one set of media components. Don't reintroduce upload-only display tiles.
 
-### Identity components (`src/components/identity/`) — PLANNED (design only, Milestone 9)
-Responsibilities only — **not implemented**. See [IDENTITIES.md](./IDENTITIES.md) +
-[TRAINING_MEDIA.md](./TRAINING_MEDIA.md). **Rule: Training-media components must *compose* the
-existing `media/` components (`MediaGrid`/`MediaCard`/`MediaViewer`), never reimplement a
-media browser** (Decision 024).
+### Identity components (`src/components/identity/`) — implemented (9A)
+See [IDENTITIES.md](./IDENTITIES.md) + [TRAINING_MEDIA.md](./TRAINING_MEDIA.md). **Rule:
+training-media UI *composes* the `media/` components (`MediaGrid`/`MediaViewer`), never a new
+media browser or uploader** (Decisions 024/028). State: `hooks/use-identities.ts`.
 ```
-IdentityCard          One identity tile: IdentityAvatar (Hero Image) + name + description +
-                      media count + status badge (DRAFT/ACTIVE/ARCHIVED); links into the
-                      identity. (mirrors ProjectCard/MediaCard.)
-IdentityGrid          Responsive grid of IdentityCards with Loading/Empty/Error states.
-IdentityAvatar        The identity's Hero Image (signed URL) with initials/icon fallback when
-                      no Hero Image is set. Small, reusable (cards, lists, breadcrumbs, pickers).
-IdentityOverview      The Overview sub-tab (default): Hero Image + name + description + status +
-                      training-media count + created/updated. Minimal today; permanent home
-                      for future stats/templates/history/artifacts/AI defaults.
-TrainingMediaGrid     An identity's curated training media — composes MediaGrid; adds per-link
-                      affordances (reorder, favorite, set-as-Hero-Image, remove-link).
-TrainingMediaSelector A media picker (selectable MediaGrid over listProjectMedia) to link
-                      existing Gallery media to the identity. Selection, not upload.
-TrainingMediaViewer   Full-size training-media preview — composes MediaViewer; adds link
-                      metadata (role/rank/favorite) and remove-from-identity.
-IdentityToolbar       Actions for an identity: add training media, edit, archive/restore,
-                      set Hero Image, delete. (mirrors a page-level SectionTitle action.)
-IdentityFilters       Filter/sort identities (status DRAFT/ACTIVE/ARCHIVED, search by name).
+IdentitiesView        The Identities tab: SectionTitle + IdentityFiltersBar + grid of
+                      IdentityCard + create/edit/delete dialogs; Loading/Empty/Error.
+IdentityCard          One tile: IdentityAvatar (Hero Image) + name + description + media count +
+                      status badge + ⋯ menu (Edit / Archive|Restore / Delete). Links to detail.
+IdentityAvatar        Hero Image (signed URL) with initials fallback. Size via className.
+IdentityStatusBadge   DRAFT / ACTIVE / ARCHIVED pill.
+IdentityFiltersBar    Search + status (Active/Draft/Archived/All) + sort.
+IdentityDetailView    Header (avatar/name/status/actions) + sub-tabs Overview | Training Media |
+                      Templates(disabled) | History(disabled) | Settings.
+IdentityOverview      Overview sub-tab: Hero Image + name/description/status/count/created/updated.
+IdentityTrainingMedia Training sub-tab: grid of TrainingMediaCard + "Add media" (opens selector)
+                      + MediaViewer; wires favorite/role/reorder/set-hero/remove mutations.
+TrainingMediaCard     One training tile: media thumb + Hero badge, favorite ⭐, role select,
+                      ⋯ menu (Set as Hero, Move earlier/later, Remove).
+TrainingMediaSelector Dialog picker — a selectable `MediaGrid` over `useProjectMedia`; disables
+                      already-linked media; "Add N to identity".
+IdentitySettings      Name/description form + Hero Image select + Archive/Restore + Danger zone.
+IdentityFormDialog    Create/edit (name + description); create supports pre-linked `mediaIds`.
+DeleteIdentityDialog  Confirm delete (severs links only, not media/results).
 ```
-> These are a plan, not an API. Props get defined when the Identity Manager is implemented.
-> Reuse `EmptyState`/`LoadingState`/`SectionTitle`/`Badge` and the `media/` set throughout.
+
+> **`MediaCard`/`MediaGrid` gained optional selection props** (`selectable`, `selected`/
+> `selectedIds`, `onToggleSelect`, `disabled`/`disabledIds`, `disabledLabel`) so the Gallery's
+> "Create identity from selection" and the training-media picker reuse the same tiles — one
+> component, backward compatible.
 
 ## Composition example
 

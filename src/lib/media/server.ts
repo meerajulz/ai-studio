@@ -203,6 +203,24 @@ export async function getMedia(userId: string, id: string): Promise<MediaAsset> 
   return toAsset(record);
 }
 
+/**
+ * Fetch several assets by id (owner-scoped), each with a fresh signed URL. Used by consumers
+ * that hold their own references to media (e.g. an identity's training media) but must not
+ * touch the blob layer for signing. Returns only the caller's own media; missing/foreign ids
+ * are silently dropped. Order is not guaranteed — callers re-order by their own metadata.
+ */
+export async function getMediaByIds(
+  userId: string,
+  ids: string[],
+): Promise<MediaAsset[]> {
+  if (ids.length === 0) return [];
+  const records = await prisma.uploadedMedia.findMany({
+    where: { id: { in: ids }, userId },
+    select: uploadSelect,
+  });
+  return Promise.all(records.map(toAsset));
+}
+
 /** (Re)mint a short-lived signed URL for a single asset (owner-scoped). */
 export async function getMediaSignedUrl(
   userId: string,

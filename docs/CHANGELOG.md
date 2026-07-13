@@ -46,6 +46,24 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **Identity Manager** (Milestone 9A) — implements the frozen Identity design. **Schema:**
+  extended `Identity` (`description`, `status` `IdentityStatus` DRAFT|ACTIVE|ARCHIVED,
+  `displayImageId` Hero Image, **`projectId` required + Cascade**) and a new **`IdentityMedia`**
+  join table (`position`/`isFavorite`/`role` `TrainingMediaRole`) replacing the old
+  `UploadedMedia.identityId` FK; migration `identity_manager`. **Identity layer**
+  (`src/lib/identity/`, Decision 028) — owner-scoped CRUD + training-media add/remove/reorder/
+  favorite/role + Hero Image + archive/restore, using the media layer exclusively (new
+  `getMediaByIds` for signing; never touches Blob). **Status is derived** (new = DRAFT; first
+  media → ACTIVE; last removed → DRAFT; ARCHIVED explicit) — no Activate button. Server actions
+  (`actions/identities.ts`) + hooks (`hooks/use-identities.ts`). **UI** (`src/components/identity/`):
+  `IdentitiesView` (list + filters), `IdentityCard`/`IdentityAvatar`/`IdentityStatusBadge`,
+  `IdentityDetailView` with **Overview / Training Media / Settings** sub-tabs
+  (Templates/History reserved, disabled), `IdentityOverview`, `IdentityTrainingMedia` +
+  `TrainingMediaCard` + `TrainingMediaSelector`, `IdentitySettings`, form + delete dialogs.
+  Routes `/projects/[id]/identities` and `/identities/[identityId]`. **Gallery integration:**
+  selection mode + "Create identity from selection" (added `selectable`/`selected` props to the
+  shared `MediaCard`/`MediaGrid` — no second uploader/browser). Provider-agnostic (no AI).
+  Verified end-to-end via `scripts/verify-identity.ts`; build + `tsc --noEmit` pass.
 - **Project Gallery** (Milestone 8) at `/projects/[id]/gallery` — the central, source-agnostic
   media browser for a project. Responsive grid of BOTH uploaded images **and** videos (image
   thumbnails lazy-load; video tiles show a poster frame + play affordance), a full-size

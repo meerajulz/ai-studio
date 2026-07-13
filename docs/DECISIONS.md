@@ -778,3 +778,39 @@ dashboards); leave roles unspecified (rejected — inconsistent metadata later).
 Status
 Accepted — **design frozen.** Implementation begins in Milestone 9A (Identity Manager). **No
 code, schema, migration, UI, or routes changed in this milestone.**
+
+# Decision 028
+
+Date
+2026-07-13
+
+Decision
+Identities get their own **domain layer `src/lib/identity/`** (server + types), mirroring the
+media layer — the single owner-scoped API for identity CRUD + training-media links. It
+**depends on the media layer, never on the blob layer**: to render hero/training media it
+calls a new media-layer function **`getMediaByIds(userId, ids)`** (owner-scoped batch fetch +
+signing), so signing stays in exactly one place. Identity **status is derived, not manual**
+(implements Decision 027): `createIdentity` starts DRAFT; adding the first training media →
+ACTIVE; removing the last → DRAFT; ARCHIVED is explicit and "sticks" (restore recomputes to
+ACTIVE/DRAFT by media count). There is no "Activate" action. The **Hero Image auto-sets** to
+the first training media and falls back to the next when the current one is unlinked. Media
+selection reuses the Gallery via **selection props added to `MediaCard`/`MediaGrid`**
+(`selectable`/`selected`/`onToggleSelect`/`disabled`) — no second media browser or uploader.
+
+Reason
+Keeps the clean-layer architecture (Decision 024) consistent as domains grow: one owner-scoped
+API per domain, signing centralized, feature code never touching Blob. Deriving status from
+completeness matches how users actually build an identity and removes a redundant button.
+
+Alternatives
+Put identity logic in Server Actions/components (rejected — scatters ownership); let the
+identity layer call the blob layer to sign (rejected — duplicates signing, breaks the single
+boundary); a manual Activate button (rejected per Decision 027 — status should reflect
+completeness). **Known follow-up:** deleting a media asset from the Gallery cascades its
+`IdentityMedia` link + nulls the hero at the DB level, but does not re-derive identity status
+(no identity-layer hook fires on a media-layer delete) — integrity holds (no orphans/dangling);
+status simply catches up on the next training-media change. Revisit if it matters.
+
+Status
+Accepted — implemented and **verified end-to-end** against the live store + DB
+(`scripts/verify-identity.ts`). `npm run build` + `tsc --noEmit` pass.

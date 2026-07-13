@@ -79,12 +79,12 @@ Gallery (done) → Identity System → Templates → Prompt Builder → AI Provi
                  ▲ design done (9); Identity Manager implements it next
 ```
 
-- [ ] **Milestone 9A — Identity Manager** (implement the frozen design) ← **next** — Identity
-      CRUD + Training Media (`IdentityMedia` join) inside a project; Overview/Training/Settings
-      tabs; DRAFT/ACTIVE/ARCHIVED; Hero Image; reuses the Gallery/media components. Comes
-      **after** Gallery (needs media to curate) and **before** Templates/Prompt Builder (which
-      target an Identity) and AI Providers (which receive an Identity as input).
-- [ ] Templates — reusable prompt/config presets, may target an Identity.
+- [x] **Milestone 9A — Identity Manager** — Identity CRUD + Training Media (`IdentityMedia`
+      join) inside a project; Overview/Training/Settings tabs; DRAFT/ACTIVE/ARCHIVED (derived);
+      Hero Image; Gallery selection → "Create identity". New identity layer (`src/lib/identity/`,
+      Decision 028) reusing the media/Gallery components. Verified end-to-end
+      (`scripts/verify-identity.ts`).
+- [ ] Templates ← **next** — reusable prompt/config presets, may target an Identity.
 - [ ] Prompt Builder — compose a generation from Identity + Template + inputs; consumes the
       Identity generation-defaults (deferred columns land here).
 - [ ] AI Provider layer — `ImageProvider`/`VideoProvider` adapters; Identity is the input.

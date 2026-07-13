@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, Trash2 } from "lucide-react";
+import { Check, Play, Trash2 } from "lucide-react";
 
 import { formatBytes } from "@/lib/blob/constants";
 import type { MediaAsset } from "@/lib/media/types";
@@ -12,30 +12,57 @@ type MediaCardProps = {
   media: MediaAsset;
   onOpen?: (media: MediaAsset) => void;
   onDelete?: (media: MediaAsset) => void;
+  /** Selection mode (e.g. Gallery "create identity" or the training-media picker). */
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (media: MediaAsset) => void;
+  /** Non-selectable + muted (e.g. already linked). Shows `disabledLabel` if given. */
+  disabled?: boolean;
+  disabledLabel?: string;
   className?: string;
 };
 
 /**
  * A single media tile — image or video — driven entirely by a `MediaAsset` (signed URL).
- * The canonical media tile: reused by Gallery and Uploads, and by Identities/Templates/AI
- * later. Source-agnostic — it never knows whether an asset was uploaded or AI-generated.
+ * The canonical media tile: reused by Gallery, Uploads, and Identities (browse + select).
+ * Source-agnostic — it never knows whether an asset was uploaded or AI-generated.
  */
-export function MediaCard({ media, onOpen, onDelete, className }: MediaCardProps) {
+export function MediaCard({
+  media,
+  onOpen,
+  onDelete,
+  selectable,
+  selected,
+  onToggleSelect,
+  disabled,
+  disabledLabel,
+  className,
+}: MediaCardProps) {
   const isVideo = media.type === "VIDEO";
+
+  function handleClick() {
+    if (disabled) return;
+    if (selectable) onToggleSelect?.(media);
+    else onOpen?.(media);
+  }
 
   return (
     <div
       data-slot="media-card"
       className={cn(
-        "bg-card group relative overflow-hidden rounded-lg border",
+        "bg-card group relative overflow-hidden rounded-lg border transition-shadow",
+        selected && "ring-primary ring-2",
+        disabled && "opacity-60",
         className,
       )}
     >
       <button
         type="button"
-        onClick={() => onOpen?.(media)}
-        aria-label={`Open ${media.originalFilename ?? "media"}`}
-        className="bg-muted relative flex aspect-square w-full items-center justify-center overflow-hidden"
+        onClick={handleClick}
+        disabled={disabled}
+        aria-pressed={selectable ? Boolean(selected) : undefined}
+        aria-label={`${selectable ? "Select" : "Open"} ${media.originalFilename ?? "media"}`}
+        className="bg-muted relative flex aspect-square w-full items-center justify-center overflow-hidden disabled:cursor-not-allowed"
       >
         {isVideo ? (
           <>
@@ -64,9 +91,28 @@ export function MediaCard({ media, onOpen, onDelete, className }: MediaCardProps
         <Badge variant="secondary" className="absolute left-2 top-2">
           {media.type}
         </Badge>
+
+        {selectable ? (
+          <span
+            className={cn(
+              "absolute right-2 top-2 flex size-6 items-center justify-center rounded-full border-2 transition-colors",
+              selected
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-white/80 bg-black/30",
+            )}
+          >
+            {selected ? <Check className="size-4" /> : null}
+          </span>
+        ) : null}
+
+        {disabled && disabledLabel ? (
+          <Badge variant="secondary" className="absolute bottom-2 right-2">
+            {disabledLabel}
+          </Badge>
+        ) : null}
       </button>
 
-      {onDelete ? (
+      {onDelete && !selectable ? (
         <Button
           variant="destructive"
           size="icon"

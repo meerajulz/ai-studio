@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Images } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Images, UserRoundPlus } from "lucide-react";
 
 import {
   defaultMediaFilters,
@@ -17,20 +18,25 @@ import { MediaFiltersBar } from "@/components/media/media-filters";
 import { MediaGrid } from "@/components/media/media-grid";
 import { MediaViewer } from "@/components/media/media-viewer";
 import { DeleteMediaDialog } from "@/components/media/delete-media-dialog";
+import { IdentityFormDialog } from "@/components/identity/identity-form-dialog";
 
 type GalleryViewProps = {
   projectId: string;
 };
 
 /**
- * The Project Gallery — the central media browser for a project. Source-agnostic: it shows
- * uploaded images + videos today, and generated media will drop into the same grid/filters
- * with no UI change. Identities/Templates/AI should reuse this rather than build their own.
+ * The Project Gallery — the central media browser for a project. Source-agnostic. Also the
+ * entry point for the `Gallery → select → Create Identity` flow (selection mode).
  */
 export function GalleryView({ projectId }: GalleryViewProps) {
+  const router = useRouter();
   const [filters, setFilters] = useState<MediaFilters>(defaultMediaFilters);
   const [viewing, setViewing] = useState<MediaAsset | null>(null);
   const [deleting, setDeleting] = useState<MediaAsset | null>(null);
+
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [createOpen, setCreateOpen] = useState(false);
 
   const {
     data,
@@ -55,6 +61,20 @@ export function GalleryView({ projectId }: GalleryViewProps) {
     void fetchNextPage();
   }, [fetchNextPage]);
 
+  function toggle(media: MediaAsset) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(media.id)) next.delete(media.id);
+      else next.add(media.id);
+      return next;
+    });
+  }
+
+  function exitSelect() {
+    setSelectMode(false);
+    setSelected(new Set());
+  }
+
   const isFiltered =
     filters.search.trim() !== "" ||
     filters.kind !== "all" ||
@@ -64,10 +84,44 @@ export function GalleryView({ projectId }: GalleryViewProps) {
     <div className="grid gap-6">
       <SectionTitle
         title="Gallery"
-        description="Browse this project's media. Uploaded now; generated media appears here too."
+        description="Browse this project's media. Select items to build an identity."
+        action={
+          selectMode ? undefined : (
+            <Button variant="outline" onClick={() => setSelectMode(true)}>
+              <UserRoundPlus className="size-4" />
+              Select for identity
+            </Button>
+          )
+        }
       />
 
       <MediaFiltersBar filters={filters} onChange={onChange} />
+
+      {selectMode ? (
+        <div className="bg-muted/40 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-2 pl-3">
+          <span className="text-sm font-medium">{selected.size} selected</span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelected(new Set())}
+              disabled={selected.size === 0}
+            >
+              Clear
+            </Button>
+            <Button variant="ghost" size="sm" onClick={exitSelect}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setCreateOpen(true)}
+              disabled={selected.size === 0}
+            >
+              Create identity
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {isLoading ? (
         <LoadingState variant="grid" />
@@ -94,8 +148,11 @@ export function GalleryView({ projectId }: GalleryViewProps) {
       ) : (
         <MediaGrid
           items={items}
-          onOpen={setViewing}
-          onDelete={setDeleting}
+          onOpen={selectMode ? undefined : setViewing}
+          onDelete={selectMode ? undefined : setDeleting}
+          selectable={selectMode}
+          selectedIds={selected}
+          onToggleSelect={toggle}
           hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
           onLoadMore={loadMore}
@@ -119,6 +176,18 @@ export function GalleryView({ projectId }: GalleryViewProps) {
         }}
         media={deleting}
         onDeleted={() => setViewing(null)}
+      />
+
+      <IdentityFormDialog
+        projectId={projectId}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        mediaIds={[...selected]}
+        onCreated={(identity) => {
+          setCreateOpen(false);
+          exitSelect();
+          router.push(`/projects/${projectId}/identities/${identity.id}`);
+        }}
       />
     </div>
   );

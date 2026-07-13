@@ -36,17 +36,18 @@
       states, actions, future expansion, real-world scenarios, UX review
 - [x] **Design frozen** (Decision 027): project-scoped MVP, Overview tab, Hero Image naming,
       DRAFT/ACTIVE/ARCHIVED, standardized training-media roles, Gallery single source, AI stays out
-- [ ] **Milestone 9A — Identity Manager (implementation)** — when approved, per the frozen spec:
-  - [ ] Schema migration: `description`, `displayImageId` (Hero Image), `status`
-        (`IdentityStatus` = DRAFT|ACTIVE|ARCHIVED), **`projectId` required + `onDelete: Cascade`**,
-        and the `IdentityMedia` join table (replace `UploadedMedia.identityId`) with cascade link deletes
-  - [ ] Identity CRUD within a project (owner-scoped Server Actions + Zod + TanStack Query); new = DRAFT
-  - [ ] Identity detail tabs: **Overview** (default) + Training Media + Settings (Templates/History disabled)
-  - [ ] Training Media: select from Gallery (reuse `media/` components), reorder, favorite, **Set as Hero Image**, remove-link
-  - [ ] Lifecycle: DRAFT→ACTIVE activate, archive/restore, delete (severs links only, never media/results)
-  - [ ] Identity components (`src/components/identity/`) per COMPONENT_GUIDELINES — compose `media/`, don't rebuild a browser
-  - [ ] Verify end-to-end vs live store + DB (owner authorization; link/delete semantics)
-  - [ ] Defer generation-default columns + training-media `role` behavior until later milestones consume them
+- [x] **Milestone 9A — Identity Manager (implementation)** — schema migration (`description`,
+      `displayImageId`, `status`, `projectId` required + Cascade, `IdentityMedia` join); identity
+      layer + actions + hooks; CRUD; Overview/Training/Settings tabs; training media
+      add/remove/reorder/favorite/role/Hero; derived status; archive/restore/delete; Gallery
+      selection → create; verified (`scripts/verify-identity.ts`); build + tsc pass.
+
+### Identity — known follow-ups (not blocking)
+- [ ] Deleting a media asset from the Gallery cascades its `IdentityMedia` link + nulls the hero
+      (DB level) but does not re-derive identity status — status catches up on the next
+      training-media change. Consider recompute-on-read or a media-delete hook (Decision 028).
+- [ ] Reorder is via a tile menu ("Move earlier/later"); drag-and-drop is a later polish.
+- [ ] Breadcrumb still shows the identity id (not name) on the detail route — minor.
 
 ### Future — multiple identities per generation (before AI generation ships)
 - [ ] Evolve `Generation.identityId` (single) → **`GenerationIdentity` many-to-many** ("appears-in"),

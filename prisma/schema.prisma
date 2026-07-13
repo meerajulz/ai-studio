@@ -39,6 +39,24 @@ enum JobStatus {
   CANCELED
 }
 
+// Identity lifecycle (Decision 027): new identities start DRAFT; adding training media
+// auto-promotes to ACTIVE; removing all training media returns to DRAFT; ARCHIVED is explicit.
+enum IdentityStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+// Standardized training-media roles (Decision 027). Stored now; no AI behavior built on them yet.
+enum TrainingMediaRole {
+  PRIMARY
+  SECONDARY
+  VIDEO
+  POSE
+  STYLE
+  OTHER
+}
+
 // ============================================================
 // Auth
 // Auth models (User/Session/Account/Verification) follow the Better Auth
@@ -137,23 +155,52 @@ model Project {
 }
 
 model Identity {
-  id        String   @id @default(cuid())
-  name      String
-  notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String         @id @default(cuid())
+  name        String
+  description String? // short human summary (shown on cards/overview)
+  notes       String? // longer private notes
+  status      IdentityStatus @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  projectId String?
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  // Project-scoped for the MVP (Decision 027): required + cascade.
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  referenceMedia UploadedMedia[]
-  generations    Generation[]
+  // Hero Image (UX name) — one of this identity's training media. SetNull if that media is deleted.
+  displayImageId String?
+  displayImage   UploadedMedia? @relation("IdentityHeroImage", fields: [displayImageId], references: [id], onDelete: SetNull)
+
+  trainingMedia IdentityMedia[]
+  generations   Generation[]
 
   @@index([userId])
   @@index([projectId])
+  @@index([displayImageId])
+}
+
+// Join: which media (images + videos) trains/represents an identity, with per-link metadata.
+// Curated LINKS into the media layer — deleting a link never deletes the underlying media.
+model IdentityMedia {
+  id         String            @id @default(cuid())
+  position   Int               @default(0) // display/order within the identity
+  isFavorite Boolean           @default(false)
+  role       TrainingMediaRole @default(OTHER)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  identityId String
+  identity   Identity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  mediaId String
+  media   UploadedMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([identityId, mediaId])
+  @@index([identityId])
+  @@index([mediaId])
 }
 
 model UploadedMedia {
@@ -176,12 +223,12 @@ model UploadedMedia {
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  identityId String?
-  identity   Identity? @relation(fields: [identityId], references: [id], onDelete: SetNull)
+  // Training-media links (an asset can train multiple identities) + hero-image back-relation.
+  trainingLinks     IdentityMedia[]
+  heroForIdentities Identity[]      @relation("IdentityHeroImage")
 
   @@index([userId])
   @@index([projectId])
-  @@index([identityId])
 }
 
 model Generation {

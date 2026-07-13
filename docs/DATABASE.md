@@ -25,8 +25,9 @@ DATABASE_URL="postgresql://USER:PASSWORD@ep-xxxx.REGION.aws.neon.tech/DBNAME?ssl
 
 ## Data model — implemented ✅
 
-> **Status: implemented and migrated to Neon.** 12 models + 3 enums.
-> Decisions recorded in [DECISIONS.md](./DECISIONS.md) (#011 schema, #012 client, #013 auth).
+> **Status: implemented and migrated to Neon.** 13 models + 5 enums.
+> Decisions recorded in [DECISIONS.md](./DECISIONS.md) (#011 schema, #012 client, #013 auth,
+> #025–028 identities). Latest migration: `identity_manager`.
 
 ### Auth models (Better Auth core)
 
@@ -41,9 +42,10 @@ DATABASE_URL="postgresql://USER:PASSWORD@ep-xxxx.REGION.aws.neon.tech/DBNAME?ssl
 
 | Model | Purpose | Key relations |
 | ----- | ------- | ------------- |
-| `Project` | Workspace grouping (e.g. "Summer Campaign") | User; has Generations |
-| `Identity` | A reusable identity/face/style | User; has `UploadedMedia`; used by Generations |
-| `UploadedMedia` | User-uploaded inputs / references (Vercel Blob) | User; Identity/Project (optional) |
+| `Project` | Workspace grouping (e.g. "Summer Campaign") | User; has Identities/Uploads/Generations |
+| `Identity` | A reusable, project-scoped subject (person/character/pet/product/…) | User + Project (required); `IdentityMedia`; Hero Image → `UploadedMedia`; Generations |
+| `IdentityMedia` | Join: training media for an identity (position/favorite/role) | Identity + UploadedMedia (both cascade) |
+| `UploadedMedia` | User-uploaded inputs / references (Vercel Blob) | User; Project (optional); training links |
 | `Generation` | A generation request (image or video) | User; Project/Identity/Template (optional) |
 | `GeneratedMedia` | Output files from a Generation (Vercel Blob) | Generation (cascade) |
 | `Job` | Async execution / queue state for a Generation | Generation (1:1) |
@@ -69,6 +71,8 @@ User ──┬── Session, Account          (Better Auth)
 
 - `MediaType` — `IMAGE | VIDEO`
 - `GenerationStatus` / `JobStatus` — `PENDING | QUEUED | RUNNING | SUCCEEDED | FAILED | CANCELED`
+- `IdentityStatus` — `DRAFT | ACTIVE | ARCHIVED` (derived from training-media completeness; ARCHIVED explicit)
+- `TrainingMediaRole` — `PRIMARY | SECONDARY | VIDEO | POSE | STYLE | OTHER` (stored; no AI behavior yet)
 
 ### Design decisions (accepted)
 

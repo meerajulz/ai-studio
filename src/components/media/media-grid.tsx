@@ -13,6 +13,13 @@ type MediaGridProps = {
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   onLoadMore?: () => void;
+  /** Selection mode (passed through to each MediaCard). */
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (media: MediaAsset) => void;
+  /** Ids that are non-selectable (e.g. already linked), with an optional badge label. */
+  disabledIds?: Set<string>;
+  disabledLabel?: string;
 };
 
 /**
@@ -26,6 +33,11 @@ export function MediaGrid({
   hasNextPage,
   isFetchingNextPage,
   onLoadMore,
+  selectable,
+  selectedIds,
+  onToggleSelect,
+  disabledIds,
+  disabledLabel,
 }: MediaGridProps) {
   const sentinel = useRef<HTMLDivElement>(null);
 
@@ -52,6 +64,11 @@ export function MediaGrid({
             media={media}
             onOpen={onOpen}
             onDelete={onDelete}
+            selectable={selectable}
+            selected={selectedIds?.has(media.id)}
+            onToggleSelect={onToggleSelect}
+            disabled={disabledIds?.has(media.id)}
+            disabledLabel={disabledLabel}
           />
         ))}
       </div>
