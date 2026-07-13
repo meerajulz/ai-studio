@@ -32,6 +32,8 @@
 ### Identity System (9)
 - [x] **Design** (design-only milestone): `IDENTITIES.md`, `TRAINING_MEDIA.md`, schema review,
       relationship/ownership design, provider-agnostic plug-in design, planned components (Decision 025)
+- [x] **UX design** (design-only): `IDENTITY_UX.md` — journey, wireframes, navigation, empty
+      states, actions, future expansion, real-world scenarios, UX review
 - [ ] **Identity Manager (implementation)** — when approved:
   - [ ] Schema migration: `description`, `displayImageId`, `status` (+ `IdentityStatus` enum), and the
         `IdentityMedia` join table (replace `UploadedMedia.identityId`); cascade link deletes

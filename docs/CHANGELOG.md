@@ -8,6 +8,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Design (no code)
+- **Identity Manager UX & workflow design** (design only): new **`IDENTITY_UX.md`** — the
+  complete Identity experience: user journey, ASCII wireframes for every screen (identities
+  list, create dialog + create-from-Gallery-selection, identity overview/detail with sub-tabs,
+  training-media grid + selector + viewer, settings, archived view), navigation/routes
+  (`/projects/[id]/identities` + `/[identityId]`), every empty state, the full action list,
+  reserved space for future Templates/History/Generate/LoRA/AI-settings, real-world workflow
+  scenarios, and a UX review (clicks/duplicate-screens/get-lost risks + fixes). Reuses the
+  `media/` components + workspace shell; no code, schema, components, or routes.
 - **Future architecture note — multiple identities per generation** (Decision 026, design
   only): documented evolving `Generation.identityId` (single) into a `GenerationIdentity`
   many-to-many ("appears-in"), kept separate from training media (`IdentityMedia`). Added a

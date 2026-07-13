@@ -63,6 +63,9 @@
       architecture before any code: `IDENTITIES.md`, `TRAINING_MEDIA.md`, schema review +
       relationship/ownership design, provider-agnostic plug-in design, planned components
       (Decision 025). No schema/UI/API changes.
+- [x] Identity Manager **UX design** (design only) — `IDENTITY_UX.md`: user journey,
+      wireframes, navigation/routes, empty states, action list, future expansion, real-world
+      scenarios, UX review. No code.
 
 ## In Progress / Next
 
