@@ -242,6 +242,71 @@ Rules that keep this clean:
 
 ---
 
+## Future architecture — multiple identities per generation (design note)
+
+> **Status: future direction — accepted in principle, sub-questions open, NOT implemented and
+> NOT migrated.** See [DECISIONS.md](./DECISIONS.md) #026.
+
+Today `Generation.identityId` is a single optional FK — **one identity per generation**. But a
+generated image or video can legitimately contain **several** subjects:
+
+- Emma + John · Emma + John + Max (dog) · multiple characters · characters + products ·
+  characters + mascots.
+
+One generated asset should be able to appear in **multiple** identity histories. So the
+*appears-in* relationship should evolve into **many-to-many**, kept deliberately **separate**
+from training media — two independent concepts:
+
+```
+Identity ── IdentityMedia ───── MediaAsset      INPUT:  what TEACHES an identity (training)
+Generation ── GenerationIdentity ── Identity    OUTPUT: which identities APPEAR IN a result
+```
+
+- **Training Media** = media that teaches/represents an identity (input side; see
+  [TRAINING_MEDIA.md](./TRAINING_MEDIA.md)).
+- **`GenerationIdentity` ("appears in")** = which identities are present in a generated output
+  (output side). Recording this powers "history for an identity" and Gallery-by-identity.
+
+**Design sketch — do NOT create yet:**
+
+```prisma
+// DESIGN ONLY. Not a migration.
+model GenerationIdentity {
+  id           String   @id @default(cuid())
+  generationId String
+  identityId   String
+  // future: role/position (primary vs secondary subject),
+  //         source ("requested" | "detected" | "confirmed")
+  createdAt    DateTime @default(now())
+
+  @@unique([generationId, identityId])
+  @@index([identityId])
+  // onDelete: Cascade from BOTH Generation and Identity (links never orphan)
+}
+```
+
+**Open sub-questions to resolve when this lands (before the AI generation system ships):**
+
+1. **Granularity — `Generation` vs `GeneratedMedia`.** Attach appears-in at the *request*
+   level (`GenerationIdentity`) or per output asset (`GeneratedMediaIdentity`)? A batch can
+   yield outputs with different subjects, and manual tagging is per-asset. *Recommendation:*
+   model at the Generation level first (matches the request); allow per-`GeneratedMedia`
+   appears-in later without a reshape.
+2. **Requested vs. detected.** Identities *fed in* may differ from those that actually appear
+   (or are later confirmed by detection/manual tagging). A `source` column
+   (`requested | detected | confirmed`) keeps both without ambiguity.
+3. **Role/position** for multi-subject generations (primary/secondary) — future metadata on
+   the join.
+4. **Migration timing.** Keep `Generation.identityId` for now; when M2M lands, backfill
+   existing single links into `GenerationIdentity` and deprecate the scalar. Cheapest
+   **before** the AI generation system creates many generations — the reason we record it now.
+
+**Where it meets the Gallery.** Generated results are `MediaAsset { source: "generated" }`
+(Decision 024). "Filter the Gallery by identity" then unifies the two independent concepts —
+training links (uploaded media via `IdentityMedia`) **and** appears-in (generated media via
+`GenerationIdentity`) — into one "everything about this identity" view. Join rows resolve to
+the same owner; all queries stay owner-scoped.
+
 ## Open questions / possible future problems
 
 1. **Project-scoped vs user-global identities.** Today `projectId` is optional (Identity can
@@ -264,6 +329,9 @@ Rules that keep this clean:
 6. **Generation history when an Identity is deleted.** Current `Generation.identityId`
    `SetNull` preserves results but loses the subject label. Archive (not delete) is the
    recommended path to preserve that link.
+7. **Multiple identities per generation.** `Generation.identityId` is single today; a result
+   can contain several subjects. See "Future architecture — multiple identities per
+   generation" above (`GenerationIdentity` many-to-many) and DECISIONS #026.
 
 ---
 

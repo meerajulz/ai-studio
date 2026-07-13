@@ -686,3 +686,45 @@ columns now (rejected — speculative, no consumer yet); provider-specific field
 Status
 Accepted (design) — implementation deferred to the Identity Manager milestone; **no schema,
 migration, UI, routes, or API changed** in this milestone.
+
+# Decision 026
+
+Date
+2026-07-13
+
+Decision
+The *appears-in* relationship between a generation and identities should evolve from the
+current single `Generation.identityId` FK into a **many-to-many join, `GenerationIdentity`
+(`generationId` × `identityId`)** — kept **separate** from training media. Two independent
+concepts: `Identity → IdentityMedia → MediaAsset` (INPUT — what teaches an identity) vs
+`Generation → GenerationIdentity → Identity` (OUTPUT — which identities appear in a result).
+This lets one generated asset appear in multiple identity histories and supports multi-subject
+generations (Emma + John + Max, characters + products/mascots, etc.). **Accepted as a future
+direction only — sub-questions remain open; NOT implemented and NOT migrated.** Full note +
+design sketch in [IDENTITIES.md](./IDENTITIES.md) ("Future architecture — multiple identities
+per generation").
+
+Open sub-questions (resolve before the AI generation system ships):
+1. Granularity — attach at `Generation` (request) level vs per `GeneratedMedia` (recommend
+   Generation level first; add per-asset later without reshape).
+2. Requested vs detected — a `source` column (`requested | detected | confirmed`).
+3. Role/position for multi-subject outputs.
+4. Migration timing — keep `Generation.identityId` now; backfill into the join and deprecate
+   the scalar before many generations exist.
+
+Reason
+A single generated image/video can legitimately contain several subjects, so a scalar
+`identityId` is structurally insufficient. Recording the direction now (before AI generation
+exists) means the migration is cheap and no code is built against the soon-to-be-wrong shape.
+Keeping "teaches" and "appears in" independent avoids overloading one link table with two
+unrelated lifecycles.
+
+Alternatives
+Keep the single `Generation.identityId` (rejected — can't express multi-subject outputs);
+reuse `IdentityMedia` for both input and output (rejected — conflates training with
+appears-in, two different concepts/lifecycles); attach identities only per `GeneratedMedia`
+now (deferred — a valid future refinement, but request-level is the simpler default).
+
+Status
+Accepted (future direction) — **deferred; sub-questions open; NOT implemented, NO schema or
+migration changed.** Revisit when building the AI generation / jobs system.

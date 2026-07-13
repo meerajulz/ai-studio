@@ -26,6 +26,13 @@ We deliberately name this concept **Training Media** rather than "reference imag
 So: **Training Media = the set of media (images + videos) a user curates to represent and
 (later) train an Identity.**
 
+> **Training Media ≠ "Appears In".** Training Media is the **input** side — media that
+> *teaches/represents* an identity. It is a separate concept from which identities *appear in*
+> a generated **output** (the future `GenerationIdentity` "appears-in" relationship — see
+> [IDENTITIES.md](./IDENTITIES.md) "Future architecture" + DECISIONS #026). Keep them
+> independent: `Identity → IdentityMedia → MediaAsset` (input) vs
+> `Generation → GenerationIdentity → Identity` (output). Don't merge them into one link table.
+
 ## Images and videos, from day one
 
 Every part of this design treats video as first-class alongside images:

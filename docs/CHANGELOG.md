@@ -8,6 +8,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Design (no code)
+- **Future architecture note — multiple identities per generation** (Decision 026, design
+  only): documented evolving `Generation.identityId` (single) into a `GenerationIdentity`
+  many-to-many ("appears-in"), kept separate from training media (`IdentityMedia`). Added a
+  "Future architecture" section + open question to `IDENTITIES.md`, a distinguishing note to
+  `TRAINING_MEDIA.md`, a TODO, and Decision 026. Accepted as a future direction with open
+  sub-questions; **no schema, migration, or code changed.**
 - **Identity System Design** (Milestone 9 — design only, Decision 025): documentation-first
   spec of the Identity architecture before implementation. New **`IDENTITIES.md`** (what an
   Identity is, the problems it solves, philosophy, lifecycle create/edit/archive/restore/

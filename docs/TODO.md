@@ -42,6 +42,12 @@
   - [ ] Verify end-to-end vs live store + DB (owner authorization; link/delete semantics)
   - [ ] Defer generation-default columns until the Prompt Builder/AI consume them
 
+### Future — multiple identities per generation (before AI generation ships)
+- [ ] Evolve `Generation.identityId` (single) → **`GenerationIdentity` many-to-many** ("appears-in"),
+      kept separate from training media. Backfill single links + deprecate the scalar **before**
+      many generations exist. Resolve open sub-questions (Generation vs GeneratedMedia granularity;
+      requested vs detected `source`). Design only — see IDENTITIES.md "Future architecture" + Decision 026.
+
 ### Deferred navigation decision (revisit after Gallery)
 - [ ] Top-level `/uploads` + `/gallery` are **temporary placeholders** (media belongs to a project).
       Decide whether to remove `/uploads` or merge both into one global **Media** browser. No routing changes yet. (NAVIGATION.md)
