@@ -59,11 +59,30 @@
       filters, viewer, infinite scroll) over the refined **media layer** (now the single
       public media API — Decision 024). Uploads migrated onto the shared media components.
 
-## In Progress
+- [x] Identity System **Design** (9 — design only) — documentation-first spec of the Identity
+      architecture before any code: `IDENTITIES.md`, `TRAINING_MEDIA.md`, schema review +
+      relationship/ownership design, provider-agnostic plug-in design, planned components
+      (Decision 025). No schema/UI/API changes.
 
-- [ ] Identity Manager (9) ← **next** · AI generation
-- [ ] _Deferred:_ global `/uploads` + `/gallery` — decide during/after Gallery whether to
-      remove or merge into one global **Media** browser (see NAVIGATION.md)
+## In Progress / Next
+
+Near-term sequence (each revolves around the **Identity** — see [VISION.md](./VISION.md)):
+
+```
+Gallery (done) → Identity System → Templates → Prompt Builder → AI Providers → Generation
+                 ▲ design done (9); Identity Manager implements it next
+```
+
+- [ ] **Identity Manager** (implement Milestone 9 design) ← **next** — Identity CRUD +
+      Training Media (join table) inside a project; reuses the Gallery/media components. It
+      comes **after** Gallery (needs media to curate) and **before** Templates/Prompt Builder
+      (which target an Identity) and AI Providers (which receive an Identity as input).
+- [ ] Templates — reusable prompt/config presets, may target an Identity.
+- [ ] Prompt Builder — compose a generation from Identity + Template + inputs; consumes the
+      Identity generation-defaults (deferred columns land here).
+- [ ] AI Provider layer — `ImageProvider`/`VideoProvider` adapters; Identity is the input.
+- [ ] _Deferred:_ global `/uploads` + `/gallery` — decide whether to remove or merge into one
+      global **Media** browser (see NAVIGATION.md).
 
 ---
 

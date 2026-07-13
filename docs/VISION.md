@@ -26,6 +26,36 @@ The generation engine is the product. Providers are interchangeable parts behind
 `ImageProvider` / `VideoProvider` interfaces, so the studio can adopt the best model of
 the moment (or combine several) without disruption.
 
+## The core workflow
+
+The whole studio is organized around one long-term flow, with the **Identity** as the
+central concept that generation revolves around:
+
+```
+User
+  ↓
+Project            organize work into workspaces
+  ↓
+Uploads            bring in images + videos (media layer)
+  ↓
+Gallery            browse all project media
+  ↓
+Identity  ◄──────  the central concept: a reusable subject (face / character / style)
+  ↓                built from curated Training Media (images + videos)
+Templates          reusable prompt/config presets, often targeting an Identity
+  ↓
+Prompt Builder     compose a generation from Identity + Template + inputs
+  ↓
+AI Generation      run through a provider adapter (provider-agnostic)
+  ↓
+History            every result flows back into the Gallery, tied to its Identity
+```
+
+**Identity is the hinge of the product.** Uploads and Gallery exist to *feed* identities;
+Templates, the Prompt Builder, and AI Generation exist to *act on* them; History exists to
+*organize results around* them. See [IDENTITIES.md](./IDENTITIES.md) and
+[TRAINING_MEDIA.md](./TRAINING_MEDIA.md).
+
 ## Principles
 
 - **Provider-agnostic.** No feature code depends on a specific AI SDK.

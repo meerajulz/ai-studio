@@ -156,6 +156,30 @@ UploadQueueItem props: { item: UploadItem; onCancel; onRetry; onRemove }
 > The old `UploadedMediaCard`/`DeleteUploadDialog` were removed in Milestone 8 — Uploads and
 > Gallery now share one set of media components. Don't reintroduce upload-only display tiles.
 
+### Identity components (`src/components/identity/`) — PLANNED (design only, Milestone 9)
+Responsibilities only — **not implemented**. See [IDENTITIES.md](./IDENTITIES.md) +
+[TRAINING_MEDIA.md](./TRAINING_MEDIA.md). **Rule: Training-media components must *compose* the
+existing `media/` components (`MediaGrid`/`MediaCard`/`MediaViewer`), never reimplement a
+media browser** (Decision 024).
+```
+IdentityCard          One identity tile: IdentityAvatar + name + description + media count +
+                      status; links into the identity. (mirrors ProjectCard/MediaCard.)
+IdentityGrid          Responsive grid of IdentityCards with Loading/Empty/Error states.
+IdentityAvatar        The identity's display image (signed URL) with initials/icon fallback
+                      when no display image is set. Small, reusable (cards, headers, pickers).
+TrainingMediaGrid     An identity's curated training media — composes MediaGrid; adds
+                      per-link affordances (reorder, favorite, set-as-display, remove-link).
+TrainingMediaSelector A media picker (selectable MediaGrid over listProjectMedia) to link
+                      existing Gallery media to the identity. Selection, not upload.
+TrainingMediaViewer   Full-size training-media preview — composes MediaViewer; adds link
+                      metadata (role/rank/favorite) and remove-from-identity.
+IdentityToolbar       Actions for an identity: add training media, edit, archive/restore,
+                      set display image, delete. (mirrors a page-level SectionTitle action.)
+IdentityFilters       Filter/sort identities (e.g. status active/archived, search by name).
+```
+> These are a plan, not an API. Props get defined when the Identity Manager is implemented.
+> Reuse `EmptyState`/`LoadingState`/`SectionTitle`/`Badge` and the `media/` set throughout.
+
 ## Composition example
 
 ```tsx

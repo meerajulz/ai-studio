@@ -7,6 +7,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Design (no code)
+- **Identity System Design** (Milestone 9 — design only, Decision 025): documentation-first
+  spec of the Identity architecture before implementation. New **`IDENTITIES.md`** (what an
+  Identity is, the problems it solves, philosophy, lifecycle create/edit/archive/restore/
+  delete, relationships to Projects/Media/Templates/AI providers/jobs/future LoRAs, generation
+  config resolution, provider-agnostic design) and **`TRAINING_MEDIA.md`** ("Training Media"
+  not "reference images"; images + videos from day one; selection/removal/organization;
+  future metadata/tagging/ranking/favorites/masks/pose/segmentation — all as link metadata,
+  design only). Schema **review** (recommend `description`, `displayImageId`, `status`, and an
+  `IdentityMedia` join table; defer generation-default columns until the Prompt Builder/AI
+  consume them) — **no schema change**. Updated `VISION.md` (core workflow with Identity as
+  the central concept), `ROADMAP.md` (milestone placement Gallery → Identity → Templates →
+  Prompt Builder → AI), `COMPONENT_GUIDELINES.md` (planned Identity components — responsibilities
+  only). No implementation, migration, UI, routes, or database changes.
+
 ### Added
 - **Project Gallery** (Milestone 8) at `/projects/[id]/gallery` — the central, source-agnostic
   media browser for a project. Responsive grid of BOTH uploaded images **and** videos (image

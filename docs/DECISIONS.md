@@ -635,3 +635,54 @@ implemented only `updateMediaMetadata`, which is verified; the rest wait for a r
 Status
 Accepted — implemented and **verified end-to-end** against the live private store + DB
 (`scripts/verify-media.ts`). `npm run build` + `tsc --noEmit` pass.
+
+# Decision 025
+
+Date
+2026-07-13
+
+Decision
+Lock the **Identity system architecture** up front (design only — no code/schema this
+milestone). Full spec in [IDENTITIES.md](./IDENTITIES.md) + [TRAINING_MEDIA.md](./TRAINING_MEDIA.md).
+Key choices:
+1. **Identity is the central, provider-agnostic generation concept.** It stores *intent +
+   material* (name, description, curated media, defaults), never a provider artifact. The
+   workflow is `Project → Uploads → Gallery → Identity → Templates → Prompt Builder → AI →
+   History` (VISION.md).
+2. **"Training Media", not "Reference Images"** — images **and** videos from day one, and a
+   curated **selection of existing `MediaAsset`s** (links), not a new store. It reuses the
+   media layer + Gallery components (Decision 024); the Training Media UI composes them.
+3. **A join table (`IdentityMedia`) is recommended** to replace the current direct
+   `UploadedMedia.identityId` FK, so one asset can serve several identities and carry
+   per-identity metadata (role/order/favorite/rank/mask). Land it in the Identity Manager's
+   first migration, before any links exist. **Not migrated in this milestone.**
+4. **Generation defaults resolve in layers** (provider/global → Identity → Template →
+   per-generation, most-specific wins). Identity generation-default columns (`preferredPrompt`,
+   `negativePrompt`, preferred models/providers as strings+`Json`, aspect ratio,
+   `generationDefaults Json`) are **deferred** until the Prompt Builder/AI layer consumes
+   them — no speculative columns (Decision 024 principle).
+5. **Soft lifecycle:** add `status ACTIVE|ARCHIVED` for archive/restore; **delete severs
+   media *links* and defaults only — never the underlying media or generated results**
+   (`Generation.identityId` stays `SetNull`).
+6. **Providers are plug-ins; the Identity is their input contract.** Provider-trained
+   artifacts (LoRA/embedding/fine-tune) attach as **satellite records** keyed by
+   `identityId` + provider string, so adding OpenAI/Fal/Replicate/Runway/local/ControlNet is
+   one adapter + rows, never an Identity change (restates Decision 007 for identities).
+
+Reason
+Documentation-first: stabilize the architecture before code depends on it, so Identities,
+Templates, Prompt Builder, and the AI layer all build on one settled contract. Reusing the
+media layer avoids a second media system; the join table + satellites keep the Identity small,
+shared, and provider-agnostic while leaving room for training/LoRA/masks/poses without a
+reshape.
+
+Alternatives
+Keep the direct `UploadedMedia.identityId` FK (rejected — one-identity-per-asset, nowhere for
+per-identity metadata); copy media into an identity-owned store (rejected — duplicates the
+media layer, breaks single-source signing/deletion); add all generation-default + provider
+columns now (rejected — speculative, no consumer yet); provider-specific fields on Identity
+(rejected — couples the central concept to an SDK).
+
+Status
+Accepted (design) — implementation deferred to the Identity Manager milestone; **no schema,
+migration, UI, routes, or API changed** in this milestone.

@@ -29,8 +29,18 @@
 - [x] Filters (type/source/sort/search) + infinite scroll + LoadingState/EmptyState/ErrorState
 - [x] Verify end-to-end vs live store + DB (`scripts/verify-media.ts`)
 
-### Identity Manager (9) — next
-- [ ] Identity CRUD within a project; reuse the Gallery/`MediaCard` for reference media (don't build a new browser)
+### Identity System (9)
+- [x] **Design** (design-only milestone): `IDENTITIES.md`, `TRAINING_MEDIA.md`, schema review,
+      relationship/ownership design, provider-agnostic plug-in design, planned components (Decision 025)
+- [ ] **Identity Manager (implementation)** — when approved:
+  - [ ] Schema migration: `description`, `displayImageId`, `status` (+ `IdentityStatus` enum), and the
+        `IdentityMedia` join table (replace `UploadedMedia.identityId`); cascade link deletes
+  - [ ] Identity CRUD within a project (owner-scoped Server Actions + Zod + TanStack Query)
+  - [ ] Training Media: select from Gallery (reuse `media/` components), reorder, favorite, set display image, remove-link
+  - [ ] Lifecycle: archive/restore + delete (severs links only, never media/results)
+  - [ ] Identity components (`src/components/identity/`) per COMPONENT_GUIDELINES — compose `media/`, don't rebuild a browser
+  - [ ] Verify end-to-end vs live store + DB (owner authorization; link/delete semantics)
+  - [ ] Defer generation-default columns until the Prompt Builder/AI consume them
 
 ### Deferred navigation decision (revisit after Gallery)
 - [ ] Top-level `/uploads` + `/gallery` are **temporary placeholders** (media belongs to a project).
