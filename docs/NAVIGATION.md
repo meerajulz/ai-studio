@@ -21,12 +21,23 @@ Redirect to `/login` if there is no session.
 | ----- | ---- | ------- |
 | `/projects` | Projects | **Primary authenticated landing page** — list of the user's projects |
 | `/projects/[id]` | Project → Overview | Project workspace home |
-| `/projects/[id]/{uploads,gallery,identities,templates,jobs,settings}` | Project tabs | Workspace sections (see [WORKSPACE_API.md](./WORKSPACE_API.md)) |
-| `/gallery` | Gallery | All generated + uploaded media |
-| `/uploads` | Uploads | Upload + manage reference media |
+| `/projects/[id]/uploads` | Project → Uploads | **Add** media (drag & drop, queue) — implemented (7B). Permanent home for uploading. |
+| `/projects/[id]/gallery` | Project → Gallery | **Browse** the project's media (grid, filters, viewer) — implemented (8). Permanent home for browsing. |
+| `/projects/[id]/{identities,templates,jobs,settings}` | Project tabs | Workspace sections (see [WORKSPACE_API.md](./WORKSPACE_API.md)) |
+| `/gallery` | Gallery | **Temporary placeholder.** A global/cross-project media browser is not built. |
+| `/uploads` | Uploads | **Temporary placeholder** (⚠️ see note below). Uploading lives inside a project. |
 | `/templates` | Templates | Reusable prompt/config presets |
 | `/settings` | Settings | Account & preferences |
 | `/dashboard` | Dashboard (temporary) | Kept only for auth verification (temp user menu). Not the long-term landing page. |
+
+> **⚠️ Top-level `/uploads` + `/gallery` are temporary placeholders.** All real upload +
+> gallery functionality lives **inside a project** (`/projects/[id]/uploads`,
+> `/projects/[id]/gallery`) because media belongs to a User **and** a Project. The global
+> `/uploads` has no project to add into, so it stays a stub. **No routing changes yet.**
+> **Deferred decision:** once the project Gallery has settled, decide whether to (1) remove
+> `/uploads` from the sidebar, or (2) turn `/uploads` + `/gallery` into one global **Media**
+> browser (likely renamed **Media**, with All/Uploaded/Generated · Images/Videos · Favorites
+> · project filters). Decide from how the app actually feels, not theory.
 
 ### Authenticated landing page (today → later)
 

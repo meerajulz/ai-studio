@@ -4,8 +4,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
-import { useDeleteUpload } from "@/hooks/use-uploads";
-import type { UploadedAsset } from "@/lib/media/types";
+import { useDeleteMedia } from "@/hooks/use-media";
+import type { MediaAsset } from "@/lib/media/types";
 import {
   Dialog,
   DialogContent,
@@ -16,32 +16,37 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
-type DeleteUploadDialogProps = {
+type DeleteMediaDialogProps = {
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  asset: UploadedAsset | null;
+  media: MediaAsset | null;
+  /** Called after a successful delete (e.g. to close a viewer). */
+  onDeleted?: () => void;
 };
 
-export function DeleteUploadDialog({
+/** Shared confirm-delete for a media asset — used by Uploads and Gallery. */
+export function DeleteMediaDialog({
   projectId,
   open,
   onOpenChange,
-  asset,
-}: DeleteUploadDialogProps) {
-  const deleteMut = useDeleteUpload(projectId);
+  media,
+  onDeleted,
+}: DeleteMediaDialogProps) {
+  const deleteMut = useDeleteMedia(projectId);
   const [loading, setLoading] = useState(false);
 
   async function handleDelete() {
-    if (!asset) return;
+    if (!media) return;
     setLoading(true);
     try {
-      await deleteMut.mutateAsync(asset.id);
-      toast.success("Upload deleted");
+      await deleteMut.mutateAsync(media.id);
+      toast.success("Media deleted");
       onOpenChange(false);
+      onDeleted?.();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not delete upload",
+        error instanceof Error ? error.message : "Could not delete media",
       );
     } finally {
       setLoading(false);
@@ -52,11 +57,11 @@ export function DeleteUploadDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete upload</DialogTitle>
+          <DialogTitle>Delete media</DialogTitle>
           <DialogDescription>
             This permanently removes{" "}
             <span className="text-foreground font-medium">
-              {asset?.originalFilename ?? "this file"}
+              {media?.originalFilename ?? "this file"}
             </span>{" "}
             from storage. This action can&apos;t be undone.
           </DialogDescription>

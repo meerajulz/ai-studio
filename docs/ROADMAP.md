@@ -55,9 +55,15 @@
       throughout. Verified end-to-end against the live private store + DB
       (`scripts/verify-uploads.ts`).
 
+- [x] Project Gallery (8) — `/projects/[id]/gallery`: source-agnostic media browser (grid,
+      filters, viewer, infinite scroll) over the refined **media layer** (now the single
+      public media API — Decision 024). Uploads migrated onto the shared media components.
+
 ## In Progress
 
-- [ ] Gallery (8) ← **next** · Identity Manager (9) · AI generation
+- [ ] Identity Manager (9) ← **next** · AI generation
+- [ ] _Deferred:_ global `/uploads` + `/gallery` — decide during/after Gallery whether to
+      remove or merge into one global **Media** browser (see NAVIGATION.md)
 
 ---
 
@@ -70,7 +76,7 @@
 - [x] Generation model
 - [x] Prisma client runtime (`src/lib/db/` + `@prisma/adapter-neon`) — verified vs Neon
 - [x] Upload API (`/api/uploads` scoped-token route + media layer)
-- [ ] Gallery API
+- [x] Gallery API (`listProjectMedia` — filters/sort/search + cursor pagination, via media layer)
 
 ---
 

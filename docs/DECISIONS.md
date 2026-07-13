@@ -562,7 +562,8 @@ persistence logic, couples features to the SDK); a generic "storage service" tha
 AI outputs (premature — GeneratedMedia has a different lifecycle; revisit when AI lands).
 
 Status
-Accepted — implemented; verified via `scripts/verify-uploads.ts` (persist → sign → list →
+Accepted — implemented; **refined in Milestone 8** (Decision 024) into the sole media API.
+Verified via `scripts/verify-media.ts` (persist → sign → list/filter/paginate →
 owner-authorization → delete against the live store + DB).
 
 # Decision 023
@@ -593,4 +594,44 @@ the point of direct-to-Blob client uploads and adds server load).
 
 Status
 Accepted — implemented and verified (image + video upload, signed URLs, metadata, delete,
-owner authorization).
+owner authorization). The persist action was renamed `createUpload` → `createMediaAction`
+in Milestone 8 (Decision 024).
+
+# Decision 024
+
+Date
+2026-07-13
+
+Decision
+The **media layer (`src/lib/media/`) is the single public API for all media** — Uploads,
+Gallery, and later Identities, Templates, Jobs, and AI generation depend on it, and nothing
+outside `src/lib/media` calls the blob layer directly. Server API (all owner-scoped):
+`createMedia`, `listProjectMedia` (kind/source/sort/search filters + cursor pagination),
+`getMedia`, `getMediaSignedUrl`, `updateMediaMetadata`, `deleteMedia`, `handleProjectUpload`;
+client: `uploadProjectMedia`. The UI contract is a **source-tagged `MediaAsset`**
+(`source: "uploaded" | "generated"`) so one browser handles everything: `listProjectMedia`
+already accepts a `generated` filter (returns empty until AI outputs land). The **Project
+Gallery** (`/projects/[id]/gallery`) and its reusable components (`MediaCard`, `MediaGrid`,
+`MediaViewer`, `MediaFiltersBar`, `DeleteMediaDialog`) are **source-agnostic** — generated
+media plugs into the same grid/filters/viewer with no UI change. Future media features must
+reuse the Gallery + these components rather than build their own browser. Planned-but-unbuilt
+media methods (no consumer yet): `move()`, `duplicate()`, `generateThumbnail()`,
+`refreshSignedUrls()` (bulk).
+
+Reason
+Keeps layers clean as the roadmap grows and prevents N feature-specific media browsers.
+Ownership + persistence + signing live in exactly one place; a single unified asset shape
+means "treat everything as Media, don't special-case uploads." Refined now, while Uploads was
+still the only consumer, so Gallery could be built directly on the final API (Uploads was
+migrated onto it in the same milestone). Explicitly avoids coupling media to AI — an upload
+is just media; generated media is another source of the same `MediaAsset`.
+
+Alternatives
+Separate upload/gallery data paths (rejected — duplicate ownership/signing logic, diverging
+UIs); one global media browser now (deferred — see NAVIGATION.md; decide after the project
+Gallery settles); building `updateMetadata`/`move`/`duplicate` speculatively (rejected —
+implemented only `updateMediaMetadata`, which is verified; the rest wait for a real consumer).
+
+Status
+Accepted — implemented and **verified end-to-end** against the live private store + DB
+(`scripts/verify-media.ts`). `npm run build` + `tsc --noEmit` pass.

@@ -1,36 +1,57 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ImageIcon, TriangleAlert } from "lucide-react";
 
-import { useUploads } from "@/hooks/use-uploads";
+import {
+  defaultMediaFilters,
+  useProjectMedia,
+} from "@/hooks/use-media";
 import { useUploadManager } from "@/hooks/use-upload-manager";
-import type { UploadedAsset } from "@/lib/media/types";
+import type { MediaAsset } from "@/lib/media/types";
 import { SectionTitle } from "@/components/shared/section-title";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { Button } from "@/components/ui/button";
+import { MediaGrid } from "@/components/media/media-grid";
+import { MediaViewer } from "@/components/media/media-viewer";
+import { DeleteMediaDialog } from "@/components/media/delete-media-dialog";
 import { UploadDropzone } from "./upload-dropzone";
 import { UploadQueueItem } from "./upload-queue-item";
-import { UploadedMediaCard } from "./uploaded-media-card";
-import { DeleteUploadDialog } from "./delete-upload-dialog";
 
 type UploadsViewProps = {
   projectId: string;
   blobReady: boolean;
 };
 
-/** Uploads tab of a project workspace: drag & drop, upload queue, and the stored grid. */
+/**
+ * Uploads tab — the "add media" surface. Drag & drop + an upload queue, plus a grid of what's
+ * been uploaded (reusing the shared media components). Browsing/filtering lives in Gallery.
+ */
 export function UploadsView({ projectId, blobReady }: UploadsViewProps) {
-  const { data: uploads, isLoading, isError, refetch } = useUploads(projectId);
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useProjectMedia(projectId, defaultMediaFilters);
   const manager = useUploadManager(projectId, { onPersisted: () => refetch() });
-  const [deleting, setDeleting] = useState<UploadedAsset | null>(null);
+  const [viewing, setViewing] = useState<MediaAsset | null>(null);
+  const [deleting, setDeleting] = useState<MediaAsset | null>(null);
+
+  const items = useMemo(
+    () => data?.pages.flatMap((page) => page.items) ?? [],
+    [data],
+  );
 
   return (
     <div className="grid gap-6">
       <SectionTitle
         title="Uploads"
-        description="Reference images and videos used as input for this project."
+        description="Add reference images and videos to this project. Browse them in the Gallery."
       />
 
       {blobReady ? (
@@ -76,31 +97,40 @@ export function UploadsView({ projectId, blobReady }: UploadsViewProps) {
             </Button>
           }
         />
-      ) : !uploads || uploads.length === 0 ? (
+      ) : items.length === 0 ? (
         <EmptyState
           icon={ImageIcon}
           title="No uploads yet"
           description="Drag in images or videos to use as references for this project."
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {uploads.map((asset) => (
-            <UploadedMediaCard
-              key={asset.id}
-              asset={asset}
-              onDelete={setDeleting}
-            />
-          ))}
-        </div>
+        <MediaGrid
+          items={items}
+          onOpen={setViewing}
+          onDelete={setDeleting}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          onLoadMore={() => void fetchNextPage()}
+        />
       )}
 
-      <DeleteUploadDialog
+      <MediaViewer
+        media={viewing}
+        open={viewing !== null}
+        onOpenChange={(open) => {
+          if (!open) setViewing(null);
+        }}
+        onDelete={setDeleting}
+      />
+
+      <DeleteMediaDialog
         projectId={projectId}
         open={deleting !== null}
         onOpenChange={(open) => {
           if (!open) setDeleting(null);
         }}
-        asset={deleting}
+        media={deleting}
+        onDeleted={() => setViewing(null)}
       />
     </div>
   );

@@ -11,8 +11,9 @@
 | `src/components/ui/` | Primitives (shadcn/Base UI): `Button`, `Card`, `Input`, `PasswordInput` (show/hide toggle), `Form`, … |
 | `src/components/shared/` | App-wide building blocks: `AppShell`, `ProjectLayout`, `Sidebar`, `Header`, `Breadcrumb`, `PageContainer`, `SectionTitle`, `EmptyState`, `LoadingState` |
 | `src/components/projects/` | `ProjectCard`, project form/delete dialogs, `ProjectsView` |
-| `src/components/gallery/` | `MediaCard` and gallery pieces |
-| `src/components/upload/` | `UploadsView`, `UploadDropzone`, `UploadQueueItem`, `UploadedMediaCard`, `DeleteUploadDialog` |
+| `src/components/media/` | **Reusable media browser primitives** (source-agnostic): `MediaCard`, `MediaGrid`, `MediaViewer`, `MediaFiltersBar`, `DeleteMediaDialog` |
+| `src/components/gallery/` | `GalleryView` (project media browser; composes `media/`) |
+| `src/components/upload/` | `UploadsView`, `UploadDropzone`, `UploadQueueItem` (the "add media" surface; reuses `media/` for display) |
 | `src/components/forms/` | Form-specific composites |
 | `src/components/auth/` | Auth forms + user menu (existing) |
 
@@ -116,32 +117,44 @@ props: { project: { id; name; description?; createdAt; _count? }; className? }
 shows: name, description, item counts; links to /projects/[id]
 ```
 
-### `MediaCard`
-A single image/video tile (uploaded or generated).
+### Media components (`src/components/media/`) — implemented (8)
+**The reusable, source-agnostic media browser.** Every media feature (Gallery today;
+Identities/Templates/AI later) composes these instead of building its own browser. All are
+driven by the `MediaAsset` contract (signed `url`, `source: "uploaded" | "generated"`) from
+the media layer — they never call Blob directly.
 ```
-props: {
-  media: { id; type: "IMAGE" | "VIDEO"; url; width?; height?; createdAt };
-  onSelect?: (id: string) => void; className?
-}
-shows: thumbnail (fixed aspect ratio), type badge, hover actions
+MediaCard        props: { media: MediaAsset; onOpen?(m); onDelete?(m); className? }
+  — one image/video tile: lazy image / video poster + play, type Badge, hover delete.
+MediaGrid        props: { items: MediaAsset[]; onOpen?; onDelete?; hasNextPage?;
+                          isFetchingNextPage?; onLoadMore? }
+  — responsive grid + infinite-scroll sentinel (IntersectionObserver).
+MediaViewer      props: { media: MediaAsset | null; open; onOpenChange; onDelete? }
+  — full-size modal: image / video player + metadata (dims, duration, size, date).
+MediaFiltersBar  props: { filters: MediaFilters; onChange(patch) }
+  — type / source / sort selects + debounced filename search. Source includes "generated"
+    (returns empty until AI media lands — future-proofed).
+DeleteMediaDialog props: { projectId; open; onOpenChange; media; onDeleted? }
 ```
+State comes from `hooks/use-media.ts`: `useProjectMedia(projectId, filters)` (infinite query)
+and `useDeleteMedia(projectId)`. `GalleryView` (`components/gallery/`) wires them together for
+`/projects/[id]/gallery`; the Uploads tab reuses `MediaGrid`/`MediaViewer`/`DeleteMediaDialog`
+for its uploaded-media display.
 
-### Upload components (`src/components/upload/`) — implemented (7B)
-The Uploads tab is composed from these; state lives in two hooks — `useUploads` (persisted
-data, TanStack Query) and `useUploadManager` (transient in-flight queue).
+### Upload components (`src/components/upload/`) — implemented (7B, refined in 8)
+The Uploads tab (the "add media" surface). Its own pieces cover **adding**; **displaying**
+uploaded media reuses the shared `media/` components (`MediaGrid`/`MediaViewer`/
+`DeleteMediaDialog`). State: `useUploadManager` (transient in-flight queue) + `useProjectMedia`
+(the persisted grid, shared with Gallery).
 ```
-UploadsView       props: { projectId: string; blobReady: boolean }
-  — orchestrates dropzone + queue + the three-state persisted grid + delete dialog.
-UploadDropzone    props: { onFiles: (files: File[]) => void; disabled?; className? }
+UploadsView     props: { projectId: string; blobReady: boolean }
+  — orchestrates dropzone + queue + the shared media grid/viewer/delete-dialog.
+UploadDropzone  props: { onFiles: (files: File[]) => void; disabled?; className? }
   — drag & drop + click-to-browse; `accept` from ALLOWED_MIME_TYPES; multiple.
-UploadQueueItem   props: { item: UploadItem; onCancel; onRetry; onRemove }
+UploadQueueItem props: { item: UploadItem; onCancel; onRetry; onRemove }
   — one in-flight upload: Progress bar while active; retry/remove on error/cancel.
-UploadedMediaCard props: { asset: UploadedAsset; onDelete: (a) => void; className? }
-  — persisted tile: image/video thumbnail via signed URL, type Badge, hover delete.
-DeleteUploadDialog props: { projectId; open; onOpenChange; asset: UploadedAsset | null }
 ```
-> `UploadedMediaCard` is intentionally minimal — the reusable gallery `MediaCard` is a later
-> milestone (8). Don't build gallery features into the upload tile.
+> The old `UploadedMediaCard`/`DeleteUploadDialog` were removed in Milestone 8 — Uploads and
+> Gallery now share one set of media components. Don't reintroduce upload-only display tiles.
 
 ## Composition example
 

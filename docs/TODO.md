@@ -22,9 +22,19 @@
 - [x] Extend `UploadedMedia` for the asset model (pathname, originalFilename, duration, updatedAt)
 - [x] Verify end-to-end vs the live private store + DB (`scripts/verify-uploads.ts`)
 
-### Gallery (8) — next
-- [ ] Gallery page: display uploaded (+ later generated) media across the project
-- [ ] Reusable `MediaCard` (promote from the upload tile) + signed-URL rendering
+### Gallery (8) — done
+- [x] Refine media layer into the single public media API (Decision 024) + migrate Uploads onto it
+- [x] Gallery page `/projects/[id]/gallery`: uploaded images + videos (generated plugs in later)
+- [x] Reusable media components (`MediaCard`, `MediaGrid`, `MediaViewer`, `MediaFiltersBar`, `DeleteMediaDialog`)
+- [x] Filters (type/source/sort/search) + infinite scroll + LoadingState/EmptyState/ErrorState
+- [x] Verify end-to-end vs live store + DB (`scripts/verify-media.ts`)
+
+### Identity Manager (9) — next
+- [ ] Identity CRUD within a project; reuse the Gallery/`MediaCard` for reference media (don't build a new browser)
+
+### Deferred navigation decision (revisit after Gallery)
+- [ ] Top-level `/uploads` + `/gallery` are **temporary placeholders** (media belongs to a project).
+      Decide whether to remove `/uploads` or merge both into one global **Media** browser. No routing changes yet. (NAVIGATION.md)
 
 ### Housekeeping
 - [ ] Clean up stray `~/package-lock.json` confusing Next.js workspace-root detection

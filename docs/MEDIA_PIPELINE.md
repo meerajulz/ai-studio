@@ -87,19 +87,24 @@ store and verify webhook signatures.
 Nothing calls upload/delete until the Uploads feature (7B), so the app builds and runs
 without the token today; it's only needed once uploads are wired up.
 
-## Media layer (`src/lib/media/`) — implemented (7B)
+## Media layer (`src/lib/media/`) — the single public media API (7B, refined in 8)
 
-The application-level boundary for media. **Feature code (Server Actions, the upload route,
-components, hooks) depends on this, not on `src/lib/blob/*` directly** (Decision 022). The
-blob layer knows how to store/sign/delete bytes; the media layer knows what an *asset* is,
-who owns it, how it's persisted, and how a stored asset becomes a signed, renderable URL.
+The application-level boundary for media. **All feature code (Server Actions, the upload
+route, components, hooks) depends on this, never on `src/lib/blob/*` directly** (Decisions
+022 + 024). The blob layer knows how to store/sign/delete bytes; the media layer knows what
+an *asset* is, who owns it, how it's persisted + queried, and how a stored asset becomes a
+signed, renderable URL. The UI contract is a **source-tagged `MediaAsset`**
+(`source: "uploaded" | "generated"`) so one browser handles everything.
 
 | File | Responsibility |
 | ---- | -------------- |
-| `types.ts` | `UploadedAsset` (UI contract, signed `url`), `PersistUploadInput`, `MediaDimensions` |
-| `server.ts` | `persistUpload`, `listProjectUploads`, `deleteUpload` (all owner-scoped) + `handleProjectUpload` (client-token issuance with ownership check) |
+| `types.ts` | `MediaAsset` (UI contract, signed `url`, `source`), list/filter/pagination types, `PersistUploadInput`, `MediaDimensions` |
+| `server.ts` | Owner-scoped API: `createMedia`, `listProjectMedia` (kind/source/sort/search + cursor pagination), `getMedia`, `getMediaSignedUrl`, `updateMediaMetadata`, `deleteMedia`, `handleProjectUpload` |
 | `client.ts` | `uploadProjectMedia` — browser upload (wraps the blob client) + best-effort width/height/duration probing |
 | `index.ts` | Barrel for shared types only (import `server`/`client` directly) |
+
+Planned but not built (no consumer yet): `move()`, `duplicate()`, `generateThumbnail()`,
+`refreshSignedUrls()` (bulk). Add when a feature needs them — don't over-engineer.
 
 ### Upload flow (browser → private store → DB)
 
@@ -109,14 +114,29 @@ UploadDropzone → useUploadManager (queue, p-limit=3, progress/cancel/retry)
 @vercel/blob client upload ──► POST /api/uploads  (handleProjectUpload → onBeforeGenerateToken)
       │                              └─ auth + assertProjectOwnership + lock path/types/size → scoped token
       ↓  bytes go straight to Blob (private)
-createUpload Server Action ──► persistUpload  (re-validate ownership + path + MIME + size → UploadedMedia row)
+createMediaAction ──► createMedia  (re-validate ownership + path + MIME + size → UploadedMedia row)
       ↓
-useUploads (TanStack Query) ──► listProjectUploads → fresh signed URL per asset → UploadedMediaCard
+useProjectMedia (TanStack Query) ──► listProjectMedia → fresh signed URL per asset → MediaCard
 ```
 
-Metadata is persisted by the explicit `createUpload` action **after** the upload, not by the
-Blob `onUploadCompleted` webhook (which can't reach localhost) — Decision 023. Verified
-end-to-end against the live private store + DB via `scripts/verify-uploads.ts`.
+Metadata is persisted by the explicit `createMediaAction` **after** the upload, not by the
+Blob `onUploadCompleted` webhook (which can't reach localhost) — Decision 023.
+
+### Browse flow (Gallery / Uploads grid)
+
+```
+GalleryView / UploadsView
+      ↓ filters (kind/source/sort/search)
+useProjectMedia (useInfiniteQuery, cursor pagination)
+      ↓ listMediaAction → listProjectMedia (owner-scoped) → fresh signed URLs
+MediaFiltersBar · MediaGrid (infinite scroll) · MediaCard · MediaViewer · DeleteMediaDialog
+```
+
+The **Project Gallery** (`/projects/[id]/gallery`) is source-agnostic: `source: "generated"`
+is a real filter today (returns empty), so AI outputs will appear in the same grid/filters/
+viewer with no UI change. Verified end-to-end against the live private store + DB via
+`scripts/verify-media.ts` (persist → sign → filter/sort/search/paginate → get/rename/refresh
+→ owner authorization → delete).
 
 ## Path convention
 
@@ -125,7 +145,10 @@ random suffix to avoid collisions). See `buildUploadPathname`.
 
 ## Not built yet
 
-- **8 Gallery** — a project-wide (and later app-wide) view of stored media; will promote the
-  minimal upload tile into a reusable `MediaCard`.
-- **9 Identities**, then AI generation (`GeneratedMedia` outputs flow back through this same
-  pipeline). Uploads stay decoupled from AI — an upload is just media.
+- **9 Identities** — reference media per identity; must reuse the media layer + Gallery
+  components (`MediaCard`/`MediaGrid`), not a new browser.
+- Then AI generation: `GeneratedMedia` outputs flow back through this same pipeline and
+  surface as `MediaAsset { source: "generated" }` in the existing Gallery. Uploads/media stay
+  decoupled from AI — an upload is just one source of media.
+- **Deferred:** a global (cross-project) media browser — see NAVIGATION.md (`/uploads` +
+  `/gallery` are temporary placeholders).

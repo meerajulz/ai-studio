@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import pLimit from "p-limit";
 import { toast } from "sonner";
 
-import { createUpload } from "@/actions/uploads";
+import { createMediaAction } from "@/actions/media";
 import { validateFile } from "@/lib/blob/validation";
 import { uploadProjectMedia } from "@/lib/media/client";
 
@@ -64,7 +64,7 @@ export function useUploadManager(
             signal: controller.signal,
             onProgress: (percentage) => update(id, { progress: percentage }),
           });
-          await createUpload({ ...result, projectId });
+          await createMediaAction({ ...result, projectId });
 
           controllers.current.delete(id);
           setItems((prev) => prev.filter((item) => item.id !== id));

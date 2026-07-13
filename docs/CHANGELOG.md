@@ -8,6 +8,29 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Project Gallery** (Milestone 8) at `/projects/[id]/gallery` — the central, source-agnostic
+  media browser for a project. Responsive grid of BOTH uploaded images **and** videos (image
+  thumbnails lazy-load; video tiles show a poster frame + play affordance), a full-size
+  **MediaViewer** modal (image / video player + metadata + delete), and **filters** (type:
+  all/images/videos · source: all/uploaded/**generated** placeholder · sort: newest/oldest ·
+  debounced filename search). **Infinite scroll** via `IntersectionObserver` +
+  `useInfiniteQuery` (cursor pagination). Loading/empty/error states. Owner-scoped; never
+  touches Blob directly. Generated AI media will drop into the same grid/filters/viewer with
+  no UI change (Decision 024).
+- **Media layer refined into the single public media API** (Phase 1 of Milestone 8,
+  Decision 024). `src/lib/media/server.ts` now exposes owner-scoped `createMedia`,
+  `listProjectMedia` (kind/source/sort/search + cursor pagination), `getMedia`,
+  `getMediaSignedUrl`, `updateMediaMetadata`, `deleteMedia`, `handleProjectUpload`; client
+  `uploadProjectMedia`. New source-tagged **`MediaAsset`** contract (`source: uploaded |
+  generated`). Canonical Server Actions in `actions/media.ts` (replaces `actions/uploads.ts`);
+  unified hooks in `hooks/use-media.ts` (`useProjectMedia` infinite query + `useDeleteMedia`,
+  replaces `use-uploads.ts`). **Reusable components** in `src/components/media/`: `MediaCard`,
+  `MediaGrid`, `MediaViewer`, `MediaFiltersBar`, `DeleteMediaDialog`. The **Uploads tab was
+  migrated onto these** (its `UploadedMediaCard`/`DeleteUploadDialog` removed) so Uploads +
+  Gallery share one code path. Verified end-to-end via `scripts/verify-media.ts` (persist →
+  signed URLs → filter/sort/search/paginate → getMedia/rename/refresh → owner authorization
+  → delete, against the live store + DB). Top-level `/uploads` + `/gallery` documented as
+  temporary placeholders (NAVIGATION.md); **no routing changes**.
 - **Upload System** (Milestone 7B): the Uploads tab of a project workspace now supports real
   image **and** video uploads to the private Blob store. **Media layer** (`src/lib/media/`,
   Decision 022) that all feature code depends on instead of the blob layer directly:
