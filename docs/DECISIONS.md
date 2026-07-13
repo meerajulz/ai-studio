@@ -728,3 +728,53 @@ now (deferred — a valid future refinement, but request-level is the simpler de
 Status
 Accepted (future direction) — **deferred; sub-questions open; NOT implemented, NO schema or
 migration changed.** Revisit when building the AI generation / jobs system.
+
+# Decision 027
+
+Date
+2026-07-13
+
+Decision
+**Freeze the Identity design for the MVP** ahead of the Identity Manager implementation
+(Milestone 9A). Refinements locked (design only — no code/schema this milestone):
+1. **Project-scoped identities (MVP).** Every Identity belongs to a user **and** a project,
+   matching the rest of the app. The Identity Manager migration makes `Identity.projectId`
+   **required** (non-null) and `onDelete: Cascade`. A user-global **Identity Library** is
+   **explicitly out of MVP scope** (revisit later if valuable).
+2. **Dedicated Overview sub-tab.** Identity detail keeps an **Overview** tab as the default
+   landing (hero, name, description, status, media count, created/updated dates) — minimal
+   today, the permanent home for future stats/templates/history/artifacts/AI defaults.
+3. **"Hero Image".** The identity's primary visual is called **Hero Image** throughout the UI
+   (cards, lists, breadcrumbs, pickers). It maps to the `displayImageId` column; the UX
+   language is consistently "Hero Image".
+4. **Three statuses:** `IdentityStatus` = **DRAFT | ACTIVE | ARCHIVED** (new identities start
+   DRAFT; DRAFT is hidden from generation pickers).
+5. **Standardized training-media roles (planning-only):** `IdentityMedia.role` ∈
+   `PRIMARY | SECONDARY | VIDEO | POSE | STYLE | OTHER`. Standardized now for consistency; **no
+   behavior is built around roles yet.**
+6. **Gallery + media layer stay the single source of truth** — the Identity Manager reuses
+   them; **no second upload workflow, ever** (reaffirms Decision 024). Creating an identity is
+   always `Gallery → select → Create Identity → Training Media`.
+7. **AI stays separate** — no Prompt Builder / providers / generation settings / LoRA in the
+   Identity Manager; Identity remains provider-agnostic (reaffirms Decisions 007/025).
+
+Full UX in [IDENTITY_UX.md](./IDENTITY_UX.md); architecture in [IDENTITIES.md](./IDENTITIES.md)
++ [TRAINING_MEDIA.md](./TRAINING_MEDIA.md).
+
+Reason
+Locking scope + naming + statuses + roles before implementation keeps the build unambiguous
+and the architecture consistent. Project-scoping matches the existing mental model and keeps
+ownership/cascade simple; three statuses (adding DRAFT) fit how users actually create an
+identity before curating media; standardizing roles up front avoids churn when
+pose/style/video conditioning lands. All refinements are additive to the already-accepted
+design (Decisions 025/026) — none reverse a prior decision.
+
+Alternatives
+User-global identities from day one (rejected — added scope/ambiguity for no MVP benefit;
+deferred); two statuses without DRAFT (rejected — no state for "created but not yet
+organized"); keep "Display Image" naming (rejected — "Hero Image" reads better and scales to
+dashboards); leave roles unspecified (rejected — inconsistent metadata later).
+
+Status
+Accepted — **design frozen.** Implementation begins in Milestone 9A (Identity Manager). **No
+code, schema, migration, UI, or routes changed in this milestone.**

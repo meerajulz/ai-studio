@@ -8,6 +8,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Design (no code)
+- **Identity design frozen** (Decision 027, design only): final MVP refinements before
+  implementation — **project-scoped identities** (`projectId` becomes required + Cascade;
+  global library out of scope), a **dedicated Overview sub-tab** (default), **"Hero Image"**
+  naming (maps `displayImageId`), **three statuses** `DRAFT | ACTIVE | ARCHIVED`, standardized
+  planning-only training-media **roles** (`PRIMARY|SECONDARY|VIDEO|POSE|STYLE|OTHER`), Gallery +
+  media layer reaffirmed as the single source (no second upload flow), and AI kept out
+  (provider-agnostic). Updated `IDENTITIES.md`, `TRAINING_MEDIA.md`, `IDENTITY_UX.md`,
+  `COMPONENT_GUIDELINES.md`, `ROADMAP.md`, `TODO.md`, `DECISIONS.md` (#027). No code/schema.
+  Next: **Milestone 9A — Identity Manager implementation.**
 - **Identity Manager UX & workflow design** (design only): new **`IDENTITY_UX.md`** — the
   complete Identity experience: user journey, ASCII wireframes for every screen (identities
   list, create dialog + create-from-Gallery-selection, identity overview/detail with sub-tabs,

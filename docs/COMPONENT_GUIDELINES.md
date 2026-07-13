@@ -162,20 +162,24 @@ Responsibilities only — **not implemented**. See [IDENTITIES.md](./IDENTITIES.
 existing `media/` components (`MediaGrid`/`MediaCard`/`MediaViewer`), never reimplement a
 media browser** (Decision 024).
 ```
-IdentityCard          One identity tile: IdentityAvatar + name + description + media count +
-                      status; links into the identity. (mirrors ProjectCard/MediaCard.)
+IdentityCard          One identity tile: IdentityAvatar (Hero Image) + name + description +
+                      media count + status badge (DRAFT/ACTIVE/ARCHIVED); links into the
+                      identity. (mirrors ProjectCard/MediaCard.)
 IdentityGrid          Responsive grid of IdentityCards with Loading/Empty/Error states.
-IdentityAvatar        The identity's display image (signed URL) with initials/icon fallback
-                      when no display image is set. Small, reusable (cards, headers, pickers).
-TrainingMediaGrid     An identity's curated training media — composes MediaGrid; adds
-                      per-link affordances (reorder, favorite, set-as-display, remove-link).
+IdentityAvatar        The identity's Hero Image (signed URL) with initials/icon fallback when
+                      no Hero Image is set. Small, reusable (cards, lists, breadcrumbs, pickers).
+IdentityOverview      The Overview sub-tab (default): Hero Image + name + description + status +
+                      training-media count + created/updated. Minimal today; permanent home
+                      for future stats/templates/history/artifacts/AI defaults.
+TrainingMediaGrid     An identity's curated training media — composes MediaGrid; adds per-link
+                      affordances (reorder, favorite, set-as-Hero-Image, remove-link).
 TrainingMediaSelector A media picker (selectable MediaGrid over listProjectMedia) to link
                       existing Gallery media to the identity. Selection, not upload.
 TrainingMediaViewer   Full-size training-media preview — composes MediaViewer; adds link
                       metadata (role/rank/favorite) and remove-from-identity.
 IdentityToolbar       Actions for an identity: add training media, edit, archive/restore,
-                      set display image, delete. (mirrors a page-level SectionTitle action.)
-IdentityFilters       Filter/sort identities (e.g. status active/archived, search by name).
+                      set Hero Image, delete. (mirrors a page-level SectionTitle action.)
+IdentityFilters       Filter/sort identities (status DRAFT/ACTIVE/ARCHIVED, search by name).
 ```
 > These are a plan, not an API. Props get defined when the Identity Manager is implemented.
 > Reuse `EmptyState`/`LoadingState`/`SectionTitle`/`Badge` and the `media/` set throughout.

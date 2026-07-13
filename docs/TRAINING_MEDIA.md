@@ -90,8 +90,11 @@ Within an Identity, training media is an **ordered, annotatable set**:
 - **Order** — user-controlled `position` (drag to reorder). Determines display order and,
   later, which references a provider sees first.
 - **Grouping by kind** — filter images vs videos (reusing `MediaFiltersBar`).
-- **Display image** — one asset is promoted to the Identity's avatar/cover (`displayImageId`
-  on the Identity — see IDENTITIES.md).
+- **Hero Image** — one asset is promoted to the Identity's primary visual (`displayImageId`
+  on the Identity — see IDENTITIES.md). Used in cards, lists, breadcrumbs, and pickers.
+- **Role** *(future, planning-only)* — each link may carry a standardized `role` (Decision
+  027): `PRIMARY | SECONDARY | VIDEO | POSE | STYLE | OTHER`. Standardized now so the
+  architecture stays consistent; **no behavior is built around roles yet.**
 - **Count + coverage hints** — the UI can surface simple guidance ("add a few varied angles")
   without enforcing rules.
 
@@ -116,10 +119,10 @@ model IdentityMedia {
   isFavorite Boolean  @default(false)
 
   // roles + annotations (future — add when consumed)
-  role       String?  // "reference" | "face" | "pose" | "style" | "mask" | "segmentation"
+  role       String?  // standardized set (Decision 027): PRIMARY | SECONDARY | VIDEO | POSE | STYLE | OTHER
   tags       String[] // freeform, provider-agnostic
   rank       Int?     // quality/priority ordering distinct from display position
-  meta       Json?    // future: mask/pose/segmentation payloads, bbox, keypoints, notes
+  meta       Json?    // future: mask/segmentation payloads, bbox, keypoints, notes
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -149,9 +152,9 @@ media or the Identity:
 | **Tagging** | `IdentityMedia.tags String[]` (+ maybe a shared `Tag` model later) | For filtering/search within an Identity and across the library. |
 | **Ranking** | `IdentityMedia.rank Int?` | Quality/priority, distinct from display `position`; lets "best" references lead. |
 | **Favorite images** | `IdentityMedia.isFavorite Boolean` | Quick "use these first" set; also a Gallery filter (`Favorites` is already reserved in the media filter design). |
-| **Masks** | `IdentityMedia.meta` (or a derived `MediaAsset`) | A mask may be a stored image asset linked with `role:"mask"`, or coordinates in `meta`. Decide when inpainting lands. |
-| **Pose references** | `role:"pose"` + `meta` (keypoints) | ControlNet-style structure conditioning; the asset is normal media, the *role* makes it a pose ref. |
-| **Segmentation** | `role:"segmentation"` + `meta` | Same pattern — media + role + payload. |
+| **Masks** | `role:"OTHER"` + `IdentityMedia.meta` (or a derived `MediaAsset`) | Not a standard role — a mask is a stored image linked as OTHER with coordinates/payload in `meta`. Decide when inpainting lands. |
+| **Pose references** | `role:"POSE"` + `meta` (keypoints) | ControlNet-style structure conditioning; the asset is normal media, the *role* makes it a pose ref. |
+| **Segmentation** | `role:"OTHER"` + `meta` | Same pattern — media + OTHER role + payload. |
 
 Design rules for all of the above:
 

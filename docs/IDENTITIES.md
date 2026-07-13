@@ -16,7 +16,8 @@ want to appear *consistently* across many generated images and videos.
 
 An Identity bundles together, in one place:
 
-- **Who/what it is** — a name, description, and a display image (avatar).
+- **Who/what it is** — a name, description, and a **Hero Image** (the identity's primary
+  visual, maps to `displayImageId`).
 - **What it looks like** — its **training media** (images + videos) that teach a model, or
   condition a prompt, about the subject (see [TRAINING_MEDIA.md](./TRAINING_MEDIA.md)).
 - **How it likes to be generated** — optional generation defaults (preferred prompt,
@@ -69,17 +70,20 @@ outlives any one upload, prompt, provider, or generated result.
 ## Identity lifecycle
 
 ```
-Create ──► Edit ──► (Archive ⇄ Restore) ──► Delete
-                         │
-                         └─ archived identities are hidden from pickers but keep their history
+Create (DRAFT) ──► Activate (ACTIVE) ──► (Archive ⇄ Restore) ──► Delete
+       │  Edit (any state)                     │
+       └ starts as DRAFT while being set up    └ archived: hidden from pickers, keeps history
 ```
+
+Three statuses: **DRAFT** (being set up) · **ACTIVE** (in use) · **ARCHIVED** (soft-hidden).
 
 | Stage | What happens | Notes |
 | ----- | ------------ | ----- |
-| **Create** | User names an Identity inside a project; optionally adds a description and first training media. | Owner-scoped. Minimal required: `name`. |
-| **Edit** | Rename, edit description/notes, change display image, add/remove training media, adjust defaults. | Training-media changes are add/remove *links*, never destructive to the underlying media (see below). |
-| **Archive** | Soft-hide an Identity that's no longer active. It disappears from generation pickers and default Identity lists but is **not** deleted — its media links and generation history are intact. | Recommended new `status` (ACTIVE ⇄ ARCHIVED). Reversible. Preferred over deletion for anything that has history. |
-| **Restore** | Un-archive back to ACTIVE. | Trivial inverse of Archive; included because generation history makes hard-delete costly. |
+| **Create** | User names an Identity inside a project; optionally a description + first training media. | Owner-scoped. Minimal required: `name`. Starts as **DRAFT**. |
+| **Activate** | Promote DRAFT → **ACTIVE** once the identity is ready to use. | May be automatic (e.g. on first training media) or an explicit action — decide at implementation. DRAFT identities are hidden from generation pickers. |
+| **Edit** | Rename, edit description/notes, change the **Hero Image**, add/remove training media, adjust defaults. | Training-media changes are add/remove *links*, never destructive to the underlying media (see below). Allowed in any status. |
+| **Archive** | Soft-hide an Identity that's no longer active → **ARCHIVED**. It disappears from generation pickers and default Identity lists but is **not** deleted — media links and history stay intact. | Reversible. Preferred over deletion for anything with history. |
+| **Restore** | Un-archive back to **ACTIVE**. | Trivial inverse of Archive; included because generation history makes hard-delete costly. |
 | **Delete** | Permanent removal of the Identity. | **Only removes the Identity and its media *links* + defaults — never the underlying media** (that belongs to the project/Gallery and may be shared). Generations that referenced it keep existing; their `identityId` goes null (`onDelete: SetNull`, as today). Guard with a confirm dialog; prefer Archive for anything with history. |
 
 **Delete semantics (important):** deleting an Identity must **not** delete its training media
@@ -103,10 +107,13 @@ User
              └── Provider artifacts ─┘  (future: LoRA / fine-tune / embedding — swappable)
 ```
 
-- **Projects → Identities.** An Identity belongs to a user and (optionally) a project.
-  Project scoping keeps a workspace's identities together; `onDelete: SetNull` today means an
-  Identity can outlive a project. *(Open question below: should Identities be project-scoped
-  or user-global with project tags? Current model already allows both.)*
+- **Projects → Identities.** **For the MVP, Identities are PROJECT-SCOPED** (Decision 027):
+  every Identity belongs to a user **and** a project — matching the rest of the app
+  (`Project → Uploads/Gallery/Identities/Templates/Jobs`). This keeps the mental model
+  simple. *Recommendation for the Identity Manager migration:* make `Identity.projectId`
+  **required** (non-null) and switch `onDelete` from `SetNull` to **Cascade** (deleting a
+  project removes its identities + their media links, not the media). A future user-global
+  **Identity Library** may be added if it proves valuable — **explicitly out of MVP scope**.
 - **Identities → Training Media.** The heart of an Identity. Curated images + videos, drawn
   from the media layer, that represent/teach the subject. Full design in
   [TRAINING_MEDIA.md](./TRAINING_MEDIA.md).
@@ -192,8 +199,9 @@ No schema changes are made in this milestone — these are recommendations only.
 | Field / change | Type | Why |
 | -------------- | ---- | --- |
 | `description` | `String?` | Short, human summary distinct from long private `notes`. Shown on the card. |
-| `displayImageId` | FK → media (nullable) | The avatar/cover for `IdentityCard`/`IdentityAvatar`. Points at one of its training media; `SetNull` if that media is deleted. |
-| `status` | `IdentityStatus` enum `ACTIVE \| ARCHIVED` (+ optional `archivedAt`) | Enables the Archive/Restore lifecycle above; keeps history without hard-deleting. |
+| `displayImageId` | FK → media (nullable) | The **Hero Image** — primary visual for cards, lists, breadcrumbs, and pickers. Points at one of its training media; `SetNull` if that media is deleted. (UX name: "Hero Image"; column stays `displayImageId`.) |
+| `status` | `IdentityStatus` enum `DRAFT \| ACTIVE \| ARCHIVED` (+ optional `archivedAt`) | DRAFT while being set up, ACTIVE when in use, ARCHIVED to soft-hide. Enables the lifecycle above without hard-deleting. |
+| `projectId` | make **required** (non-null) + `onDelete: Cascade` | MVP is project-scoped (Decision 027). Currently nullable/`SetNull`; tighten in the Identity Manager migration. |
 | **Training-media join** | new `IdentityMedia` table (see TRAINING_MEDIA.md) | Replace the direct `UploadedMedia.identityId` FK so one asset can serve several identities and carry per-identity role/order/favorite. **The most important recommendation.** |
 
 ### Deferred until the Prompt Builder / AI layer consumes them (add then, not now)
@@ -309,11 +317,9 @@ the same owner; all queries stay owner-scoped.
 
 ## Open questions / possible future problems
 
-1. **Project-scoped vs user-global identities.** Today `projectId` is optional (Identity can
-   be global). Decide the default UX: are Identities primarily a project thing (create inside
-   a project) or a user library reused across projects? *Recommendation:* create inside a
-   project, but allow reuse across the user's projects later — the current nullable FK already
-   supports both; don't over-constrain now.
+1. **Project-scoped vs user-global identities.** ✅ **RESOLVED (Decision 027): project-scoped
+   for the MVP.** `Identity.projectId` becomes required (Cascade). A user-global Identity
+   Library is deferred — out of MVP scope, revisit only if it proves valuable.
 2. **Direct FK → join migration.** Moving training media from `UploadedMedia.identityId` to an
    `IdentityMedia` join is a real migration once media are linked. Doing it **before** the
    Identity Manager ships (while no identity-media links exist) is cheapest. *Recommendation:*

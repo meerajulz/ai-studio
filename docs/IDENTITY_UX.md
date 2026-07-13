@@ -9,7 +9,13 @@
 ## Principles for this UX
 
 - **Identity lives inside a Project workspace** — it's a tab alongside Uploads/Gallery, not a
-  separate app area. Media belongs to a User **and** a Project (Decision 021/024).
+  separate app area. **Identities are PROJECT-SCOPED for the MVP** (Decision 027): every
+  identity belongs to a User **and** a Project. A user-global Identity Library is out of MVP
+  scope. Media belongs to a User + a Project too (Decision 021/024).
+- **Hero Image** is the identity's primary visual (one of its training assets), used in
+  cards, lists, breadcrumbs, and pickers. (Maps to `displayImageId`; always called "Hero
+  Image" in the UI.)
+- **Three statuses:** DRAFT (being set up) · ACTIVE (in use) · ARCHIVED (soft-hidden).
 - **Reuse, don't reinvent.** Training-media browsing/selection reuses the `media/` components
   (`MediaGrid`/`MediaCard`/`MediaViewer`) and the media layer's signed URLs — never a second
   media browser (Decision 024).
@@ -70,7 +76,8 @@ Sidebar: Projects ─► /projects
                             ├─ /projects/[id]/gallery      (browse media)       [done]
                             ├─ /projects/[id]/identities   (Identity LIST)      ◄ new
                             │     └─ /projects/[id]/identities/[identityId]      ◄ new
-                            │           ├─ Training Media   (default sub-tab)
+                            │           ├─ Overview         (default sub-tab)
+                            │           ├─ Training Media
                             │           ├─ Templates        (future — disabled)
                             │           ├─ History          (future — disabled)
                             │           └─ Settings
@@ -84,8 +91,9 @@ The workspace context already maps project id → name; extend it so the identit
 
 **Two nav levels for identities:**
 1. **List** — the `Identities` workspace tab (grid of identities).
-2. **Detail** — one identity, with its own sub-tabs (Training Media / Templates / History /
-   Settings). Sub-tabs mirror the workspace-tab pattern so the app feels consistent.
+2. **Detail** — one identity, with its own sub-tabs (**Overview** / Training Media /
+   Templates / History / Settings). **Overview is the default** landing sub-tab. Sub-tabs
+   mirror the workspace-tab pattern so the app feels consistent.
 
 Back navigation: identity detail → "Identities" breadcrumb/tab returns to the list. Sidebar
 and workspace tabs remain visible throughout (no dead ends).
@@ -120,7 +128,7 @@ and workspace tabs remain visible throughout (no dead ends).
 |  |    Emma     |   |    John     |   |    Max 🐶   |                    |
 |  | Lead model  |   | Photographer|   | Studio dog  |                    |
 |  | 18 media •  |   | 24 media •  |   | 12 media •  |                    |
-|  | ACTIVE      |   | ACTIVE      |   | ARCHIVED    |                    |
+|  | ACTIVE      |   | DRAFT       |   | ARCHIVED    |                    |
 |  +-------------+   +-------------+   +-------------+                    |
 +-----------------------------------------------------------------------+
 ```
@@ -183,16 +191,40 @@ Gallery (selection mode)
 *(The 3 selected assets are pre-linked on Create. This is the journey's primary path:
 Gallery → select → Create Identity.)*
 
-### 3.6 Identity Overview / detail (header + sub-tabs)
+### 3.6 Identity detail — Overview (default sub-tab)
 
 ```
 +-----------------------------------------------------------------------+
 |  ‹ Identities                                                         |
-|  +--------+  Emma                                    [ Add media ]     |
-|  | avatar |  Lead model · ACTIVE · 18 media           [ ⋯ Actions ]   |
+|  +--------+  Emma                                     [ Add media ]    |
+|  | HERO   |  Lead model · ACTIVE                       [ ⋯ Actions ]   |
+|  | IMAGE  |                                                            |
 |  +--------+                                                            |
 |-----------------------------------------------------------------------|
-|  [ Training Media ] | Templates (soon) | History (soon) | Settings    |
+|  [ Overview ] | Training Media | Templates (soon) | History (soon) | ⚙|
+|-----------------------------------------------------------------------|
+|  Hero image        ( large hero preview )                             |
+|  Name              Emma                                               |
+|  Description       Lead model                                         |
+|  Status            ACTIVE                                             |
+|  Training media    18                                                 |
+|  Created           Jul 13, 2026                                       |
+|  Updated           Jul 13, 2026                                       |
+|                                                                       |
+|  (future here: Templates · Generation history · Provider artifacts ·  |
+|   AI defaults — see §6)                                                |
++-----------------------------------------------------------------------+
+```
+*(Header = IdentityAvatar (Hero Image) + name + description + status badge + IdentityToolbar.
+**Overview is deliberately minimal today but is the permanent home** for future stats /
+templates / history / provider artifacts / AI defaults — §6. Sub-tabs mirror the workspace
+tabs; Templates/History disabled with a "soon" hint.)*
+
+### 3.6b Training Media sub-tab
+
+```
++-----------------------------------------------------------------------+
+|  Overview | [ Training Media ] | Templates (soon) | History (soon) |⚙ |
 |-----------------------------------------------------------------------|
 |  Type: (All ▾)  Sort: (Order ▾)  [ Search… ]        [ + Add media ]   |
 |                                                                       |
@@ -202,10 +234,8 @@ Gallery → select → Create Identity.)*
 |  +------+ +------+ +------+ +------+                                   |
 +-----------------------------------------------------------------------+
 ```
-*(Header = IdentityAvatar + name + description + status badge + IdentityToolbar. Sub-tabs;
-Templates/History disabled with a "soon" hint. Training Media = TrainingMediaGrid, which
-composes MediaGrid + per-link affordances: ⭐ favorite, drag to reorder, ⋯ per-tile menu
-[Set as display image, Remove from identity, Open].)*
+*(TrainingMediaGrid composes MediaGrid + per-link affordances: ⭐ favorite, drag to reorder,
+⋯ per-tile menu [**Set as Hero Image**, Remove from identity, Open].)*
 
 ### 3.7 Add / select training media (picker over the Gallery)
 
@@ -233,7 +263,7 @@ composes MediaGrid + per-link affordances: ⭐ favorite, drag to reorder, ⋯ pe
 |            (full image / video player)            |
 |                                                   |
 |  Image · 3024×4032 · 2.1 MB · Jul 13              |
-|  ⭐ Favorite   ☆ Set as display image             |
+|  ⭐ Favorite   ☆ Set as Hero Image                |
 |                          [ Remove from identity ] |
 +---------------------------------------------------+
 ```
@@ -246,8 +276,8 @@ composes MediaGrid + per-link affordances: ⭐ favorite, drag to reorder, ⋯ pe
 |-----------------------------------------------------------------------|
 |  Name          [ Emma______________________ ]                         |
 |  Description    [ Lead model________________ ]                        |
-|  Display image  ( avatar )  [ Change ]                                 |
-|  Status         ( ACTIVE ▾ )   ← Archive / Restore                    |
+|  Hero Image     ( preview )  [ Change ]                                |
+|  Status         ( DRAFT / ACTIVE / ARCHIVED ▾ )                        |
 |                                                    [ Save changes ]   |
 |-----------------------------------------------------------------------|
 |  Danger zone                                                          |
@@ -294,10 +324,11 @@ visually muted and excluded from generation pickers.)*
 
 | Action | Where | Interaction | Confirm? |
 | ------ | ----- | ----------- | -------- |
-| **Create** | Identities tab `+ New`, or Gallery selection → Create | Dialog (name + optional description) | — |
+| **Create** | Identities tab `+ New`, or Gallery selection → Create | Dialog (name + optional description); new identity starts as **DRAFT** | — |
+| **Activate** | Identity › Settings status, or on first training media | DRAFT → ACTIVE | — |
 | **Rename** | Identity › Settings (or card ⋯ → Edit) | Inline field → Save | — |
 | **Edit description** | Identity › Settings | Inline field → Save | — |
-| **Change avatar / display image** | Training tile ⋯ → "Set as display image", or Settings → Change | Pick one linked asset | — |
+| **Set Hero Image** | Training tile ⋯ → "Set as Hero Image", or Settings → Change | Pick one linked asset as the identity's Hero Image | — |
 | **Archive** | Card ⋯ or Settings → Status | Toggle → muted, hidden from pickers | Soft (reversible), no modal needed |
 | **Restore** | Archived card ⋯ or Settings → Status | Toggle back to ACTIVE | — |
 | **Delete** | Settings › Danger zone (or card ⋯) | Confirm dialog: "removes identity + links, not media/results" | **Yes** (destructive) |
@@ -307,7 +338,7 @@ visually muted and excluded from generation pickers.)*
 | **Reorder media** | Training grid drag handle | Drag to new position | — |
 | **Filter media** | Training tab filters | Type / sort / search (reuses MediaFiltersBar) | — |
 | **Search identities** | Identities tab search | Debounced name search | — |
-| **Filter identities** | Identities tab | Status (Active/Archived/All), sort | — |
+| **Filter identities** | Identities tab | Status (Draft/Active/Archived/All), sort | — |
 
 Undo pattern: destructive-but-cheap actions (remove link) use a Sonner toast with **Undo**;
 truly destructive (Delete identity) uses a confirm dialog.
@@ -329,8 +360,9 @@ Reserved, visible-but-disabled placeholders so the layout doesn't shift later:
 
 ```
 Identity detail sub-tabs (future-complete):
-[ Training Media ] [ Templates ] [ History ] [ Settings ]
-                        soon         soon      (+ Generation defaults, Trained models)
+[ Overview ] [ Training Media ] [ Templates ] [ History ] [ Settings ]
+   stats,                            soon         soon      (+ Generation defaults, Trained models)
+   hero, dates
 ```
 
 ---
@@ -401,12 +433,19 @@ Project → Generate
 disabled so the layout is stable when they arrive; generation defaults and trained-models live
 under Settings later.
 
-**Open UX questions for review**
-- Should identities ever be **user-global** (reused across projects) with a project filter, or
-  strictly project-scoped? (Schema already allows both — this is a UX call, see IDENTITIES.md
-  open question #1.)
-- Is a dedicated **Overview** sub-tab useful, or is "header + Training Media as default" enough?
-  (This design folds overview into the header to avoid an extra, thin screen.)
+**Resolved (design frozen — Decision 027)**
+- **Scope:** Identities are **project-scoped** for the MVP; a user-global Identity Library is
+  out of scope (revisit later). `Identity.projectId` becomes required.
+- **Overview:** keep a **dedicated Overview sub-tab** (the default landing) — minimal today
+  (hero, name, description, status, media count, created/updated) but the permanent home for
+  future stats/templates/history/artifacts/AI defaults (§6).
+- **Hero Image:** the primary visual is called **Hero Image** throughout the UI (maps to
+  `displayImageId`).
+- **Status:** three statuses — **DRAFT → ACTIVE → ARCHIVED** (new identities start DRAFT).
+- **Training-media roles:** a standardized future set —
+  `PRIMARY | SECONDARY | VIDEO | POSE | STYLE | OTHER` — planned only, no behavior built yet.
+- **Single source of truth:** Identity Manager reuses the Gallery + media layer; **no second
+  upload workflow, ever.** AI stays out (provider-agnostic) until later milestones.
 
 ## Deliverables status
 

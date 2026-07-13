@@ -66,6 +66,9 @@
 - [x] Identity Manager **UX design** (design only) — `IDENTITY_UX.md`: user journey,
       wireframes, navigation/routes, empty states, action list, future expansion, real-world
       scenarios, UX review. No code.
+- [x] Identity design **frozen** (Decision 027) — project-scoped MVP, dedicated Overview tab,
+      "Hero Image" naming, DRAFT/ACTIVE/ARCHIVED statuses, standardized training-media roles,
+      Gallery/media as single source, AI stays separate. No code.
 
 ## In Progress / Next
 
@@ -76,10 +79,11 @@ Gallery (done) → Identity System → Templates → Prompt Builder → AI Provi
                  ▲ design done (9); Identity Manager implements it next
 ```
 
-- [ ] **Identity Manager** (implement Milestone 9 design) ← **next** — Identity CRUD +
-      Training Media (join table) inside a project; reuses the Gallery/media components. It
-      comes **after** Gallery (needs media to curate) and **before** Templates/Prompt Builder
-      (which target an Identity) and AI Providers (which receive an Identity as input).
+- [ ] **Milestone 9A — Identity Manager** (implement the frozen design) ← **next** — Identity
+      CRUD + Training Media (`IdentityMedia` join) inside a project; Overview/Training/Settings
+      tabs; DRAFT/ACTIVE/ARCHIVED; Hero Image; reuses the Gallery/media components. Comes
+      **after** Gallery (needs media to curate) and **before** Templates/Prompt Builder (which
+      target an Identity) and AI Providers (which receive an Identity as input).
 - [ ] Templates — reusable prompt/config presets, may target an Identity.
 - [ ] Prompt Builder — compose a generation from Identity + Template + inputs; consumes the
       Identity generation-defaults (deferred columns land here).

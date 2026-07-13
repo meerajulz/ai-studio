@@ -34,15 +34,19 @@
       relationship/ownership design, provider-agnostic plug-in design, planned components (Decision 025)
 - [x] **UX design** (design-only): `IDENTITY_UX.md` — journey, wireframes, navigation, empty
       states, actions, future expansion, real-world scenarios, UX review
-- [ ] **Identity Manager (implementation)** — when approved:
-  - [ ] Schema migration: `description`, `displayImageId`, `status` (+ `IdentityStatus` enum), and the
-        `IdentityMedia` join table (replace `UploadedMedia.identityId`); cascade link deletes
-  - [ ] Identity CRUD within a project (owner-scoped Server Actions + Zod + TanStack Query)
-  - [ ] Training Media: select from Gallery (reuse `media/` components), reorder, favorite, set display image, remove-link
-  - [ ] Lifecycle: archive/restore + delete (severs links only, never media/results)
+- [x] **Design frozen** (Decision 027): project-scoped MVP, Overview tab, Hero Image naming,
+      DRAFT/ACTIVE/ARCHIVED, standardized training-media roles, Gallery single source, AI stays out
+- [ ] **Milestone 9A — Identity Manager (implementation)** — when approved, per the frozen spec:
+  - [ ] Schema migration: `description`, `displayImageId` (Hero Image), `status`
+        (`IdentityStatus` = DRAFT|ACTIVE|ARCHIVED), **`projectId` required + `onDelete: Cascade`**,
+        and the `IdentityMedia` join table (replace `UploadedMedia.identityId`) with cascade link deletes
+  - [ ] Identity CRUD within a project (owner-scoped Server Actions + Zod + TanStack Query); new = DRAFT
+  - [ ] Identity detail tabs: **Overview** (default) + Training Media + Settings (Templates/History disabled)
+  - [ ] Training Media: select from Gallery (reuse `media/` components), reorder, favorite, **Set as Hero Image**, remove-link
+  - [ ] Lifecycle: DRAFT→ACTIVE activate, archive/restore, delete (severs links only, never media/results)
   - [ ] Identity components (`src/components/identity/`) per COMPONENT_GUIDELINES — compose `media/`, don't rebuild a browser
   - [ ] Verify end-to-end vs live store + DB (owner authorization; link/delete semantics)
-  - [ ] Defer generation-default columns until the Prompt Builder/AI consume them
+  - [ ] Defer generation-default columns + training-media `role` behavior until later milestones consume them
 
 ### Future — multiple identities per generation (before AI generation ships)
 - [ ] Evolve `Generation.identityId` (single) → **`GenerationIdentity` many-to-many** ("appears-in"),
