@@ -54,6 +54,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 > `HF_TOKEN` / `HUGGINGFACE_API_KEY` (+ optional `HF_IMAGE_MODEL`).
 
 ### Design (no code)
+- **Knowledge capture after the first identity-preserving generations** (docs only): new
+  **`LESSONS_LEARNED.md`** (what the first Fal Kontext tests proved — identity architecture works,
+  Kontext ≫ Schnell for identity, quality now hinges on reference selection, and the preserve-intent
+  fix), new **`FUTURE_RESEARCH.md`** (research backlog + product-vision milestones M18–M25 + an
+  8–12 week priority order), and a new **`docs/research/`** folder (README + PROVIDERS ·
+  IDENTITY_ANALYSIS · VISION_MODELS · SCENE_GRAPHS · PROMPT_ENGINEERING · IMAGE_EVALUATION ·
+  CREATIVE_MEMORY) establishing a **research-before-build** workflow (so far only image providers had
+  been researched). `ROADMAP.md` updated to record the first end-to-end identity-preserving
+  generation + the future direction. No code, no schema.
 - **Prompt Builder design** (Milestone 12 — design only): new **`PROMPT_BUILDER.md`** and
   **`CREATIVE_WORKFLOW.md`** — the intent-driven experience where the user *describes what they
   want* and AI Studio *writes the prompt*. Covers the user journey, UX philosophy (describe not

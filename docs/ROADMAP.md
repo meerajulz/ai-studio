@@ -72,11 +72,18 @@
 
 ## In Progress / Next
 
-Near-term sequence (each revolves around the **Identity** — see [VISION.md](./VISION.md)):
+> **🎉 Milestone achieved — AI Studio completed its first end-to-end identity-preserving
+> generation** (Milestone 17): select an identity → the Creative Director reasons → the router picks
+> **Fal Kontext** → the Identity Visual Package reaches the model → a **recognizable real person** in
+> a new scene (not a generic person from text). The provider-agnostic architecture is validated end
+> to end. See [LESSONS_LEARNED.md](./LESSONS_LEARNED.md).
+
+**Completed foundation:** Creative Director v4 · Spatial Scene Graph · Provider Capability System ·
+Fal Provider · Identity Visual Package · Fal Kontext integration · **Identity Preservation MVP**.
 
 ```
-Gallery ✓ → Identity ✓ → AI Generation ✓ → Creative Director ✓ → [richer builder] → Templates → more providers/video
-            (each revolves around the Identity; the Creative Director is the new intelligent layer)
+Gallery ✓ → Identity ✓ → AI Generation ✓ → Creative Director v4 ✓ → Capability Router ✓ →
+Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · richer Scene Understanding · evaluation]
 ```
 
 - [x] **Milestone 9A — Identity Manager** — Identity CRUD + Training Media (`IdentityMedia`
@@ -131,25 +138,33 @@ Gallery ✓ → Identity ✓ → AI Generation ✓ → Creative Director ✓ →
       **structured compiler** (`CompiledStructure` → rendered plain text, not concatenation). Debug
       shows anchor/confidence/compiled structure. Deterministic; no LLM/provider/schema change.
       Decision 037 · `CREATIVE_DIRECTOR.md`.
-- [ ] **Creative Director — next** (per `CREATIVE_DIRECTOR_FUTURE.md`): confidence-driven ambiguity
-      (one clarification question when low), Creative Goals, prompt-specificity scoring; still
-      deterministic, LLM optional later behind the same stages.
 - [x] **Milestone 17 — Identity Preservation Foundation (Fal Kontext MVP)** — the Identity Visual
       Package now reaches the model. `docs/PROVIDER_RESEARCH.md` → **FLUX.1 Kontext**; the Fal adapter
       switches to Kontext (single/multi) when reference images are present, else text-to-image; router
-      requires identityPreservation+referenceImages when refs exist. No LoRA/embeddings/training; no
-      schema change. Decision 038 · `docs/PROVIDER_RESEARCH.md`.
-- [ ] _Future (enabled by M17):_ async **Job** queue for Kontext latency (behind `asyncJobs` +
-      the `Job` table); AI photo editing / scene replacement / outfit changes on existing media;
-      identity-consistent **video**; multi-identity; capability-driven auto-routing; more providers.
-- [ ] **Long-term CD order** (documented, not scheduled): Better Scene Graph → Better Spatial →
-      Creative Goals → Prompt Builder → Templates → Multi-provider optimization → Video reasoning →
-      Multi-identity generation → Creative Critic → optional LLM reasoning (same architecture).
-- [ ] Templates — **saved briefs** (Creative Director presets); comes *after* the richer Director.
-- [ ] AI Provider expansion — more providers behind `ImageProvider` (Fal/OpenAI/Replicate/
-      local); async via the `Job` queue; a parallel `VideoProvider`.
-- [ ] _Deferred:_ global `/uploads` + `/gallery` — decide whether to remove or merge into one
-      global **Media** browser (see NAVIGATION.md).
+      requires identityPreservation+referenceImages when refs exist. Decision 038.
+- [x] **Creative Director — preserve user intent** (Decision 039) — the compiler no longer discards
+      user words (bikini/Chihuahua/props); the user's prompt is the source of truth, enriched not
+      replaced. First fix of the "Preserve User Intent" milestone; richer enrichment is future.
+
+### Future — documented, NOT scheduled (research first)
+
+Product-vision milestones **M18–M25** and the research backlog are captured in
+**[FUTURE_RESEARCH.md](./FUTURE_RESEARCH.md)** and **[research/](./research/)**. Nothing below is
+scheduled — each is **researched before it is built** (research-driven, per the user's direction).
+
+Suggested 8–12 week priority order:
+1. **Preserve User Intent** (critical — first fix shipped; richer enrichment next)
+2. **Identity Intelligence** — automatic best-reference selection ([research/IDENTITY_ANALYSIS.md](./research/IDENTITY_ANALYSIS.md))
+3. **Image Understanding** — analyze every identity photo ([research/VISION_MODELS.md](./research/VISION_MODELS.md))
+4. **Scene Understanding v2** — richer actions & relationships ([research/SCENE_GRAPHS.md](./research/SCENE_GRAPHS.md))
+5. **Prompt & Identity Scoring** — evaluate before + after ([research/PROMPT_ENGINEERING.md](./research/PROMPT_ENGINEERING.md), [research/IMAGE_EVALUATION.md](./research/IMAGE_EVALUATION.md))
+6. **Async Job Queue** — better UX for slow identity models (`asyncJobs` + `Job` table)
+7. **Creative Memory & Style Profiles** ([research/CREATIVE_MEMORY.md](./research/CREATIVE_MEMORY.md))
+8. **Provider Expansion** — OpenAI / Google / Ideogram / … behind the same router ([research/PROVIDERS.md](./research/PROVIDERS.md))
+
+Also open: Templates (saved briefs); a parallel `VideoProvider`; multi-identity; global `/uploads` +
+`/gallery` nav decision (NAVIGATION.md). Long-term vision: a **Creative Operating System**
+([VISION.md](./VISION.md)).
 
 ---
 
