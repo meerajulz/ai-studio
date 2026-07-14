@@ -1196,3 +1196,62 @@ reasoning changes (food-photography → lifestyle as the identity becomes the su
 description reaches the compiled prompt; provider/media/blob layers untouched; recipes/regenerate/
 variation reload context; owner-scoped throughout (`getIdentityContext` + `assertIdentityInProject`).
 `npm run build` + `tsc --noEmit` pass. Not live-verified against DB/Blob this session. No migration.
+
+---
+
+# Decision 036
+
+Date
+2026-07-14
+
+Decision
+**Premium Provider Foundation — a capability system, the Fal.ai provider, a provider router, and an
+Identity Visual Package (Milestone 15).** M14 confirmed text alone can't preserve a person's
+appearance — a *provider capability* limit, not a Creative Director limit. So we evolve the
+provider architecture:
+
+1. **Provider Capability System.** Providers advertise `capabilities` (imageGeneration, imageEditing,
+   referenceImages, multipleReferenceImages, identityPreservation, inpainting, outpainting, video,
+   lora, ipAdapter, controlNet, asyncJobs). The rest of AI Studio depends **only on capabilities,
+   never on provider names**. The `ImageProvider` interface gains `capabilities`, `defaultModel`,
+   and `isConfigured()`.
+2. **Fal.ai** as the first premium provider (`providers/fal.ts`) behind the same `ImageProvider`
+   interface — `fetch`-based (no SDK dependency), auth via `FAL_KEY`, default `fal-ai/flux/schnell`
+   (`FAL_IMAGE_MODEL` override). All Fal specifics are isolated in that one file (Decision 007).
+3. **Provider Router** (`ai/router.ts`, bound to a registry in `ai/index.ts`). Picks a provider by
+   **capability + configuration**, premium-first; an `IMAGE_PROVIDER` env var can force one
+   (handy to verify Hugging Face still works). Returns a `RoutingDecision` (chosen/model/reason/
+   considered) for transparency. Ready for richer automatic routing later.
+4. **Identity Visual Package** (`identity/getIdentityVisualPackage`) — the VISUAL side of an
+   identity: signed hero / best-portrait / best-full-body / reference-image URLs + metadata. It
+   flows **around** the Creative Director (which stays text-only/provider-agnostic) straight to the
+   provider request as **provider-neutral `referenceImages`**. Capable adapters/models use them;
+   others **gracefully ignore** them (the default Fal t2i model ignores; a reference-capable model
+   would use them). **No LoRA/embeddings/training — architecture prep only.**
+5. **Debug** (dev-only) extended: identity knowledge (semantic), identity visual package, provider
+   capabilities, chosen provider, chosen model, and the routing decision.
+
+Reason
+Identity preservation is a provider capability, so AI Studio must reason about *capabilities*, not
+providers. A capability system + router keeps the Creative Director, Identity, and Gallery
+provider-agnostic while letting us add premium providers and (later) auto-route by what a
+generation needs. Splitting identity into a **semantic context** (text → Creative Director, M14)
+and a **visual package** (reference images → provider, M15) is the clean separation that will make
+true identity preservation possible without any layer learning about a specific provider.
+
+Alternatives
+Check provider names in feature code (rejected — the exact coupling we're removing); put reference
+images through the Creative Director (rejected — the Director must stay text-only/provider-agnostic;
+visual data is a provider-capability input, not creative reasoning); add the Fal SDK dependency
+(rejected for now — `fetch` against Fal's HTTP API keeps the adapter dependency-free and fully
+isolated); implement LoRA/embeddings/training now (explicitly out of scope — this milestone only
+prepares the architecture).
+
+Status
+Accepted — implemented. Verified deterministically: router selects premium-first, satisfies
+`identityPreservation` when configured, falls back gracefully, honors `IMAGE_PROVIDER`, and errors
+when nothing is configured; HF adapter intact (imageGeneration only); Fal adapter isolated; visual
+package flows as neutral reference images and is ignored by non-capable models; Creative Director /
+Identity / Gallery / recipes unchanged. `npm run build` + `tsc --noEmit` pass. **Fal not
+live-verified in this session** (needs `FAL_KEY` + network — the user has added it locally + on
+Vercel). No schema change.

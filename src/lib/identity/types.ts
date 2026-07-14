@@ -21,6 +21,19 @@ export type IdentityContextInfo = {
   trainingMediaCount: number;
 };
 
+/**
+ * The VISUAL side of an identity (Milestone 15) — signed reference-image URLs a capable provider
+ * can use for identity preservation. Prepares the architecture only; the Creative Director never
+ * sees this (it reasons in text). LoRA/embeddings/training are explicitly out of scope.
+ */
+export type IdentityVisualPackage = {
+  heroImageUrl: string | null;
+  bestPortraitUrl: string | null;
+  bestFullBodyUrl: string | null;
+  referenceImageUrls: string[];
+  metadata: { totalMedia: number };
+};
+
 export type TrainingMediaRoleValue =
   | "PRIMARY"
   | "SECONDARY"

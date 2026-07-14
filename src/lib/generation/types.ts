@@ -1,3 +1,4 @@
+import type { ProviderCapability, RoutingDecision } from "@/lib/ai";
 import type {
   CompositionPlan,
   CreativeFocus,
@@ -8,6 +9,15 @@ import type {
   SceneGraph,
 } from "@/lib/creative";
 import type { MediaAsset } from "@/lib/media/types";
+
+/** Debug-safe summary of an Identity Visual Package (no signed URLs). */
+export type VisualPackageSummary = {
+  hasHeroImage: boolean;
+  hasPortrait: boolean;
+  hasFullBody: boolean;
+  referenceImages: number;
+  totalMedia: number;
+};
 
 export type GenerateImageInput = {
   /** The user's creative idea in plain words — the Creative Director enriches it. */
@@ -35,8 +45,11 @@ export type GenerationDebug = {
   composition: CompositionPlan; // Stage 3 — composition plan
   rulesApplied: string[]; // everything the Director added beyond the user's words
   compiledPrompt: string; // Stage 4 — the prompt sent to the provider
-  provider: string;
-  model: string;
+  provider: string; // chosen provider id
+  model: string; // model actually used
+  providerCapabilities: ProviderCapability[]; // what the chosen provider can do
+  routing: RoutingDecision; // how the provider was chosen
+  visualPackage: VisualPackageSummary | null; // identity reference images (Milestone 15)
   payload: Record<string, unknown>; // secret-free echo of the provider request
 };
 

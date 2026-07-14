@@ -7,6 +7,7 @@
  */
 import { InferenceClient } from "@huggingface/inference";
 
+import { capabilities } from "../capabilities";
 import {
   ProviderError,
   type ImageGenerationRequest,
@@ -57,6 +58,11 @@ function mapError(error: unknown): ProviderError {
 
 export const huggingFaceProvider: ImageProvider = {
   id: "huggingface",
+  defaultModel: DEFAULT_MODEL,
+  // Our HF adapter does basic text-to-image only. It does not advertise reference images /
+  // identity preservation — the router will prefer a premium provider for those.
+  capabilities: capabilities("imageGeneration"),
+  isConfigured: isHuggingFaceConfigured,
 
   async generateImage(
     request: ImageGenerationRequest,

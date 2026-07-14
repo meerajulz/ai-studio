@@ -354,9 +354,35 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
           <DebugRow label="Compiled prompt" value={debug.compiledPrompt} />
         </DebugStage>
 
-        <DebugStage title="Provider">
-          <DebugRow label="Provider" value={debug.provider} />
-          <DebugRow label="Model" value={debug.model} />
+        <DebugStage title="Provider & routing">
+          <DebugRow label="Chosen provider" value={debug.provider} />
+          <DebugRow label="Chosen model" value={debug.model} />
+          <DebugRow
+            label="Provider capabilities"
+            value={
+              debug.providerCapabilities.length
+                ? debug.providerCapabilities.join(", ")
+                : "—"
+            }
+          />
+          <DebugRow
+            label="Routing decision"
+            value={`${debug.routing.reason} · considered: ${debug.routing.considered
+              .map((c) => `${c.id}${c.configured ? "" : " (not configured)"}`)
+              .join(", ")}`}
+          />
+          <DebugRow
+            label="Identity visual package"
+            value={
+              debug.visualPackage
+                ? `hero: ${debug.visualPackage.hasHeroImage ? "yes" : "no"} · portrait: ${
+                    debug.visualPackage.hasPortrait ? "yes" : "no"
+                  } · full body: ${debug.visualPackage.hasFullBody ? "yes" : "no"} · references: ${
+                    debug.visualPackage.referenceImages
+                  } / ${debug.visualPackage.totalMedia} media`
+                : "none"
+            }
+          />
           <DebugRow
             label="Generation payload"
             value={

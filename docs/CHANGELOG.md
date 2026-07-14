@@ -7,18 +7,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 14 — Identity-aware Generation
-> (foundation)** (Decision 035): an optional Identity selector on Generate → a passive **Identity
-> Context** stage (Stage 0) in the Creative Director —
-> `idea → resolveIdentity → scene → spatial → intent → composition → compile → prompt`. The
-> generation layer loads a lightweight owner-scoped `IdentityContext` (name/description/hero flag/
-> training-media count) and hands it to the Director, which weaves the identity in as the subject;
-> **the provider stays 100% identity-unaware** and gets only the final prompt. No identity → prompt
-> is byte-identical to before. No LoRA/embeddings/training; no schema change. **Next = return to the
-> Creative Director and continue Spatial Analysis** (improve the Scene Graph / make it the primary
-> compilation source / better intent classification) — deliberately *not* an LLM jump; the long-term
-> order is recorded in `docs/CREATIVE_DIRECTOR_FUTURE.md` + ROADMAP. Below: **Creative Director v2.5
-> — Spatial Understanding** (Milestone 13.5, Decision 034): `src/lib/creative/` is now a deterministic,
+> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 15 — Premium Provider Foundation
+> (Fal + Capability System)** (Decision 036): providers now advertise **capabilities** and the app
+> routes on those, **never on provider names**. Added **Fal.ai** (`providers/fal.ts`, `fetch`-based,
+> `FAL_KEY`, default `fal-ai/flux/schnell`), a **Provider Router** (`ai/router.ts`, premium-first,
+> capability-aware, `IMAGE_PROVIDER` override), and an **Identity Visual Package**
+> (`getIdentityVisualPackage`) that flows *around* the Creative Director to the provider as neutral
+> `referenceImages` (capable models use them; others ignore — no LoRA/embeddings/training). Debug
+> shows capabilities / chosen provider+model / routing / visual package. HF still works; Creative
+> Director / Identity / Gallery / recipes unchanged; no schema change. **Fal not live-verified this
+> session** (user added `FAL_KEY` locally + on Vercel). **Next = return to the Creative Director and
+> continue Spatial Analysis** (improve the Scene Graph / make it the primary compilation source /
+> better intent classification) — deliberately *not* an LLM jump; see `docs/CREATIVE_DIRECTOR_FUTURE.md`.
+> Env: `FAL_KEY` (+ optional `FAL_IMAGE_MODEL`, `IMAGE_PROVIDER`). Below: **Milestone 14 —
+> Identity-aware Generation (foundation)** (Decision 035): `src/lib/creative/` is now a deterministic,
 > provider-agnostic **reasoning pipeline** — `idea → analyzeScene → analyzeIntent →
 > planComposition → compilePrompt → prompt`. It analyses the *whole scene* (primary/secondary
 > subjects, objects, environment, setting, location, time, weather, actions, fantasy) and infers
@@ -91,6 +93,29 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **Premium Provider Foundation — Fal + Capability System** (Milestone 15, Decision 036): the
+  production provider architecture. **Provider Capability System** (`ai/capabilities.ts`):
+  providers advertise `capabilities` (imageGeneration, imageEditing, referenceImages,
+  multipleReferenceImages, identityPreservation, inpainting, outpainting, video, lora, ipAdapter,
+  controlNet, asyncJobs); **the rest of AI Studio depends only on capabilities, never on provider
+  names**. The `ImageProvider` interface gained `capabilities`, `defaultModel`, `isConfigured()`,
+  and an optional `referenceImages` on the request. **Fal.ai** (`providers/fal.ts`) is the first
+  premium provider — `fetch`-based (no SDK dependency), auth `FAL_KEY`, default `fal-ai/flux/schnell`
+  (`FAL_IMAGE_MODEL` override), all Fal specifics isolated in one file. **Provider Router**
+  (`ai/router.ts` + registry in `ai/index.ts`) selects by **capability + configuration**,
+  premium-first, with an `IMAGE_PROVIDER` override (to force e.g. Hugging Face) and a transparent
+  `RoutingDecision`. **Identity Visual Package** (`identity/getIdentityVisualPackage`): the visual
+  side of an identity (signed hero / best-portrait / best-full-body / reference URLs + metadata)
+  that flows **around** the Creative Director straight to the provider request as neutral
+  `referenceImages` — capable models use them, others **gracefully ignore** them (the Director
+  stays text-only/provider-agnostic). Generation now routes by capability (prefers identity
+  preservation when an identity is attached) and attaches the visual package. **Debug** extended:
+  identity knowledge, identity visual package, provider capabilities, chosen provider, chosen model,
+  routing decision. **No LoRA/embeddings/training** (architecture prep only); **no schema change**.
+  Verified deterministically (router premium-first / capability match / graceful fallback /
+  `IMAGE_PROVIDER` override / no-provider error); HF intact; Creative Director / Identity / Gallery /
+  recipes unchanged. `npm run build` + `tsc --noEmit` pass; **Fal not live-verified this session**.
+  New env: `FAL_KEY` (+ optional `FAL_IMAGE_MODEL`, `IMAGE_PROVIDER`). See `docs/PROVIDER_INTERFACE.md`.
 - **Identity-aware Generation (foundation)** (Milestone 14, Decision 035): the Identity system now
   informs real generations for the first time — as **passive context**, never a provider feature.
   New Creative Director **Stage 0** `resolveIdentity` (`stages/identity.ts`): when an identity is

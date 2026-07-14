@@ -15,6 +15,7 @@ import type {
   IdentityContextInfo,
   IdentityDetail,
   IdentitySummary,
+  IdentityVisualPackage,
   ListIdentitiesOptions,
   TrainingMediaItem,
   TrainingMediaRoleValue,
@@ -247,6 +248,59 @@ export async function getIdentityContext(
     description: identity.description,
     hasHeroImage: identity.displayImageId !== null,
     trainingMediaCount: identity._count.trainingMedia,
+  };
+}
+
+/**
+ * Build an identity's **Visual Package** (Milestone 15) — signed reference-image URLs a capable
+ * provider can use for identity preservation. Owner-scoped. Reuses the media layer for signing;
+ * never touches Blob. Returns `null` if the identity isn't the user's. Architecture prep only —
+ * no LoRA/embeddings/training.
+ */
+export async function getIdentityVisualPackage(
+  userId: string,
+  identityId: string,
+): Promise<IdentityVisualPackage | null> {
+  const identity = await prisma.identity.findFirst({
+    where: { id: identityId, userId },
+    select: {
+      displayImageId: true,
+      trainingMedia: {
+        orderBy: [{ isFavorite: "desc" }, { position: "asc" }],
+        select: { mediaId: true, role: true },
+      },
+    },
+  });
+  if (!identity) return null;
+
+  const ids = dedupe([
+    ...(identity.displayImageId ? [identity.displayImageId] : []),
+    ...identity.trainingMedia.map((t) => t.mediaId),
+  ]);
+  const assets = await getMediaByIds(userId, ids);
+  const urlById = new Map(assets.map((a) => [a.id, a.url]));
+
+  const urlForRole = (role: TrainingMediaRoleValue): string | null => {
+    const hit = identity.trainingMedia.find((t) => t.role === role && urlById.has(t.mediaId));
+    return hit ? (urlById.get(hit.mediaId) ?? null) : null;
+  };
+
+  const heroImageUrl = identity.displayImageId
+    ? (urlById.get(identity.displayImageId) ?? null)
+    : null;
+
+  const referenceImageUrls = identity.trainingMedia
+    .map((t) => urlById.get(t.mediaId))
+    .filter((u): u is string => Boolean(u))
+    .slice(0, 4);
+
+  return {
+    heroImageUrl,
+    // No explicit "full body" role exists yet — approximate from roles (prep only).
+    bestPortraitUrl: urlForRole("PRIMARY") ?? heroImageUrl,
+    bestFullBodyUrl: urlForRole("POSE"),
+    referenceImageUrls,
+    metadata: { totalMedia: identity.trainingMedia.length },
   };
 }
 

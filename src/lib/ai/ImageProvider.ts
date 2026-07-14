@@ -1,31 +1,50 @@
 /**
  * ImageProvider — the provider-agnostic contract for turning a prompt into image bytes.
  *
- * The rest of the app depends ONLY on this interface (Decision 007). No provider SDK types
- * leak out. A provider returns raw bytes; storing them (Blob via the media layer) is the
- * app's job — a provider knows nothing about Blob, the DB, or the Gallery.
- * See docs/PROVIDER_INTERFACE.md.
+ * The rest of the app depends ONLY on this interface (Decision 007) and on provider CAPABILITIES
+ * (Milestone 15) — never on provider names. No provider SDK types leak out. A provider returns
+ * raw bytes; storing them (Blob via the media layer) is the app's job — a provider knows nothing
+ * about Blob, the DB, or the Gallery. See docs/PROVIDER_INTERFACE.md.
  */
+import type { ProviderCapabilities } from "./capabilities";
+
+/** A provider-neutral reference image (from an Identity Visual Package). */
+export type ReferenceImage = {
+  url: string;
+  role: "hero" | "portrait" | "fullBody" | "reference";
+};
 
 export type ImageGenerationRequest = {
   prompt: string;
-  // First Light stops here. Reserved (NOT implemented): width/height/seed/negativePrompt/model.
+  /**
+   * Reference images for identity preservation, provider-neutral. Adapters use them ONLY if the
+   * chosen model is capable; otherwise they gracefully ignore them (Milestone 15). The Creative
+   * Director does not produce these — they come from the Identity Visual Package.
+   */
+  referenceImages?: ReferenceImage[];
+  // Reserved (NOT implemented): width/height/seed/negativePrompt.
 };
 
 export type ImageGenerationResult = {
   data: Buffer; // raw image bytes (provider-neutral)
   contentType: string; // e.g. "image/png"
   model: string; // the model actually used (for metadata)
-  provider: string; // e.g. "huggingface"
+  provider: string; // e.g. "huggingface" | "fal"
   /**
-   * A secret-free echo of the request the provider actually sent (model, inputs, options) —
-   * for the development Debug panel only. MUST NEVER contain tokens/credentials. Optional.
+   * A secret-free echo of the request the provider actually sent — for the development Debug
+   * panel only. MUST NEVER contain tokens/credentials. Optional.
    */
   requestPayload?: Record<string, unknown>;
 };
 
 export interface ImageProvider {
   readonly id: string;
+  /** The model this provider uses by default (for routing decisions + debug). */
+  readonly defaultModel: string;
+  /** What this provider can do — the app routes on these, never on `id`. */
+  readonly capabilities: ProviderCapabilities;
+  /** Whether the provider has the credentials it needs (for routing + graceful UI degradation). */
+  isConfigured(): boolean;
   generateImage(request: ImageGenerationRequest): Promise<ImageGenerationResult>;
 }
 

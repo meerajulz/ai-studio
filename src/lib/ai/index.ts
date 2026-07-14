@@ -1,29 +1,54 @@
 /**
- * AI layer — the provider-agnostic entry point. Feature code calls `getImageProvider()` and
- * depends only on the `ImageProvider` interface; it never imports a provider file directly.
- * Adding Fal/OpenAI/Replicate/local later = a new file under `providers/` + a case here.
+ * AI layer — the provider-agnostic entry point. Feature code depends only on the `ImageProvider`
+ * interface + provider CAPABILITIES (Milestone 15), never on provider names. Adding a provider =
+ * a new file under `providers/` + one entry in `REGISTRY`.
  * See docs/PROVIDER_INTERFACE.md, AI_GENERATION.md.
  */
 import type { ImageProvider } from "./ImageProvider";
+import { falProvider } from "./providers/fal";
+import { huggingFaceProvider } from "./providers/huggingface";
 import {
-  huggingFaceProvider,
-  isHuggingFaceConfigured,
-} from "./providers/huggingface";
+  routeImageProvider as routeFromRegistry,
+  type RoutingCriteria,
+  type RoutingDecision,
+} from "./router";
 
-/** The active image provider. First Light: always Hugging Face. */
-export function getImageProvider(): ImageProvider {
-  return huggingFaceProvider;
+/** Provider registry — order is the routing preference (premium first). */
+const REGISTRY: ImageProvider[] = [falProvider, huggingFaceProvider];
+
+/** Route to a provider by capability/config (see router). Bound to the registry. */
+export function routeImageProvider(criteria?: RoutingCriteria): {
+  provider: ImageProvider;
+  decision: RoutingDecision;
+} {
+  return routeFromRegistry(REGISTRY, criteria);
 }
 
-/** Whether the active provider is configured (for graceful UI degradation). */
+/** Get a specific provider by id (e.g. to re-run a recipe on the same provider). */
+export function getImageProvider(id?: string): ImageProvider {
+  if (!id) return routeImageProvider().provider;
+  const provider = REGISTRY.find((p) => p.id === id);
+  return provider ?? routeImageProvider().provider;
+}
+
+/** Whether ANY image provider is configured (for graceful UI degradation). */
 export function isImageProviderConfigured(): boolean {
-  return isHuggingFaceConfigured();
+  return REGISTRY.some((p) => p.isConfigured());
 }
 
+export {
+  capabilities,
+  hasAll,
+  hasCapability,
+  type ProviderCapabilities,
+  type ProviderCapability,
+} from "./capabilities";
+export { type RoutingCriteria, type RoutingDecision } from "./router";
 export {
   ProviderError,
   isProviderError,
   type ImageGenerationRequest,
   type ImageGenerationResult,
   type ImageProvider,
+  type ReferenceImage,
 } from "./ImageProvider";

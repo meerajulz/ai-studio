@@ -119,12 +119,21 @@ Gallery ✓ → Identity ✓ → AI Generation ✓ → Creative Director ✓ →
       Generate → a passive **Identity Context** stage (Stage 0) in the Creative Director that weaves
       the identity (name + description) into the reasoning as the subject. Provider stays 100%
       identity-unaware; no LoRA/embeddings/training. Decision 035 · `CREATIVE_DIRECTOR.md`.
+- [x] **Milestone 15 — Premium Provider Foundation (Fal + Capability System)** — providers advertise
+      **capabilities** and the app routes on those (never names); added **Fal.ai** behind
+      `ImageProvider`, a **Provider Router** (premium-first, capability-aware, `IMAGE_PROVIDER`
+      override), and an **Identity Visual Package** (reference images flowing around the Director to
+      capable providers; gracefully ignored otherwise). No LoRA/embeddings/training; no schema
+      change. Decision 036 · `PROVIDER_INTERFACE.md`.
 - [ ] **Creative Director — continue Spatial Analysis** ← **next** (deferred, not abandoned; we did
-      Identity first to surface real-world requirements). Improve the Scene Graph + relationship
-      extraction + spatial reasoning + layout planning; make the **Scene Graph the primary source
-      for prompt compilation** (preserving relationships) instead of leading with the flattened
-      sentence; improve intent classification (distinguish Interior Design vs Lifestyle). **Not an
-      LLM jump.** See `CREATIVE_DIRECTOR_FUTURE.md`.
+      Identity + the provider foundation first to surface real-world requirements). Improve the Scene
+      Graph + relationship extraction + spatial reasoning + layout planning; make the **Scene Graph
+      the primary source for prompt compilation** (preserving relationships) instead of leading with
+      the flattened sentence; improve intent classification (distinguish Interior Design vs
+      Lifestyle). **Not an LLM jump.** See `CREATIVE_DIRECTOR_FUTURE.md`.
+- [ ] _Future (enabled by M15):_ true **identity preservation** via reference-capable Fal models
+      (IP-Adapter / PuLID) using the Identity Visual Package; async **Job** queue for slow providers;
+      capability-driven auto-routing; more providers (OpenAI / Replicate / local); video provider.
 - [ ] **Long-term CD order** (documented, not scheduled): Better Scene Graph → Better Spatial →
       Creative Goals → Prompt Builder → Templates → Multi-provider optimization → Video reasoning →
       Multi-identity generation → Creative Critic → optional LLM reasoning (same architecture).

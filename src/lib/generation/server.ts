@@ -7,14 +7,23 @@
  * is deferred). The `Generation` record IS the recipe (Decision 030) — regenerate/variation
  * reuse it and tag lineage in `params`. See docs/GENERATION_PIPELINE.md, GENERATION_RECIPES.md.
  */
-import { getImageProvider, isProviderError } from "@/lib/ai";
+import {
+  isProviderError,
+  routeImageProvider,
+  type ProviderCapability,
+  type ReferenceImage,
+} from "@/lib/ai";
 import {
   directCreative,
   type CreativeBrief,
   type IdentityContext,
 } from "@/lib/creative";
 import { GenerationStatus, MediaType, Prisma, prisma } from "@/lib/db";
-import { getIdentityContext } from "@/lib/identity/server";
+import {
+  getIdentityContext,
+  getIdentityVisualPackage,
+} from "@/lib/identity/server";
+import type { IdentityVisualPackage } from "@/lib/identity/types";
 import { createGeneratedMedia, getGeneratedMediaByIds } from "@/lib/media/server";
 import type {
   GenerateImageInput,
@@ -63,12 +72,22 @@ async function runImageGeneration(
   opts: {
     brief: CreativeBrief;
     identityId: string | null;
+    /** The identity's Visual Package (reference images) — used only by capable providers. */
+    visualPackage?: IdentityVisualPackage | null;
     /** Lineage tags (regenerate/variation) merged alongside the creative record. */
     lineage?: Record<string, unknown>;
   },
 ): Promise<GenerationResult> {
-  const provider = getImageProvider();
   const directive = directCreative(opts.brief);
+
+  // Route by capability, never by name. When an identity is attached we prefer a provider that can
+  // preserve identity (falls back to the first configured provider otherwise).
+  const needs: ProviderCapability[] = opts.brief.identity ? ["identityPreservation"] : [];
+  const { provider, decision } = routeImageProvider({ needs });
+
+  // Reference images from the Identity Visual Package (provider-neutral). Capable adapters use
+  // them; others ignore them. The Creative Director never sees these — it reasons in text only.
+  const referenceImages = toReferenceImages(opts.visualPackage);
 
   const params: Prisma.InputJsonValue = {
     ...(opts.lineage ?? {}),
@@ -97,7 +116,10 @@ async function runImageGeneration(
   });
 
   try {
-    const result = await provider.generateImage({ prompt: directive.prompt });
+    const result = await provider.generateImage({
+      prompt: directive.prompt,
+      referenceImages: referenceImages.length ? referenceImages : undefined,
+    });
 
     const media = await createGeneratedMedia(userId, {
       projectId,
@@ -128,6 +150,9 @@ async function runImageGeneration(
           compiledPrompt: directive.prompt,
           provider: result.provider,
           model: result.model,
+          providerCapabilities: [...provider.capabilities],
+          routing: decision,
+          visualPackage: summarizeVisualPackage(opts.visualPackage, referenceImages.length),
           payload: result.requestPayload ?? { prompt: directive.prompt },
         }
       : undefined;
@@ -142,6 +167,41 @@ async function runImageGeneration(
       .catch(() => {});
     throw toFriendlyError(error);
   }
+}
+
+/** Flatten an Identity Visual Package into provider-neutral reference images (deduped by url). */
+function toReferenceImages(pkg?: IdentityVisualPackage | null): ReferenceImage[] {
+  if (!pkg) return [];
+  const refs: ReferenceImage[] = [];
+  const push = (url: string | null, role: ReferenceImage["role"]) => {
+    if (url) refs.push({ url, role });
+  };
+  push(pkg.heroImageUrl, "hero");
+  push(pkg.bestPortraitUrl, "portrait");
+  push(pkg.bestFullBodyUrl, "fullBody");
+  for (const url of pkg.referenceImageUrls) push(url, "reference");
+
+  const seen = new Set<string>();
+  return refs.filter((r) => {
+    if (seen.has(r.url)) return false;
+    seen.add(r.url);
+    return true;
+  });
+}
+
+/** Debug-safe summary of the Visual Package (booleans + counts, never signed URLs). */
+function summarizeVisualPackage(
+  pkg: IdentityVisualPackage | null | undefined,
+  referenceCount: number,
+) {
+  if (!pkg) return null;
+  return {
+    hasHeroImage: pkg.heroImageUrl !== null,
+    hasPortrait: pkg.bestPortraitUrl !== null,
+    hasFullBody: pkg.bestFullBodyUrl !== null,
+    referenceImages: referenceCount,
+    totalMedia: pkg.metadata.totalMedia,
+  };
 }
 
 /** Generate one image from a fresh creative idea (optionally attached to an identity). */
@@ -159,10 +219,14 @@ export async function generateImage(
     await assertIdentityInProject(userId, projectId, identityId);
   }
   const identity = await loadIdentityContext(userId, identityId);
+  const visualPackage = identityId
+    ? await getIdentityVisualPackage(userId, identityId)
+    : null;
 
   return runImageGeneration(userId, projectId, {
     brief: { idea, style: input.style, focus: input.focus, identityId, identity },
     identityId,
+    visualPackage,
   });
 }
 
@@ -196,9 +260,13 @@ export async function regenerateGeneration(
   const source = await loadOwnedGeneration(userId, projectId, generationId);
   const brief = briefFromGeneration(source);
   brief.identity = await loadIdentityContext(userId, source.identityId);
+  const visualPackage = source.identityId
+    ? await getIdentityVisualPackage(userId, source.identityId)
+    : null;
   return runImageGeneration(userId, projectId, {
     brief,
     identityId: source.identityId,
+    visualPackage,
     lineage: { source: "regenerate", fromGenerationId: generationId },
   });
 }
@@ -212,9 +280,13 @@ export async function generateVariation(
   const source = await loadOwnedGeneration(userId, projectId, generationId);
   const brief = briefFromGeneration(source);
   brief.identity = await loadIdentityContext(userId, source.identityId);
+  const visualPackage = source.identityId
+    ? await getIdentityVisualPackage(userId, source.identityId)
+    : null;
   return runImageGeneration(userId, projectId, {
     brief,
     identityId: source.identityId,
+    visualPackage,
     lineage: { source: "variation", fromGenerationId: generationId },
   });
 }

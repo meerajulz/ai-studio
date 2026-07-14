@@ -1,10 +1,28 @@
 # Provider Interface
 
-> **Status: DESIGN (Milestone 10 — First Light).** The `ImageProvider` abstraction that keeps
-> the app provider-agnostic. Hugging Face is the **only** implemented provider; others are
-> documented placeholders. Related: [AI_GENERATION.md](./AI_GENERATION.md),
+> **Status: IMPLEMENTED — capability system + multi-provider (Milestone 15).** The `ImageProvider`
+> abstraction that keeps the app provider-agnostic. **Hugging Face** and **Fal.ai** are implemented;
+> the app routes on **capabilities, never names**. Related: [AI_GENERATION.md](./AI_GENERATION.md),
 > [GENERATION_PIPELINE.md](./GENERATION_PIPELINE.md), [VISION.md](./VISION.md),
-> [DECISIONS.md](./DECISIONS.md) (#007 provider-agnostic).
+> [DECISIONS.md](./DECISIONS.md) (#007 provider-agnostic, #036 capabilities/Fal/router).
+
+## Capabilities, router & Identity Visual Package (Milestone 15)
+
+- **Capabilities (`ai/capabilities.ts`).** Every provider advertises a `capabilities` set
+  (imageGeneration, imageEditing, referenceImages, multipleReferenceImages, identityPreservation,
+  inpainting, outpainting, video, lora, ipAdapter, controlNet, asyncJobs). **Feature code depends
+  on capabilities, never on provider names.** The interface also carries `defaultModel` and
+  `isConfigured()`.
+- **Router (`ai/router.ts`).** `routeImageProvider({ needs })` picks a provider by capability +
+  configuration, **premium-first**, returning a `RoutingDecision` (chosen/model/reason/considered).
+  `IMAGE_PROVIDER=fal|huggingface` forces one (e.g. to verify HF). Ready for richer auto-routing.
+- **Fal (`providers/fal.ts`).** First premium provider — `fetch`-based (no SDK), `FAL_KEY`, default
+  `fal-ai/flux/schnell` (`FAL_IMAGE_MODEL`). All Fal specifics isolated here.
+- **Reference images / Identity Visual Package.** `ImageGenerationRequest.referenceImages` is a
+  provider-neutral list built from an identity's **Visual Package**
+  (`identity/getIdentityVisualPackage` — signed hero/portrait/full-body/reference URLs). It flows
+  **around** the Creative Director (which stays text-only) to the provider; **capable models use it,
+  others gracefully ignore it.** No LoRA/embeddings/training yet — architecture prep.
 
 ## The rule
 
