@@ -1616,3 +1616,46 @@ passes. `npm run build` + `tsc --noEmit` pass. **The Gemini API call is NOT live
 session** (needs `GEMINI_API_KEY` + network) — the user must verify; if the response shape needs a
 tweak, only `providers/gemini.ts` changes. Not yet wired to upload/persistence (next milestone). No
 schema change.
+
+---
+
+# Decision 044
+
+Date
+2026-07-15
+
+Decision
+**Vision live-verification tool + per-attribute confidence (Milestone 19 follow-up).** Before wiring
+Vision into identities, add a way to validate one image end-to-end, and make extraction confidence a
+first-class signal.
+
+1. **`/debug/vision` page** (temporary, dev tool, auth-gated under `(protected)`). Upload ONE image
+   → it's downscaled client-side to a small JPEG **data URL** (no Blob) → server action
+   `analyzeVisionDebug` runs the full pipeline (provider → raw JSON → normalize → `IdentityMetadata`
+   → `ImageScore` → single-image coverage) and returns everything: the image, raw provider response,
+   normalized knowledge, score breakdown, coverage contribution, duration, **token usage** (from
+   Gemini `usageMetadata`), and **warnings** (face not detected, unusable, low-confidence attributes).
+   **No persistence, no Prisma, no Blob, no identity package, no generation.**
+2. **Per-attribute confidence.** Gemini now returns a `confidence` per tattoo and a top-level
+   `confidence` map for scalar attributes; `TattooKnowledge.confidence` and
+   `IdentityMetadata.attributeConfidence` carry them through normalization. Routing can later ignore
+   low-confidence signals ("don't use this image for chest tattoos — the model was only 42% sure").
+
+Reason
+A single-image debug tool is the safest first live test — it exercises the real Gemini call and the
+whole deterministic pipeline with zero side effects, so the response shape can be validated before
+any integration. Data URL + client downscale avoids Blob and keeps the server-action payload small.
+Per-attribute confidence is cheap to add now (one prompt + type change) and becomes very valuable for
+reliable reference selection later; adding it after data is stored would mean reprocessing.
+
+Alternatives
+Wire Vision straight into upload (rejected — validate the provider first; integrating an unverified
+API call into the identity pipeline is risky); upload to Blob for the debug tool (rejected —
+unnecessary persistence for a throwaway test; data URL suffices); make every attribute `{value,
+confidence}` (rejected — bloats every consumer; a separate `attributeConfidence` map + per-tattoo
+confidence keeps values flat and is additive).
+
+Status
+Accepted — implemented. `npm run build` + `tsc --noEmit` pass; offline scoring/coverage verifiers
+still pass. **The `/debug/vision` page + the live Gemini call are for the user to exercise** (needs
+`GEMINI_API_KEY`) — this is the intended first live test. No persistence, no schema change.

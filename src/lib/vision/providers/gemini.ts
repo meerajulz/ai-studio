@@ -32,14 +32,17 @@ Do NOT identify the person. Analyse ONLY what is visible in this photo and retur
   "faceConfidence": number(0-1), "faceYaw": number(deg), "facePitch": number(deg), "faceRoll": number(deg),
   "smiling": boolean, "eyesVisible": boolean,
   "framing": "headshot"|"half-body"|"full-body"|null, "bodyVisibility": "face"|"upper"|"full"|null,
-  "tattoos": [{"location": string, "description": string|null}],
+  "tattoos": [{"location": string, "description": string|null, "confidence": number(0-1)}],
   "accessories": [string], "facialHair": string|null, "ageRange": string|null, "expression": string|null,
   "clothing": [string], "lightingSetting": "indoor"|"outdoor"|"studio"|null,
   "lightingQuality": "soft"|"harsh"|"backlit"|"even"|null, "environment": string|null,
   "dominantColors": [string], "objects": [string],
-  "sharpness": number(0-1), "exposure": number(0-1), "occluded": boolean, "cropped": boolean
+  "sharpness": number(0-1), "exposure": number(0-1), "occluded": boolean, "cropped": boolean,
+  "confidence": { "hairColor": number(0-1), "faceOrientation": number(0-1), "framing": number(0-1),
+                  "bodyVisibility": number(0-1), "expression": number(0-1), "lightingSetting": number(0-1) }
 }
-Only list tattoos that are actually visible. yaw≈0 means facing the camera.`;
+Only list tattoos that are actually visible; give each a confidence. The "confidence" object holds
+how sure you are of each scalar attribute (0-1). yaw≈0 means facing the camera.`;
 
 function getKey(): string | undefined {
   const v = process.env.GEMINI_API_KEY;

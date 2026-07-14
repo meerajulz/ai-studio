@@ -63,8 +63,12 @@ export type FaceKnowledge = {
   eyesVisible: boolean;
 };
 export type BodyKnowledge = { framing: Framing; visibility: BodyVisibility; pose: string | null };
-/** Visible tattoos only — never used for identification. */
-export type TattooKnowledge = { location: string; description: string | null };
+/** Visible tattoos only — never used for identification. `confidence` = how sure the provider is. */
+export type TattooKnowledge = {
+  location: string;
+  description: string | null;
+  confidence: number; // 0..1
+};
 export type LightingKnowledge = { setting: LightingSetting; quality: LightingQuality };
 
 /** Technical quality of a reference image — drives the "reject poor references" gate. */
@@ -104,6 +108,12 @@ export type IdentityMetadata = {
   embedding: ImageEmbedding;
   faceEmbedding: ImageEmbedding;
   caption: string | null; // human display / semantic search only
+  /**
+   * Per-attribute extraction confidence (0..1), keyed by attribute (e.g. `hairColor`,
+   * `faceOrientation`). Lets routing avoid low-confidence signals ("don't use this image to
+   * represent chest tattoos — the model was only 42% sure"). Empty when the provider gives none.
+   */
+  attributeConfidence: Record<string, number>;
   source: { provider: string; model: string; analyzedAt: string };
 };
 

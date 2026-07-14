@@ -63,12 +63,25 @@ function toTattoos(v: unknown): TattooKnowledge[] {
   if (!Array.isArray(v)) return [];
   return v
     .map((t) => {
-      if (typeof t === "string") return { location: t, description: null };
+      if (typeof t === "string") return { location: t, description: null, confidence: 1 };
       const r = rec(t);
-      const location = str(r.location);
-      return location ? { location, description: str(r.description) } : null;
+      // Gemini may key the area as `location` or `region`.
+      const location = str(r.location) ?? str(r.region);
+      return location
+        ? { location, description: str(r.description), confidence: clamp01(r.confidence, 1) }
+        : null;
     })
     .filter((t): t is TattooKnowledge => t !== null);
+}
+
+/** Read a provider `confidence` bag into a clean {attribute: 0..1} map. */
+function toConfidenceMap(v: unknown): Record<string, number> {
+  const src = rec(v);
+  const out: Record<string, number> = {};
+  for (const [k, val] of Object.entries(src)) {
+    if (typeof val === "number") out[k] = clamp01(val);
+  }
+  return out;
 }
 
 /** Deterministic technical-quality composite (0..100) + a usability gate. */
@@ -170,6 +183,7 @@ export function normalizeToIdentityMetadata(obs: VisionObservation): IdentityMet
     embedding: toEmbedding(obs.embedding, obs.model),
     faceEmbedding: toEmbedding(obs.faceEmbedding, obs.model),
     caption: str(obs.caption),
+    attributeConfidence: toConfidenceMap(a.confidence),
     source: { provider: obs.provider, model: obs.model, analyzedAt: new Date().toISOString() },
   };
 }

@@ -7,7 +7,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 19 — first Vision provider
+> **▶ Resume (2026-07-15, build + tsc green):** Added a **`/debug/vision` live-verification tool** +
+> **per-attribute confidence** (Decision 044). Upload one image → full pipeline (Gemini → raw JSON →
+> normalize → IdentityMetadata → ImageScore → coverage) with duration/token-usage/warnings; NO
+> persistence/Blob/generation. Gemini now returns confidence per tattoo + a scalar `confidence` map
+> (`TattooKnowledge.confidence`, `IdentityMetadata.attributeConfidence`). **This page is the intended
+> first live test** (needs `GEMINI_API_KEY`). Before that: **Milestone 19 — first Vision provider
 > (Gemini) + Identity Image Scoring** (Decision 043). `analyzeIdentity(imageUrl)` → route → Gemini
 > `analyzeImage` (structured JSON: pose/expression/framing/tattoos/hair/lighting/quality) → normalize
 > → score. New **`image-score.ts`** locks in the distinction: **Coverage = "what's missing?"
@@ -157,6 +162,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **Vision live-verification tool (`/debug/vision`) + per-attribute confidence** (Decision 044). A
+  temporary, auth-gated dev page to validate the Vision provider on a single image **before** wiring
+  it into identities: pick one image → it's downscaled client-side to a data URL (no Blob) → a server
+  action runs the full pipeline (provider → **raw JSON** → normalize → **IdentityMetadata** →
+  **ImageScore** with breakdown → **coverage** contribution) and shows the image, duration, **token
+  usage**, and **warnings** (face missing, unusable, low-confidence attributes). **No persistence, no
+  Prisma, no Blob, no identity package, no generation.** Also: Gemini now returns **confidence per
+  tattoo** and a scalar **`confidence` map**, carried through as `TattooKnowledge.confidence` +
+  `IdentityMetadata.attributeConfidence` — so routing can later ignore low-confidence signals. `npm
+  run build` + `tsc --noEmit` pass; offline scoring/coverage verifiers still pass. The page + live
+  Gemini call are the **intended first live test** (needs `GEMINI_API_KEY`).
 - **First Vision provider (Gemini) + Identity Image Scoring** (Milestone 19, Decision 043): the
   Vision layer gets its data + a per-image scoring axis. **`analyzeIdentity(imageUrl)`** routes to a
   configured `VisionProvider` (needs attributes + quality), gets **observations**, normalizes to
