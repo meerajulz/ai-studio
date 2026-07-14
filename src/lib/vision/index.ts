@@ -8,18 +8,39 @@
  * empty; the first adapter is added in 18B behind this exact interface, so the rest of AI Studio
  * never changes. See docs/IDENTITY_INTELLIGENCE.md, docs/research/RESEARCH_02_VISION.md.
  */
+import { normalizeToIdentityMetadata } from "./normalize";
+import { scoreIdentityImage, type IdentityImageScore } from "./image-score";
+import { geminiVisionProvider } from "./providers/gemini";
 import { routeVisionProvider as routeFromRegistry } from "./router";
 import type { VisionProvider } from "./VisionProvider";
+import type { IdentityMetadata } from "./types";
 import type {
   VisionRoutingCriteria,
   VisionRoutingDecision,
 } from "./router";
 
 /**
- * Vision provider registry. **Empty in 18A** — 18B adds the first adapter here (per research, a VLM
- * such as Gemini / Qwen2.5-VL / Florence-2). Order is the routing preference.
+ * Vision provider registry (Milestone 19). Order is the routing preference. Gemini is the first
+ * provider; OpenAI / Qwen / Florence slot in exactly like image providers — feature code routes on
+ * capabilities, never on the name. A provider is only *used* when configured (its API key is set).
  */
-const REGISTRY: VisionProvider[] = [];
+const REGISTRY: VisionProvider[] = [geminiVisionProvider];
+
+/**
+ * Analyse ONE identity image → knowledge + per-image score. Routes to a configured vision provider
+ * (needs attributes + quality), gets OBSERVATIONS, normalizes to `IdentityMetadata`, and scores it.
+ * The single entry point for building identity knowledge. (The provider call is the only I/O.)
+ */
+export async function analyzeIdentity(imageUrl: string): Promise<{
+  metadata: IdentityMetadata;
+  score: IdentityImageScore;
+}> {
+  const { provider } = routeVisionProvider({ needs: ["attributes", "quality"] });
+  const observation = await provider.analyzeImage({ imageUrl });
+  const metadata = normalizeToIdentityMetadata(observation);
+  const score = scoreIdentityImage(metadata);
+  return { metadata, score };
+}
 
 export function routeVisionProvider(criteria?: VisionRoutingCriteria): {
   provider: VisionProvider;
@@ -44,7 +65,7 @@ export function isVisionConfigured(): boolean {
 export { normalizeToIdentityMetadata } from "./normalize";
 export { computeIdentityCoverage } from "./coverage";
 
-// Identity Coverage Engine — the first consumer of the knowledge (Milestone 18B)
+// Identity Coverage Engine (identity-level: "what is missing?") — Milestone 18B
 export {
   analyzeIdentityCoverage,
   renderStars,
@@ -55,6 +76,15 @@ export {
   type CoverageSuggestion,
   type DimensionScore,
 } from "./coverage-engine";
+
+// Identity Image Scoring (per-image: "which image is best?") — Milestone 19
+export {
+  scoreIdentityImage,
+  rankIdentityImages,
+  IMAGE_SCORE_VERSION,
+  type IdentityImageScore,
+  type ScoredImage,
+} from "./image-score";
 
 // Contracts + types
 export {
@@ -79,6 +109,7 @@ export {
   IDENTITY_METADATA_VERSION,
   type BodyKnowledge,
   type FaceKnowledge,
+  type FacePose,
   type HairKnowledge,
   type IdentityCoverage,
   type IdentityMetadata,

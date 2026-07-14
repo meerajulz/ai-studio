@@ -32,6 +32,8 @@ const str = (v: unknown): string | null =>
 const bool = (v: unknown, d = false): boolean => (typeof v === "boolean" ? v : d);
 const clamp01 = (v: unknown, d = 0): number =>
   typeof v === "number" && !Number.isNaN(v) ? Math.max(0, Math.min(1, v)) : d;
+const numRaw = (v: unknown, d = 0): number =>
+  typeof v === "number" && !Number.isNaN(v) ? v : d;
 const strArr = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 
@@ -107,10 +109,28 @@ function toQuality(q: Record<string, unknown>): ImageQuality {
   };
 }
 
+/** Derive a coarse orientation from a head-yaw angle (degrees) when the provider gives only pose. */
+function orientationFromYaw(yaw: number): FaceOrientation {
+  const a = Math.abs(yaw);
+  if (a <= 20) return "front";
+  if (a <= 55) return "three-quarter";
+  return yaw < 0 ? "left-profile" : "right-profile";
+}
+
 /** Turn one provider observation into AI Studio knowledge. Pure + deterministic. */
 export function normalizeToIdentityMetadata(obs: VisionObservation): IdentityMetadata {
   const a = rec(obs.attributes);
   const scene = rec(obs.scene);
+
+  const hasPose = a.faceYaw != null || a.facePitch != null || a.faceRoll != null;
+  const pose = hasPose
+    ? { yaw: numRaw(a.faceYaw), pitch: numRaw(a.facePitch), roll: numRaw(a.faceRoll) }
+    : null;
+  const orientation = str(a.faceOrientation)
+    ? oneOf<FaceOrientation>(a.faceOrientation, ORIENTATIONS, "unknown")
+    : pose
+      ? orientationFromYaw(pose.yaw)
+      : "unknown";
 
   return {
     version: IDENTITY_METADATA_VERSION,
@@ -121,8 +141,12 @@ export function normalizeToIdentityMetadata(obs: VisionObservation): IdentityMet
     },
     face: {
       visible: bool(a.faceVisible, true),
-      orientation: oneOf<FaceOrientation>(a.faceOrientation, ORIENTATIONS, "unknown"),
-      confidence: clamp01(a.faceConfidence, 0),
+      orientation,
+      // Default to a moderate confidence when a face is visible but the provider gave no score.
+      confidence: clamp01(a.faceConfidence, bool(a.faceVisible, true) ? 0.7 : 0),
+      pose,
+      smiling: bool(a.smiling, false),
+      eyesVisible: bool(a.eyesVisible, true),
     },
     body: {
       framing: oneOf<Framing>(a.framing, FRAMINGS, "unknown"),

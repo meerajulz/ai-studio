@@ -109,6 +109,38 @@ full body 3, upper body 2, hair 2, profiles/back 1, each tattoo area 1, indoor/o
 - The engine reasons purely from **knowledge**, so it's identical no matter which Vision provider
   produced the observations.
 
+## Coverage vs Image Scoring — two different questions
+
+A key architectural distinction (both are needed for intelligent reference selection):
+
+| | Question | Level | Module |
+| --- | -------- | ----- | ------ |
+| **Coverage** | *What is **missing** across the reference set?* (no full body, no right profile, no back tattoo) | identity | `coverage-engine.ts` |
+| **Image Scoring** | *Which **individual image** is best?* (face quality, tattoo visibility, body coverage, lighting, sharpness, expression) | per-image | `image-score.ts` |
+
+**Image scoring** makes the identity library *self-curating*: upload many, `rankIdentityImages`
+ranks them best-first, and the router later keeps/selects the strongest. `scoreIdentityImage(m) →
+IdentityImageScore` (faceQuality · tattooVisibility · bodyCoverage · hairVisibility · lighting ·
+sharpness · expression · **overall** · usable · reasons). Pure, deterministic, provider-neutral —
+verified offline (`scripts/verify-scoring.ts`): a front/full-body/smiling/tattooed shot outranks a
+blurry back-view.
+
+Together: **Coverage answers "what's missing", Image Scoring answers "which is best"** — the
+foundation for request-aware selection (choose the best refs *for this scene*).
+
+## The first Vision provider — Gemini (Milestone 19)
+
+`analyzeIdentity(imageUrl)` routes to a configured `VisionProvider` (`needs: attributes + quality`),
+gets **observations**, `normalize`s to `IdentityMetadata`, and `score`s the image. The first adapter
+is **Gemini** (`providers/gemini.ts`, `fetch`-based, `GEMINI_API_KEY`, structured-JSON extraction of
+pose/expression/framing/tattoos/hair/lighting/quality — *not identification*). It's isolated like an
+image provider: swapping to OpenAI / Qwen / Florence changes only that file. **The Gemini API call
+is not yet live-verified** (needs a key); the deterministic normalization, scoring and coverage are
+verified offline.
+
+Rich metadata now includes **facial pose** (`face.pose` = yaw/pitch/roll), `smiling`, `eyesVisible`
+— so a provider that reports only a yaw angle still yields a usable orientation (derived).
+
 ## Boundaries — Milestone 18A
 
 **Architecture only.** No APIs, no Gemini/OpenAI/Florence/Qwen, no DB, no UI, no services. The

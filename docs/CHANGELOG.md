@@ -7,7 +7,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 18B — Identity Coverage Engine**
+> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 19 — first Vision provider
+> (Gemini) + Identity Image Scoring** (Decision 043). `analyzeIdentity(imageUrl)` → route → Gemini
+> `analyzeImage` (structured JSON: pose/expression/framing/tattoos/hair/lighting/quality) → normalize
+> → score. New **`image-score.ts`** locks in the distinction: **Coverage = "what's missing?"
+> (identity-level); Image Scoring = "which image is best?" (per-image)** → self-curating libraries
+> (`rankIdentityImages`). Rich metadata gained facial pose (yaw/pitch/roll)/smiling/eyesVisible. All
+> Gemini specifics isolated in `providers/gemini.ts` (swappable). **Deterministic scoring verified
+> offline** (`scripts/verify-scoring.ts`); the **Gemini API call is NOT live-verified** (needs
+> `GEMINI_API_KEY`). Not yet wired to upload/persistence (next). Also fixed the scene-parser
+> **camera bug** (Decision 042). Before that: **Milestone 18B — Identity Coverage Engine**
 > (Decision 041, still no Vision provider): `analyzeIdentityCoverage(metadatas) → CoverageReport` —
 > the first consumer of the 18A knowledge. Dimensioned star scores (face front/L/R profile/back,
 > upper/full body, hair, tattoo areas, indoor/outdoor) + confidence + missing + prioritized
@@ -148,6 +157,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **First Vision provider (Gemini) + Identity Image Scoring** (Milestone 19, Decision 043): the
+  Vision layer gets its data + a per-image scoring axis. **`analyzeIdentity(imageUrl)`** routes to a
+  configured `VisionProvider` (needs attributes + quality), gets **observations**, normalizes to
+  `IdentityMetadata`, and scores the image. First adapter **Gemini** (`vision/providers/gemini.ts`,
+  `fetch`-based, `GEMINI_API_KEY`, structured-JSON extraction: **facial pose (yaw/pitch/roll)**,
+  expression, framing, **tattoo regions**, hair, lighting, environment, body visibility, occlusion,
+  normalized quality) — all Gemini specifics isolated (swappable for OpenAI/Qwen/Florence). New
+  **`image-score.ts`** locks in the key distinction: **Coverage (identity-level) = "what is
+  missing?"; Image Scoring (per-image) = "which image is best?"** — `scoreIdentityImage` (faceQuality
+  · tattooVisibility · bodyCoverage · hairVisibility · lighting · sharpness · expression · overall ·
+  usable · reasons) + `rankIdentityImages` → **self-curating** libraries. Richer `FaceKnowledge`
+  (pose/smiling/eyesVisible; orientation derived from yaw when needed). **Deterministic scoring +
+  ranking verified offline** (`scripts/verify-scoring.ts` — a front/full-body/smiling/tattooed shot
+  outranks a blurry back-view; 6/6 checks; coverage still passes). **The Gemini API call is NOT
+  live-verified this session** (needs `GEMINI_API_KEY`); if the response shape needs a tweak only the
+  adapter changes. Not yet wired to upload/persistence (next milestone). `npm run build` + `tsc
+  --noEmit` pass. New env: `GEMINI_API_KEY` (+ optional `GEMINI_VISION_MODEL`, `VISION_PROVIDER`).
 - **Identity Coverage Engine** (Milestone 18B, Decision 041; still **no Vision provider**): the first
   consumer of Identity Intelligence knowledge — `analyzeIdentityCoverage(metadatas) → CoverageReport`
   (`vision/coverage-engine.ts`). Consumes normalized `IdentityMetadata[]` and produces a **dimensioned

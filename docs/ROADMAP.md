@@ -156,9 +156,15 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       prioritized suggestions) across face/body/hair/tattoo/environment dimensions. Deterministic;
       verified offline with mocked metadata (`scripts/verify-coverage.ts`). Proves the architecture
       drives Smart Reference Selection + Quality Gates. Decision 041 · `IDENTITY_INTELLIGENCE.md`.
-- [ ] **First Vision provider** ← **next** — implement ONE provider (best per `RESEARCH_02_VISION.md`)
-      behind `VisionProvider.analyzeImage` + `analyzeIdentity(image)`; feed real knowledge into the
-      coverage engine + a training quality gate. Then more providers slot in like image providers.
+- [x] **Milestone 19 — first Vision provider (Gemini) + Identity Image Scoring** — `analyzeIdentity`
+      → Gemini `analyzeImage` (structured JSON) → normalize → score. New per-image scoring
+      (`image-score.ts`) distinct from identity-level coverage (self-curating libraries via
+      `rankIdentityImages`); rich metadata (facial pose/smiling). Gemini isolated + swappable;
+      deterministic scoring verified offline; **Gemini API not yet live-verified**. Decision 043.
+- [ ] **Wire Vision into the app** ← **next** — run `analyzeIdentity` on training-media upload,
+      **persist** `IdentityMetadata` + `IdentityImageScore` (needs schema), then **request-aware
+      reference selection** (choose the best refs for the requested scene via coverage + scores) and
+      identity-description synthesis. Addresses the remaining Kontext identity bugs (#2–#6).
 
 ### Future — documented, NOT scheduled (research first)
 

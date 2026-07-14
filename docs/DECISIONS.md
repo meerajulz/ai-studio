@@ -1566,3 +1566,53 @@ fantasy castle → concept-art; identity with no scene → portrait) hold. `npm 
 pass. No schema change. (Bugs #2–#6 — coverage-aware/request-aware reference selection, Vision
 metadata, richer identity description — are tracked for the Vision-provider milestone; see
 `FUTURE_RESEARCH.md` / `IDENTITY_INTELLIGENCE.md`.)
+
+---
+
+# Decision 043
+
+Date
+2026-07-14
+
+Decision
+**First Vision provider (Gemini) + Identity Image Scoring (Milestone 19).** Give the Vision layer
+its data, and add the per-image scoring axis:
+
+1. **First `VisionProvider` — Gemini** (`vision/providers/gemini.ts`): `fetch`-based, `GEMINI_API_KEY`,
+   structured-JSON extraction (pose yaw/pitch/roll, expression, framing, tattoo regions, hair,
+   lighting, environment, body visibility, occlusion, normalized quality) → `VisionObservation`. All
+   Gemini specifics isolated in that one file; the registry routes on capabilities. `analyzeIdentity(imageUrl)`
+   = route → `analyzeImage` → `normalize` → `score`. Swapping to OpenAI/Qwen/Florence later changes
+   only the adapter.
+2. **Richer knowledge:** `FaceKnowledge` gained `pose` (`FacePose` yaw/pitch/roll), `smiling`,
+   `eyesVisible`; the normalizer derives orientation from yaw when a provider gives only pose.
+3. **Identity Image Scoring** (`vision/image-score.ts`) — the architectural distinction the project
+   locks in **now**: **Coverage (identity-level) answers "what is missing?"; Image Scoring
+   (per-image) answers "which image is best?"**. `scoreIdentityImage(m) → IdentityImageScore`
+   (faceQuality, tattooVisibility, bodyCoverage, hairVisibility, lighting, sharpness, expression,
+   overall, usable, reasons); `rankIdentityImages` sorts best-first → a **self-curating** library.
+   Pure/deterministic/provider-neutral.
+
+Reason
+Coverage + router + normalizer were "a Ferrari with no fuel" — they need real metadata. Gemini
+supplies it via one structured-extraction call (cheapest strong hosted VLM with native JSON output,
+per RESEARCH_02). Separating **per-image scoring** from **identity-level coverage** is the key
+foundation before routing logic: selection needs both "which images are strong" (scoring) and "what
+angles/tattoos are missing" (coverage). Deterministic scoring means the ranking is explainable and
+verifiable offline.
+
+Alternatives
+Wire coverage into routing first without a provider (rejected — nothing to reason over; no real
+change); one combined "coverage+score" number (rejected — conflates two questions; the router needs
+both separately); an image-embedding model for scoring now (deferred — embeddings help
+dedup/similarity/consistency later; deterministic attribute-based scoring is enough and explainable);
+persist metadata to the DB now (deferred — needs schema; this milestone builds analysis + scoring;
+storing per-image metadata + wiring into upload/selection is the next milestone).
+
+Status
+Accepted — implemented. **Deterministic parts verified offline:** `scripts/verify-scoring.ts`
+(front/full-body/smiling/tattooed image outranks a blurry back-view; 6/6 checks), coverage still
+passes. `npm run build` + `tsc --noEmit` pass. **The Gemini API call is NOT live-verified this
+session** (needs `GEMINI_API_KEY` + network) — the user must verify; if the response shape needs a
+tweak, only `providers/gemini.ts` changes. Not yet wired to upload/persistence (next milestone). No
+schema change.

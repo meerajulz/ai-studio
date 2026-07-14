@@ -50,7 +50,18 @@ export type LightingSetting = "indoor" | "outdoor" | "studio" | "unknown";
 export type LightingQuality = "soft" | "harsh" | "backlit" | "even" | "unknown";
 
 export type HairKnowledge = { visible: boolean; color: string | null; length: HairLength };
-export type FaceKnowledge = { visible: boolean; orientation: FaceOrientation; confidence: number };
+
+/** Head pose in degrees; (0,0,0) ≈ looking straight at camera. yaw = left/right turn. */
+export type FacePose = { yaw: number; pitch: number; roll: number };
+
+export type FaceKnowledge = {
+  visible: boolean;
+  orientation: FaceOrientation;
+  confidence: number;
+  pose: FacePose | null;
+  smiling: boolean;
+  eyesVisible: boolean;
+};
 export type BodyKnowledge = { framing: Framing; visibility: BodyVisibility; pose: string | null };
 /** Visible tattoos only — never used for identification. */
 export type TattooKnowledge = { location: string; description: string | null };
