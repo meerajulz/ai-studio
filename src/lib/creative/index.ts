@@ -1,19 +1,29 @@
 /**
  * Creative Director — the intelligent layer between creative intent and the AI provider.
  *
- * The user thinks creatively; the Creative Director thinks technically. This is the ONLY layer
- * allowed to enrich a prompt. It is provider-agnostic and (for the MVP) deterministic, so it
- * can be replaced by an LLM later without touching callers. See docs/CREATIVE_DIRECTOR.md.
+ * The user thinks creatively; the Creative Director thinks technically. It is a deterministic,
+ * provider-agnostic reasoning pipeline (scene → intent → composition → prompt) and the ONLY layer
+ * allowed to enrich a prompt. It can be replaced by an LLM later — one stage at a time — without
+ * touching callers. See docs/CREATIVE_DIRECTOR.md.
  */
 export { directCreative } from "./director";
+export { analyzeScene } from "./stages/scene";
+export { analyzeIntent } from "./stages/intent";
+export { planComposition } from "./stages/composition";
 export {
   CREATIVE_DIRECTOR_VERSION,
   CREATIVE_STYLE_OPTIONS,
   DEFAULT_FOCUS,
   DEFAULT_STYLE,
+  type CompositionPlan,
   type CreativeBrief,
   type CreativeDirective,
   type CreativeFocus,
   type CreativeStyle,
-  type SubjectCategory,
+  type EntityKind,
+  type Environment,
+  type IntentAnalysis,
+  type IntentType,
+  type Scene,
+  type SceneEntity,
 } from "./types";

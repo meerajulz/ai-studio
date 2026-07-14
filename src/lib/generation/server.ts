@@ -70,8 +70,8 @@ async function runImageGeneration(
     creative: {
       version: directive.meta.version,
       style: directive.meta.style,
-      focus: directive.meta.focus,
-      category: directive.meta.category,
+      focus: opts.brief.focus ?? null,
+      intent: directive.meta.intent.type,
       compiledPrompt: directive.prompt,
     },
   };
@@ -114,9 +114,9 @@ async function runImageGeneration(
     const debug: GenerationDebug | undefined = DEBUG_ENABLED
       ? {
           idea: opts.brief.idea,
-          intent: directive.meta.category,
-          style: directive.meta.style,
-          focus: directive.meta.focus,
+          scene: directive.meta.scene,
+          intent: directive.meta.intent,
+          composition: directive.meta.composition,
           rulesApplied: directive.meta.appliedModifiers,
           compiledPrompt: directive.prompt,
           provider: result.provider,

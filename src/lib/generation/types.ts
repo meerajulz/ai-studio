@@ -1,4 +1,10 @@
-import type { CreativeFocus, CreativeStyle } from "@/lib/creative";
+import type {
+  CompositionPlan,
+  CreativeFocus,
+  CreativeStyle,
+  IntentAnalysis,
+  Scene,
+} from "@/lib/creative";
 import type { MediaAsset } from "@/lib/media/types";
 
 export type GenerateImageInput = {
@@ -13,17 +19,18 @@ export type GenerateImageInput = {
 };
 
 /**
- * Development-only trace of one generation — how the Creative Director turned the idea into the
- * prompt actually sent to the provider. Populated ONLY when NODE_ENV !== "production"; `undefined`
- * in production so nothing internal leaks. Contains no secrets.
+ * Development-only trace of one generation — the Creative Director's full reasoning pipeline
+ * (scene → intent → composition → prompt) plus the request actually sent to the provider.
+ * Populated ONLY when NODE_ENV !== "production"; `undefined` in production so nothing internal
+ * leaks. Contains no secrets.
  */
 export type GenerationDebug = {
   idea: string; // what the user typed
-  intent: string; // detected subject category
-  style: string;
-  focus: string;
+  scene: Scene; // Stage 1 — scene analysis
+  intent: IntentAnalysis; // Stage 2 — intent analysis
+  composition: CompositionPlan; // Stage 3 — composition plan
   rulesApplied: string[]; // everything the Director added beyond the user's words
-  compiledPrompt: string; // the prompt sent to the provider
+  compiledPrompt: string; // Stage 4 — the prompt sent to the provider
   provider: string;
   model: string;
   payload: Record<string, unknown>; // secret-free echo of the provider request

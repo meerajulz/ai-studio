@@ -102,10 +102,15 @@ Gallery ✓ → Identity ✓ → AI Generation ✓ → Creative Director ✓ →
       at the generation chokepoint; user's idea stays in `Generation.prompt`, brief + compiled
       prompt in `params.creative` (recipes/regenerate/variation intact). One optional **Style**
       question in the UI; no technical settings exposed. Decision 031 · `CREATIVE_DIRECTOR.md`.
-- [ ] **Creative Director v2** ← **next** — richer brief facets + Creative Questions (focus,
-      mood, lighting), a fuller "describe intent" UI on top of the Director, and prompt
-      optimization; the groundwork for identity-aware prompting.
-- [ ] Templates — **saved briefs** (Creative Director presets); comes *after* the richer builder.
+- [x] **Milestone 13 — Creative Director v2 (Scene Understanding)** — re-architected the Director
+      into a deterministic reasoning pipeline (`idea → scene → intent → composition → prompt`);
+      analyses the whole scene and infers intent instead of letting the first keyword win. Same
+      `directCreative` contract; each stage is an LLM-swappable seam. Debug panel shows every stage.
+      No LLM, no new providers, HF unchanged. Decision 032 · `CREATIVE_DIRECTOR.md`.
+- [ ] **Creative Director v3** ← **next** — LLM-backed stage(s) behind the same pipeline, richer
+      Creative Questions (mood/lighting), and prompt optimization; groundwork for identity-aware
+      prompting.
+- [ ] Templates — **saved briefs** (Creative Director presets); comes *after* the richer Director.
 - [ ] AI Provider expansion — more providers behind `ImageProvider` (Fal/OpenAI/Replicate/
       local); async via the `Job` queue; a parallel `VideoProvider`.
 - [ ] _Deferred:_ global `/uploads` + `/gallery` — decide whether to remove or merge into one

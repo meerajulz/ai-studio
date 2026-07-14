@@ -181,27 +181,35 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   );
 }
 
+function DebugRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="grid gap-0.5">
+      <dt className="text-muted-foreground text-xs">{label}</dt>
+      <dd className="font-mono text-xs break-words whitespace-pre-wrap">{value}</dd>
+    </div>
+  );
+}
+
+function DebugStage({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded border bg-background p-3">
+      <h4 className="mb-2 text-xs font-semibold tracking-wide uppercase">{title}</h4>
+      <dl className="grid gap-2">{children}</dl>
+    </div>
+  );
+}
+
+const entityList = (entities: { token: string; kind: string }[]) =>
+  entities.length ? entities.map((e) => `${e.token} (${e.kind})`).join(", ") : "—";
+
 /**
  * Developer Debug Mode (development only). The `debug` payload is populated by the generation
  * layer solely when `NODE_ENV !== "production"`, so this panel never renders in production. It
- * makes the Creative Director transparent: idea → detected intent → rules → compiled prompt →
- * provider/model/payload. Contains no secrets.
+ * makes the Creative Director's reasoning pipeline transparent — every stage shown separately:
+ * scene analysis → intent analysis → composition plan → compiled prompt → provider/payload.
  */
 function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
-  const rows: { label: string; value: ReactNode }[] = [
-    { label: "User idea", value: debug.idea },
-    { label: "Detected intent", value: debug.intent },
-    { label: "Style", value: debug.style },
-    { label: "Focus", value: debug.focus },
-    {
-      label: "Creative rules applied",
-      value: debug.rulesApplied.length ? debug.rulesApplied.join(", ") : "—",
-    },
-    { label: "Compiled prompt", value: debug.compiledPrompt },
-    { label: "Provider", value: debug.provider },
-    { label: "Model", value: debug.model },
-  ];
-
+  const { scene, intent, composition } = debug;
   return (
     <section className="max-w-2xl rounded-lg border border-dashed bg-muted/30 p-4">
       <div className="mb-3 flex items-center gap-2">
@@ -211,24 +219,73 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
           dev only
         </span>
       </div>
-      <dl className="grid gap-2 text-sm">
-        {rows.map((row) => (
-          <div key={row.label} className="grid gap-0.5">
-            <dt className="text-muted-foreground text-xs">{row.label}</dt>
-            <dd className="font-mono text-xs break-words whitespace-pre-wrap">
-              {row.value}
-            </dd>
-          </div>
-        ))}
-        <div className="grid gap-0.5">
-          <dt className="text-muted-foreground text-xs">Generation payload</dt>
-          <dd className="bg-background overflow-x-auto rounded border p-2 font-mono text-xs">
-            <pre className="whitespace-pre-wrap">
-              {JSON.stringify(debug.payload, null, 2)}
-            </pre>
-          </dd>
-        </div>
-      </dl>
+
+      <div className="grid gap-3 text-sm">
+        <DebugStage title="User prompt">
+          <DebugRow label="Idea" value={debug.idea} />
+        </DebugStage>
+
+        <DebugStage title="1 · Scene analysis">
+          <DebugRow
+            label="Primary subject"
+            value={
+              scene.primarySubject
+                ? `${scene.primarySubject.token} (${scene.primarySubject.kind})`
+                : "—"
+            }
+          />
+          <DebugRow label="Secondary subjects" value={entityList(scene.secondarySubjects)} />
+          <DebugRow label="Objects" value={entityList(scene.objects)} />
+          <DebugRow label="Environment" value={scene.environment} />
+          <DebugRow label="Setting" value={scene.setting ?? "—"} />
+          <DebugRow label="Location" value={scene.location ?? "—"} />
+          <DebugRow label="Time / weather" value={`${scene.timeOfDay ?? "—"} / ${scene.weather ?? "—"}`} />
+          <DebugRow label="Actions" value={scene.actions.length ? scene.actions.join(", ") : "—"} />
+          <DebugRow
+            label="Fantasy elements"
+            value={scene.fantasyElements.length ? scene.fantasyElements.join(", ") : "—"}
+          />
+        </DebugStage>
+
+        <DebugStage title="2 · Intent analysis">
+          <DebugRow label="Intent" value={`${intent.label} (${intent.type})`} />
+          <DebugRow label="Why" value={intent.rationale} />
+        </DebugStage>
+
+        <DebugStage title="3 · Composition plan">
+          <DebugRow label="Framing" value={composition.framing} />
+          <DebugRow
+            label="Camera"
+            value={`${composition.cameraDistance} · ${composition.cameraAngle}`}
+          />
+          <DebugRow label="Composition" value={composition.composition} />
+          <DebugRow label="Perspective" value={composition.perspective ?? "—"} />
+          <DebugRow label="Depth of field" value={composition.depthOfField} />
+          <DebugRow label="Lighting" value={composition.lighting} />
+          <DebugRow label="Realism" value={composition.realism} />
+        </DebugStage>
+
+        <DebugStage title="4 · Prompt compilation">
+          <DebugRow
+            label="Creative rules applied"
+            value={debug.rulesApplied.length ? debug.rulesApplied.join(", ") : "—"}
+          />
+          <DebugRow label="Compiled prompt" value={debug.compiledPrompt} />
+        </DebugStage>
+
+        <DebugStage title="Provider">
+          <DebugRow label="Provider" value={debug.provider} />
+          <DebugRow label="Model" value={debug.model} />
+          <DebugRow
+            label="Generation payload"
+            value={
+              <pre className="bg-muted overflow-x-auto rounded p-2 whitespace-pre-wrap">
+                {JSON.stringify(debug.payload, null, 2)}
+              </pre>
+            }
+          />
+        </DebugStage>
+      </div>
     </section>
   );
 }

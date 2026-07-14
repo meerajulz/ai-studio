@@ -1,10 +1,13 @@
 /**
- * Creative Director — types (Milestone 12, Creative Director MVP).
+ * Creative Director — types (Milestone 13, Creative Director v2: Scene Understanding).
  *
- * The Creative Director is the intelligent translation layer between a user's creative IDEA
- * and the AI provider. The user "thinks creatively"; the Director "thinks technically" and
- * emits a professional, provider-neutral prompt. No provider/model/prompt-engineering concepts
- * appear here. See docs/CREATIVE_DIRECTOR.md.
+ * The Creative Director is a deterministic, provider-agnostic reasoning pipeline that turns a
+ * user's plain IDEA into a professional prompt:
+ *
+ *   idea → Scene Analysis → Intent Analysis → Composition Planning → Prompt Compilation
+ *
+ * Each stage has a single responsibility and returns structured data. No stage knows anything
+ * about a provider; only the final compiled `prompt` leaves the layer. See docs/CREATIVE_DIRECTOR.md.
  */
 
 /** Optional creative question #1 ("What style?"). */
@@ -13,67 +16,123 @@ export type CreativeStyle = "realistic" | "cinematic" | "illustration" | "fantas
 /** Optional creative question #2 ("What matters most?"). "auto" lets the Director decide. */
 export type CreativeFocus = "auto" | "face" | "environment" | "product" | "action";
 
-/**
- * The kind of thing the Director thinks the idea is about. Drives framing. `object` is the
- * NEUTRAL fallback for anything unrecognized — it never biases toward a person/portrait.
- */
-export type SubjectCategory =
+/** The kind of a detected scene entity. `object` is the neutral catch-all. */
+export type EntityKind =
   | "person"
   | "animal"
-  | "interior"
-  | "place"
-  | "food"
+  | "furniture"
+  | "plant"
   | "vehicle"
+  | "food"
   | "product"
+  | "architecture"
+  | "fantasy"
+  | "nature"
   | "object";
+
+export type Environment = "indoor" | "outdoor" | "unknown";
+
+/** A single thing detected in the idea, with where it appeared (drives primary ordering). */
+export type SceneEntity = {
+  token: string;
+  kind: EntityKind;
+  index: number;
+};
+
+/** Stage 1 output — the whole scene, not just the first keyword. */
+export type Scene = {
+  primarySubject: SceneEntity | null;
+  secondarySubjects: SceneEntity[];
+  objects: SceneEntity[];
+  livingBeings: SceneEntity[];
+  entities: SceneEntity[];
+  environment: Environment;
+  setting: string | null; // e.g. "living room", "beach", "city"
+  location: string | null; // e.g. "Paris", "Tokyo"
+  timeOfDay: string | null;
+  weather: string | null;
+  actions: string[];
+  fantasyElements: string[];
+};
+
+/** What the user is actually trying to create (not just the subject). */
+export type IntentType =
+  | "portrait"
+  | "lifestyle"
+  | "interior-design"
+  | "architecture"
+  | "automotive"
+  | "food-photography"
+  | "product-photography"
+  | "landscape"
+  | "wildlife"
+  | "concept-art"
+  | "fashion"
+  | "still-life";
+
+/** Stage 2 output — the inferred creative intent + a human label + why. */
+export type IntentAnalysis = {
+  type: IntentType;
+  label: string;
+  rationale: string;
+};
+
+export type CameraDistance = "close-up" | "medium" | "wide" | "panoramic";
+export type CameraAngle = "eye-level" | "low angle" | "high angle" | "aerial";
+export type DepthOfField = "shallow" | "medium" | "deep";
+export type RealismLevel =
+  | "photorealistic"
+  | "cinematic photorealistic"
+  | "stylized illustration"
+  | "concept art";
+
+/** Stage 3 output — how to shoot the scene. */
+export type CompositionPlan = {
+  framing: string;
+  cameraDistance: CameraDistance;
+  cameraAngle: CameraAngle;
+  composition: string;
+  perspective: string | null;
+  depthOfField: DepthOfField;
+  lighting: string;
+  realism: RealismLevel;
+  qualityFloor: string[];
+};
 
 /**
  * A creative brief — the user's INTENT, never technical settings. `idea` is required; the
  * rest are optional (the Director fills sensible defaults).
  */
 export type CreativeBrief = {
-  /** What the user typed, in plain words (e.g. "my dog"). */
   idea: string;
-  /** Optional creative direction. Defaults to `realistic`. */
   style?: CreativeStyle;
-  /** Optional emphasis. Defaults to `auto` (subject-detected). */
   focus?: CreativeFocus;
   /**
    * The selected identity, if any. The Director is AWARE an identity exists (architecture
-   * prep) but does NOT do identity-aware prompting yet — this is reserved for a later milestone.
+   * prep) but does NOT do identity-aware prompting yet.
    */
   identityId?: string | null;
 };
 
-/** The Director's output: a professional prompt + reserved params + transparency metadata. */
+/** The Director's output: a professional prompt + reserved params + full reasoning trace. */
 export type CreativeDirective = {
-  /** The professional, provider-neutral prompt to send to the image provider. */
   prompt: string;
-  /**
-   * Structured generation params (aspect ratio, quality tier, …). Reserved — the MVP emits
-   * an empty object; the provider adapter is where params map to a specific API.
-   */
-  params: Record<string, unknown>;
-  /** Not sent to the provider — for the recipe, "View Recipe", and future debugging. */
+  params: Record<string, unknown>; // reserved (aspect/quality tier) — future
   meta: {
-    /** Enrichment version, so recipes stay reproducible as the Director evolves. */
     version: string;
-    /** The original idea, echoed back. */
     idea: string;
-    /** The resolved style (after defaults). */
     style: CreativeStyle;
-    /** The detected subject category (the Director's "intent" classification). */
-    category: SubjectCategory;
-    /** The resolved focus (after auto-detection). */
-    focus: CreativeFocus;
+    /** The full reasoning trace (also powers the dev Debug panel). */
+    scene: Scene;
+    intent: IntentAnalysis;
+    composition: CompositionPlan;
     /** Everything the Director added beyond the user's own words. */
     appliedModifiers: string[];
-    /** Whether an identity was present (identity-aware prompting is future). */
     identityAware: boolean;
   };
 };
 
-export const CREATIVE_DIRECTOR_VERSION = "cd-1";
+export const CREATIVE_DIRECTOR_VERSION = "cd-2";
 export const DEFAULT_STYLE: CreativeStyle = "realistic";
 export const DEFAULT_FOCUS: CreativeFocus = "auto";
 

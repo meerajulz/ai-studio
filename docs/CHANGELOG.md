@@ -7,17 +7,18 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-14, build + tsc green):** Shipped the **Creative Director MVP**
-> (Milestone 12 implementation, Decision 031) — a provider-agnostic `src/lib/creative/` layer that
-> turns a plain idea ("my dog") into a professional prompt before it reaches the provider. It is
-> deterministic now and swappable for an LLM later (same `directCreative(brief) → directive`
-> contract). **Then fixed an intent-classification bug** (generic objects/interiors were rendered
-> as people — `detectCategory` now has a neutral fallback + interior/place rules + a people-
-> negation guard) and added a **dev-only Generation Debug Mode**. **Next candidates:** richer brief
-> facets / Creative Questions, then Templates (= saved briefs), then prompt-optimization / more
-> providers behind the same Director. First run: `nvm use` (Node 24); restart `npm run dev` only
-> after a prisma migrate (none here). Env for AI: `HF_TOKEN` / `HUGGINGFACE_API_KEY` (+ optional
-> `HF_IMAGE_MODEL`).
+> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Creative Director v2 — Scene
+> Understanding** (Milestone 13, Decision 032): `src/lib/creative/` is now a deterministic,
+> provider-agnostic **reasoning pipeline** — `idea → analyzeScene → analyzeIntent →
+> planComposition → compilePrompt → prompt`. It analyses the *whole scene* (primary/secondary
+> subjects, objects, environment, setting, location, time, weather, actions, fantasy) and infers
+> INTENT (portrait/lifestyle/interior/automotive/food/wildlife/concept-art/…) instead of letting
+> the first keyword win — e.g. `red sofa with a dog and cat` → *lifestyle interior*, not an animal
+> portrait. Same `directCreative(brief) → directive` contract; each stage is LLM-swappable later.
+> Debug panel now shows every stage. Still deterministic, no LLM, HF unchanged. **Next candidates:**
+> LLM-backed stages, richer Creative Questions, then Templates (= saved briefs). First run:
+> `nvm use` (Node 24); restart `npm run dev` only after a prisma migrate (none here). Env for AI:
+> `HF_TOKEN` / `HUGGINGFACE_API_KEY` (+ optional `HF_IMAGE_MODEL`).
 
 ### Design (no code)
 - **Prompt Builder design** (Milestone 12 — design only): new **`PROMPT_BUILDER.md`** and
@@ -80,6 +81,31 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **Creative Director v2 — Scene Understanding** (Milestone 13, Decision 032): re-architected
+  `src/lib/creative/` from keyword classification into a deterministic, provider-agnostic
+  **multi-stage reasoning pipeline** — `idea → analyzeScene → analyzeIntent → planComposition →
+  compilePrompt → prompt`. Each stage is a **pure, single-responsibility function** returning
+  structured data, and no stage knows about a provider (only the final prompt leaves the layer).
+  **Stage 1 (`stages/scene.ts`)** analyses the whole idea into a `Scene`: primary subject +
+  secondary subjects + objects + living beings, environment (indoor/outdoor), setting, location,
+  time of day, weather, actions, and fantasy elements (via a new `lexicon.ts`, the one place raw
+  keyword knowledge lives). **Stage 2 (`stages/intent.ts`)** infers what the user is *creating* —
+  portrait · lifestyle · interior-design · architecture · automotive · food · product · landscape ·
+  wildlife · concept-art · fashion · still-life — from the scene, not the first entity. **Stage 3
+  (`stages/composition.ts`)** plans framing, camera distance/angle, composition, perspective,
+  depth of field, lighting, realism level, and quality floor. **Stage 4 (`stages/compile.ts`)**
+  assembles the prompt in priority order **Scene → Intent → Composition → Quality**. Results:
+  `red sofa with a dog and cat sitting on it` → *lifestyle interior, wide shot of the whole scene*
+  (not an animal portrait); `woman drinking coffee in Paris` → *lifestyle*; `red Ferrari in Tokyo`
+  → *automotive*; `modern living room` → *interior design*; `golden retriever running on the beach`
+  → *wildlife/action*; `dragon flying over a castle` → *concept art* (fantasy genre wins, realism
+  drops "photorealistic"); lone `sofa`/`chair`/`table` → *product photography*. Same
+  `directCreative(brief) → directive` contract (callers unchanged); `meta` now carries the full
+  reasoning trace (`scene`/`intent`/`composition`). **Debug Mode extended** to show every pipeline
+  stage separately (dev-only). Still 100% deterministic — **no LLM, no new providers, Hugging Face
+  untouched**; each stage is a clean seam for an LLM later. Traced all required prompts; `npm run
+  build` + `tsc --noEmit` pass; recipes/regenerate/variation and the Gallery unchanged. No schema
+  change. See `docs/CREATIVE_DIRECTOR.md`.
 - **Creative Director MVP** (Milestone 12 implementation, Decision 031): the first step toward
   an *intelligent* AI Studio — a new provider-agnostic **`src/lib/creative/`** layer that turns a
   plain creative **idea** into a professional prompt (VISION: *"the user thinks creatively; AI

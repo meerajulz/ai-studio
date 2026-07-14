@@ -977,3 +977,56 @@ Generation Debug Mode** (`GenerationResult.debug`, gated on `NODE_ENV !== "produ
 echoes a secret-free `requestPayload`) so the Director is transparent and debuggable. This
 reinforces Decision 007 (no provider workaround — the compiled prompt, not FLUX, was the cause).
 Build + tsc pass. No schema change.
+
+---
+
+# Decision 032
+
+Date
+2026-07-14
+
+Decision
+**Creative Director v2 — a deterministic multi-stage reasoning pipeline (Scene Understanding).**
+Replace the single-pass keyword classifier (Decision 031) with a pipeline that analyses the whole
+scene before writing the prompt:
+
+  `idea → analyzeScene → analyzeIntent → planComposition → compilePrompt → prompt`
+
+1. **One responsibility per stage, structured hand-offs.** Stage 1 → `Scene` (primary/secondary
+   subjects, objects, living beings, environment, setting, location, time, weather, actions,
+   fantasy). Stage 2 → `IntentAnalysis` (portrait/lifestyle/interior/automotive/food/product/
+   landscape/wildlife/concept-art/…). Stage 3 → `CompositionPlan` (framing, camera distance/angle,
+   composition, perspective, depth of field, lighting, realism, quality floor). Stage 4 assembles
+   the prompt **Scene → Intent → Composition → Quality**.
+2. **Intent ≠ first entity.** The scene as a whole picks the intent, so an animal in a room is a
+   lifestyle interior, not a portrait; a lone sofa is a product shot; a person "in Paris drinking
+   coffee" is lifestyle, not a portrait.
+3. **Same public contract.** `directCreative(brief) → directive` is unchanged for callers; `meta`
+   now carries the full reasoning trace. Each stage is a clean seam an **LLM can replace one at a
+   time** later — still no LLM/provider calls now (all pure + deterministic).
+4. **Provider isolation preserved** (Decision 007): no stage imports a provider; only the compiled
+   prompt leaves the layer. Hugging Face/FLUX untouched.
+5. **Debug Mode extended** to show every stage separately (dev-only, gated on `NODE_ENV`).
+   Recipes (Decision 030) still reproducible — regenerate/variation re-run the deterministic
+   pipeline. **No schema change.**
+
+Reason
+Keyword classification stopped at the first matched entity and could not represent multi-subject
+scenes ("sofa with a dog and a cat"), leading to wrong intents (portraits of furniture/rooms).
+Modeling the scene explicitly, then inferring intent, then planning composition mirrors how a
+creative director actually reasons and produces markedly better prompts — while staying
+deterministic and giving us named, isolated seams to upgrade to LLM reasoning incrementally.
+
+Alternatives
+Keep patching the flat classifier (rejected — can't express whole scenes / multiple subjects);
+introduce an LLM now (rejected for this milestone — explicitly deterministic-only; the pipeline is
+built so an LLM can drop into a single stage later); collapse scene+intent into one step (rejected
+— separating them is what lets composition treat "animal in a room" differently from "animal
+portrait"); a full Prompt Builder UI (deferred — this milestone is the reasoning engine, not the UI).
+
+Status
+Accepted — implemented. Traced all required prompts (sofa/chair/table → product; modern living
+room [+sofa/windows] → interior; red sofa with dog+cat → lifestyle; woman…Paris → lifestyle;
+Ferrari…Tokyo → automotive; pizza → food; golden retriever…beach → wildlife; dragon…castle →
+concept-art) — scene understanding is richer and no longer dominated by the first entity.
+Deterministic + build + `tsc --noEmit` pass. No migration.
