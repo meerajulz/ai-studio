@@ -14,6 +14,20 @@ export type CreativeStyle = "realistic" | "cinematic" | "illustration" | "fantas
 export type CreativeFocus = "auto" | "face" | "environment" | "product" | "action";
 
 /**
+ * The kind of thing the Director thinks the idea is about. Drives framing. `object` is the
+ * NEUTRAL fallback for anything unrecognized — it never biases toward a person/portrait.
+ */
+export type SubjectCategory =
+  | "person"
+  | "animal"
+  | "interior"
+  | "place"
+  | "food"
+  | "vehicle"
+  | "product"
+  | "object";
+
+/**
  * A creative brief — the user's INTENT, never technical settings. `idea` is required; the
  * rest are optional (the Director fills sensible defaults).
  */
@@ -48,6 +62,8 @@ export type CreativeDirective = {
     idea: string;
     /** The resolved style (after defaults). */
     style: CreativeStyle;
+    /** The detected subject category (the Director's "intent" classification). */
+    category: SubjectCategory;
     /** The resolved focus (after auto-detection). */
     focus: CreativeFocus;
     /** Everything the Director added beyond the user's own words. */

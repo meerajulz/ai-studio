@@ -11,10 +11,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 > (Milestone 12 implementation, Decision 031) — a provider-agnostic `src/lib/creative/` layer that
 > turns a plain idea ("my dog") into a professional prompt before it reaches the provider. It is
 > deterministic now and swappable for an LLM later (same `directCreative(brief) → directive`
-> contract). **Next candidates:** richer brief facets / Creative Questions, then Templates
-> (= saved briefs), then prompt-optimization / more providers behind the same Director. First run:
-> `nvm use` (Node 24); restart `npm run dev` only after a prisma migrate (this milestone had none).
-> Env for AI: `HF_TOKEN` / `HUGGINGFACE_API_KEY` (+ optional `HF_IMAGE_MODEL`).
+> contract). **Then fixed an intent-classification bug** (generic objects/interiors were rendered
+> as people — `detectCategory` now has a neutral fallback + interior/place rules + a people-
+> negation guard) and added a **dev-only Generation Debug Mode**. **Next candidates:** richer brief
+> facets / Creative Questions, then Templates (= saved briefs), then prompt-optimization / more
+> providers behind the same Director. First run: `nvm use` (Node 24); restart `npm run dev` only
+> after a prisma migrate (none here). Env for AI: `HF_TOKEN` / `HUGGINGFACE_API_KEY` (+ optional
+> `HF_IMAGE_MODEL`).
 
 ### Design (no code)
 - **Prompt Builder design** (Milestone 12 — design only): new **`PROMPT_BUILDER.md`** and
@@ -288,6 +291,27 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   runtime connects via a driver adapter.
 
 ### Fixed
+- **Creative Director intent-classification bug** (Milestone 12 follow-up): generic object and
+  interior ideas were rendered as people/animals — `sofa → cat`, `chair/table/kitchen/bathroom →
+  woman`, and `"modern living room … no person on it" → portrait of a man`. **Root cause was ours**
+  (prompt enrichment, not Hugging Face/FLUX): (1) `detectSubject` **defaulted unknown subjects to
+  `focus: "face"`**, injecting *portrait, close-up, expressive eyes, professional photography* into
+  every unrecognized noun — the model then rendered a portrait and ignored the real subject; and
+  (2) keyword matching **ignored negation**, so the literal word "person" in *"no person on it"*
+  fired the person rule. Reworked `detectSubject` into `detectCategory` — a subject-category system
+  (`person · animal · interior · place · food · vehicle · product · object`) with a **neutral
+  `object` fallback** (never adds portrait/eye/face tokens), new **interior/place** rules
+  (kitchen/bathroom/living room), and a **people-negation guard** (`no person / without people /
+  no one / nobody / unoccupied` suppresses the person rule). Traced end-to-end before/after; all
+  reported prompts now classify correctly (`sofa → object`, `kitchen → interior`, living-room →
+  interior). No provider or schema change. See `docs/CREATIVE_DIRECTOR.md`.
+- **Developer Debug Mode** (development only): every generation now returns a `debug` trace
+  (`GenerationResult.debug`) **populated solely when `NODE_ENV !== "production"`** — user idea,
+  detected intent, style/focus, creative rules applied, compiled prompt, provider, model, and a
+  **secret-free generation payload** (echoed by the provider adapter via
+  `ImageGenerationResult.requestPayload`; the token is never included). The Generate page renders
+  it as a "Creative Director — Debug" panel. Nothing debug-related ships to production. Makes the
+  Director transparent as it grows more intelligent.
 - **Vercel deploy** (3 issues): (1) the gitignored `src/generated/prisma` wasn't generated
   on Vercel → added `prisma generate` via `postinstall` and the `build` script; (2)
   `prisma.config.ts` imports `dotenv/config` but `dotenv` was only a transitive dep →

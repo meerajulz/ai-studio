@@ -15,4 +15,5 @@ export {
   type CreativeDirective,
   type CreativeFocus,
   type CreativeStyle,
+  type SubjectCategory,
 } from "./types";

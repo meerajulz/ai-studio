@@ -17,6 +17,7 @@ import {
   type CreativeDirective,
   type CreativeFocus,
   type CreativeStyle,
+  type SubjectCategory,
 } from "./types";
 
 /** A style preset: how the Director phrases a look, its lighting, and quality floor. */
@@ -70,88 +71,136 @@ const STYLE_PRESETS: Record<CreativeStyle, StylePreset> = {
   },
 };
 
-/** How each focus emphasis frames the shot + what detail it prioritizes. */
-const FOCUS_PRESETS: Record<
-  Exclude<CreativeFocus, "auto">,
-  { composition: string; modifiers: string[] }
-> = {
-  face: {
-    composition: "portrait, close-up",
-    modifiers: ["expressive eyes", "shallow depth of field"],
+/** Framing: how a subject is composed + what detail it prioritizes. */
+type Framing = {
+  focus: Exclude<CreativeFocus, "auto">;
+  composition: string; // "" = no framing hint (never forces a shot type)
+  modifiers: string[];
+};
+
+/**
+ * Per-category framing. This is the fix for the "everything becomes a portrait" bug: only
+ * `person`/`animal` use portrait/eye framing; every other category — and the neutral `object`
+ * fallback — stays free of people-biasing tokens.
+ */
+const CATEGORY_FRAMING: Record<SubjectCategory, Framing> = {
+  person: {
+    focus: "face",
+    composition: "portrait",
+    modifiers: ["detailed skin texture", "catchlight in the eyes"],
   },
-  environment: {
+  animal: {
+    focus: "face",
+    composition: "portrait",
+    modifiers: ["detailed fur", "expressive eyes"],
+  },
+  interior: {
+    focus: "environment",
+    composition: "wide-angle interior shot",
+    modifiers: ["natural light", "architectural detail"],
+  },
+  place: {
+    focus: "environment",
     composition: "wide establishing shot",
-    modifiers: ["atmospheric depth", "expansive vista"],
+    modifiers: ["atmospheric depth", "rich detail"],
+  },
+  food: {
+    focus: "product",
+    composition: "close-up food photography",
+    modifiers: ["appetizing detail", "fresh"],
+  },
+  vehicle: {
+    focus: "product",
+    composition: "three-quarter view",
+    modifiers: ["glossy reflections", "detailed bodywork"],
   },
   product: {
+    focus: "product",
     composition: "centered product shot",
-    modifiers: ["studio background", "crisp detail"],
+    modifiers: ["soft reflections", "clean background"],
   },
+  // NEUTRAL fallback: no portrait, no eyes, no forced shot type. Just the subject + style floor.
+  object: {
+    focus: "product",
+    composition: "",
+    modifiers: [],
+  },
+};
+
+/**
+ * Explicit-focus framing (when the user answers the optional "What matters most?" question).
+ * Overrides auto-detection. Kept separate from category detection.
+ */
+const FOCUS_FRAMING: Record<Exclude<CreativeFocus, "auto">, Framing> = {
+  face: CATEGORY_FRAMING.person,
+  environment: CATEGORY_FRAMING.place,
+  product: CATEGORY_FRAMING.product,
   action: {
+    focus: "action",
     composition: "dynamic action shot",
     modifiers: ["sense of motion", "energetic composition"],
   },
 };
 
 /**
- * Subject detection — maps keywords in the idea to a default emphasis and subject-specific
- * detail. Deterministic and order-sensitive (first match wins). This is the "understanding"
+ * Category detection — maps keywords in the idea to a subject category. Deterministic and
+ * order-sensitive (first match wins). Unknown → `object` (neutral). This is the "understanding"
  * an LLM would later replace.
  */
-const SUBJECT_RULES: ReadonlyArray<{
-  test: RegExp;
-  focus: Exclude<CreativeFocus, "auto">;
-  modifiers: string[];
-}> = [
+const CATEGORY_RULES: ReadonlyArray<{ category: SubjectCategory; test: RegExp }> = [
   {
-    test: /\b(dog|puppy|cat|kitten|pet|animal|horse|bird|fox|wolf|lion|tiger|rabbit)\b/i,
-    focus: "face",
-    modifiers: ["detailed fur", "expressive eyes"],
+    category: "person",
+    test: /\b(man|men|woman|women|person|people|boy|girl|kid|child|portrait|face|model|lady|guy|selfie|headshot)\b/i,
   },
   {
-    test: /\b(man|woman|person|people|boy|girl|portrait|face|model|lady|guy)\b/i,
-    focus: "face",
-    modifiers: ["detailed skin texture", "catchlight in the eyes"],
+    category: "animal",
+    test: /\b(dog|puppy|cat|kitten|pet|animal|horse|bird|fox|wolf|lion|tiger|rabbit|bear|deer)\b/i,
   },
   {
-    test: /\b(food|dish|meal|cake|coffee|drink|burger|pizza|dessert)\b/i,
-    focus: "product",
-    modifiers: ["appetizing detail", "fresh"],
+    category: "interior",
+    test: /\b(kitchen|bathroom|bedroom|living room|dining room|office|interior|hallway|room|loft|apartment|lobby)\b/i,
   },
   {
-    test: /\b(product|bottle|watch|shoe|sneaker|phone|packaging|cosmetic|gadget|jewelry)\b/i,
-    focus: "product",
-    modifiers: ["soft reflections", "clean background"],
+    category: "food",
+    test: /\b(food|dish|meal|cake|coffee|drink|burger|pizza|dessert|sushi|salad|breakfast|sandwich)\b/i,
   },
   {
-    test: /\b(car|vehicle|motorcycle|bike|truck|plane|boat)\b/i,
-    focus: "product",
-    modifiers: ["glossy reflections", "detailed bodywork"],
+    category: "vehicle",
+    test: /\b(car|vehicle|motorcycle|bike|truck|plane|boat|bus|van)\b/i,
   },
   {
-    test: /\b(landscape|mountain|forest|beach|city|sunset|ocean|sea|lake|valley|sky|nature|desert|street)\b/i,
-    focus: "environment",
-    modifiers: ["rich detail", "atmospheric depth"],
+    category: "product",
+    test: /\b(product|bottle|watch|shoe|sneaker|phone|packaging|cosmetic|gadget|jewelry|laptop|camera)\b/i,
+  },
+  {
+    category: "place",
+    test: /\b(landscape|mountain|forest|beach|city|sunset|ocean|sea|lake|valley|sky|nature|desert|street|park|garden|skyline|field)\b/i,
   },
 ];
 
-/** Detect emphasis + subject detail from the idea. Falls back to a portrait-ish default. */
-function detectSubject(idea: string): {
-  focus: Exclude<CreativeFocus, "auto">;
-  modifiers: string[];
-} {
-  for (const rule of SUBJECT_RULES) {
-    if (rule.test.test(idea)) {
-      return { focus: rule.focus, modifiers: rule.modifiers };
-    }
+/**
+ * Detects when the idea explicitly EXCLUDES people ("no person", "without people", "empty",
+ * "no one", "nobody"). Used so a negated people keyword does NOT force a portrait — the exact
+ * bug behind `modern living room … no person on it` → a man.
+ */
+const PEOPLE_NEGATION =
+  /\b(no|without|not|zero)\s+(?:\w+\s+){0,2}(person|people|man|men|woman|women|human|humans|one|figure|subject|character)\b|\bno one\b|\bnobody\b|\bunoccupied\b/i;
+
+/** Classify the idea into a subject category (the Director's intent). */
+function detectCategory(idea: string): SubjectCategory {
+  const peopleNegated = PEOPLE_NEGATION.test(idea);
+  for (const rule of CATEGORY_RULES) {
+    if (!rule.test.test(idea)) continue;
+    // A negated people mention (e.g. "no person") must not be read as a person subject.
+    if (rule.category === "person" && peopleNegated) continue;
+    return rule.category;
   }
-  // Unknown subject: a safe, flattering default that still lifts quality.
-  return { focus: "face", modifiers: [] };
+  return "object"; // neutral fallback — never biases toward a person/portrait
 }
 
 /**
- * Compose the final prompt: the user's idea first, then only NEW phrases (deduped, and never
- * repeating something the user already said). Returns the prompt and the list of added terms.
+ * Compose the final prompt: the user's idea first, then only NEW phrases (deduped, empties
+ * dropped, and never repeating something the user already said). Returns the prompt + added terms.
  */
 function compose(idea: string, phrases: string[]): { prompt: string; applied: string[] } {
   const ideaLower = idea.toLowerCase();
@@ -180,21 +229,22 @@ export function directCreative(brief: CreativeBrief): CreativeDirective {
   const style: CreativeStyle = brief.style ?? DEFAULT_STYLE;
   const requestedFocus: CreativeFocus = brief.focus ?? DEFAULT_FOCUS;
 
-  const subject = detectSubject(idea);
-  const resolvedFocus: Exclude<CreativeFocus, "auto"> =
-    requestedFocus === "auto" ? subject.focus : requestedFocus;
+  const category = detectCategory(idea);
+  // Auto → the category's natural framing; an explicit focus answer overrides it.
+  const framing: Framing =
+    requestedFocus === "auto"
+      ? CATEGORY_FRAMING[category]
+      : FOCUS_FRAMING[requestedFocus];
 
   const stylePreset = STYLE_PRESETS[style];
-  const focusPreset = FOCUS_PRESETS[resolvedFocus];
 
   // Order matters: subject detail → framing → look → lighting → quality floor.
   const { prompt, applied } = compose(idea, [
-    ...subject.modifiers,
-    focusPreset.composition,
+    ...framing.modifiers,
+    framing.composition,
     stylePreset.descriptor,
     stylePreset.lighting,
     ...stylePreset.quality,
-    ...focusPreset.modifiers,
   ]);
 
   return {
@@ -204,7 +254,8 @@ export function directCreative(brief: CreativeBrief): CreativeDirective {
       version: CREATIVE_DIRECTOR_VERSION,
       idea,
       style,
-      focus: resolvedFocus,
+      category,
+      focus: framing.focus,
       appliedModifiers: applied,
       identityAware: Boolean(brief.identityId),
     },

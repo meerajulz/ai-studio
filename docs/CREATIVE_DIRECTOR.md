@@ -36,20 +36,43 @@ changing callers** — the contract stays `CreativeBrief → CreativeDirective`.
 
 ## How the MVP enriches (deterministic rules)
 
-1. **Style preset** (`realistic` default · cinematic · illustration · fantasy) → a look
-   descriptor, lighting, and a **"professional" quality floor** (the baseline that lifts image
-   quality even for a bare idea).
-2. **Subject detection** → keyword rules map the idea to an emphasis + subject-specific detail
-   (e.g. pet → *detailed fur, expressive eyes*; person → *detailed skin texture*; product →
-   *soft reflections, clean background*; landscape → *atmospheric depth*).
-3. **Focus** framing (auto-detected, or the optional user answer) → composition + emphasis
-   modifiers (face / environment / product / action).
-4. **Compose** → the user's idea first, then only new, de-duplicated phrases (never repeating
-   something the user already wrote).
+1. **Intent classification** → `detectCategory(idea)` maps the idea to a **subject category**:
+   `person · animal · interior · place · food · vehicle · product · object`. First keyword rule
+   wins; **unknown → `object`**, the NEUTRAL fallback.
+2. **Category framing** → each category picks a composition + subject detail. Only `person`/
+   `animal` use portrait/eye framing; `interior`/`place` use wide/architectural framing;
+   `object` adds **nothing** that biases the subject. (An explicit Focus answer overrides this.)
+3. **Style preset** (`realistic` default · cinematic · illustration · fantasy) → a look
+   descriptor, lighting, and a **"professional" quality floor** (the baseline that lifts quality
+   even for a bare idea).
+4. **Compose** → the user's idea first, then only new, de-duplicated phrases (empties dropped,
+   never repeating something the user already wrote).
 
-Example: `"my dog"` → *"my dog, detailed fur, expressive eyes, portrait, close-up, photorealistic,
-natural soft lighting, highly detailed, sharp focus, professional photography, high resolution,
-shallow depth of field."*
+Examples:
+- `"my dog"` → *animal* → *"my dog, detailed fur, expressive eyes, portrait, photorealistic, …"*
+- `"sofa"` → *object* → *"sofa, photorealistic, natural soft lighting, highly detailed, …"* (no portrait)
+- `"kitchen"` → *interior* → *"kitchen, natural light, architectural detail, wide-angle interior shot, …"*
+
+### Intent classification must never force people
+
+Two rules exist specifically to stop the Director hallucinating people onto generic subjects
+(the Milestone 12 bug where `sofa`/`chair`/`table`/`kitchen` rendered a person/animal):
+
+- **Neutral fallback.** An unrecognized subject is `object`, which adds no portrait/eye/face
+  tokens. It must NEVER default to `face` — a face default made *every* unknown noun a portrait,
+  and the portrait tokens dominated the model.
+- **People-negation guard.** `PEOPLE_NEGATION` detects "no person / without people / no one /
+  nobody / unoccupied". When present, the `person` rule is suppressed — so
+  *"modern living room … no person on it"* classifies as **interior**, not a portrait of a man.
+
+## Developer Debug Mode (development only)
+
+To keep the Director transparent as it grows more intelligent, every generation returns a
+`debug` trace **only when `NODE_ENV !== "production"`** (`GenerationResult.debug`, `undefined` in
+production). The Generate page renders it as a panel: **user idea · detected intent · style ·
+focus · creative rules applied · compiled prompt · provider · model · generation payload**. The
+payload is a **secret-free echo** the provider adapter builds (`ImageGenerationResult.requestPayload`
+— never contains the token). Nothing debug-related is shipped to production.
 
 ## Integration
 

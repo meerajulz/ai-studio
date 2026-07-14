@@ -966,3 +966,14 @@ Status
 Accepted — implemented. `directCreative` verified deterministic + subject/style-aware ("my dog"
 → rich prompt); `npm run build` + `tsc --noEmit` pass; existing generation/Gallery/Recipes
 unchanged. No migration.
+
+**Follow-up (2026-07-14, same milestone):** fixed an intent-classification bug found in manual
+testing — generic objects/interiors were rendered as people because `detectSubject` defaulted
+unknown subjects to `focus: "face"` (forcing portrait/eye tokens) and matched people keywords
+without negation awareness. Reworked into `detectCategory` (8 subject categories) with a **neutral
+`object` fallback**, **interior/place** rules, and a **people-negation guard**; added `category`
+to the directive `meta` (and to stored `params.creative`). Also added a **development-only
+Generation Debug Mode** (`GenerationResult.debug`, gated on `NODE_ENV !== "production"`; provider
+echoes a secret-free `requestPayload`) so the Director is transparent and debuggable. This
+reinforces Decision 007 (no provider workaround — the compiled prompt, not FLUX, was the cause).
+Build + tsc pass. No schema change.

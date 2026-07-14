@@ -17,6 +17,11 @@ export type ImageGenerationResult = {
   contentType: string; // e.g. "image/png"
   model: string; // the model actually used (for metadata)
   provider: string; // e.g. "huggingface"
+  /**
+   * A secret-free echo of the request the provider actually sent (model, inputs, options) —
+   * for the development Debug panel only. MUST NEVER contain tokens/credentials. Optional.
+   */
+  requestPayload?: Record<string, unknown>;
 };
 
 export interface ImageProvider {

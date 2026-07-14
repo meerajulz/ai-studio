@@ -71,6 +71,15 @@ export const huggingFaceProvider: ImageProvider = {
     const model = process.env.HF_IMAGE_MODEL?.trim() || DEFAULT_MODEL;
     const client = new InferenceClient(token);
 
+    // Secret-free echo of the request for the dev Debug panel (the token is NOT included here).
+    const requestPayload: Record<string, unknown> = {
+      provider: "huggingface",
+      model,
+      inputs: request.prompt,
+      routing: "auto",
+      outputType: "blob",
+    };
+
     let lastError: unknown;
     for (let attempt = 0; attempt <= MAX_COLD_START_RETRIES; attempt++) {
       try {
@@ -87,6 +96,7 @@ export const huggingFaceProvider: ImageProvider = {
           contentType: blob.type || "image/png",
           model,
           provider: "huggingface",
+          requestPayload,
         };
       } catch (error) {
         lastError = error;

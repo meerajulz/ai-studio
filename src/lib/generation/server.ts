@@ -13,11 +13,15 @@ import { GenerationStatus, MediaType, Prisma, prisma } from "@/lib/db";
 import { createGeneratedMedia, getGeneratedMediaByIds } from "@/lib/media/server";
 import type {
   GenerateImageInput,
+  GenerationDebug,
   GenerationHistoryItem,
   GenerationResult,
 } from "./types";
 
 const HISTORY_LIMIT = 12;
+
+/** Dev-only: the Debug panel is populated only outside production so nothing internal leaks. */
+const DEBUG_ENABLED = process.env.NODE_ENV !== "production";
 
 async function assertProjectOwnership(userId: string, projectId: string): Promise<void> {
   const project = await prisma.project.findFirst({
@@ -67,6 +71,7 @@ async function runImageGeneration(
       version: directive.meta.version,
       style: directive.meta.style,
       focus: directive.meta.focus,
+      category: directive.meta.category,
       compiledPrompt: directive.prompt,
     },
   };
@@ -106,7 +111,21 @@ async function runImageGeneration(
       },
     });
 
-    return { generationId: generation.id, media };
+    const debug: GenerationDebug | undefined = DEBUG_ENABLED
+      ? {
+          idea: opts.brief.idea,
+          intent: directive.meta.category,
+          style: directive.meta.style,
+          focus: directive.meta.focus,
+          rulesApplied: directive.meta.appliedModifiers,
+          compiledPrompt: directive.prompt,
+          provider: result.provider,
+          model: result.model,
+          payload: result.requestPayload ?? { prompt: directive.prompt },
+        }
+      : undefined;
+
+    return { generationId: generation.id, media, debug };
   } catch (error) {
     await prisma.generation
       .update({

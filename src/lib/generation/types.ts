@@ -12,9 +12,28 @@ export type GenerateImageInput = {
   focus?: CreativeFocus;
 };
 
+/**
+ * Development-only trace of one generation — how the Creative Director turned the idea into the
+ * prompt actually sent to the provider. Populated ONLY when NODE_ENV !== "production"; `undefined`
+ * in production so nothing internal leaks. Contains no secrets.
+ */
+export type GenerationDebug = {
+  idea: string; // what the user typed
+  intent: string; // detected subject category
+  style: string;
+  focus: string;
+  rulesApplied: string[]; // everything the Director added beyond the user's words
+  compiledPrompt: string; // the prompt sent to the provider
+  provider: string;
+  model: string;
+  payload: Record<string, unknown>; // secret-free echo of the provider request
+};
+
 export type GenerationResult = {
   generationId: string;
   media: MediaAsset; // the generated asset (source: "generated"), already in the Gallery
+  /** Dev-only Creative Director trace; `undefined` in production. */
+  debug?: GenerationDebug;
 };
 
 export type GenerationStatusValue =

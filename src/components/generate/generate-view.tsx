@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { Loader2, Sparkles, TriangleAlert } from "lucide-react";
+import { Bug, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 
 import {
   useGenerateImage,
@@ -13,6 +13,7 @@ import {
   DEFAULT_STYLE,
   type CreativeStyle,
 } from "@/lib/creative";
+import type { GenerationDebug } from "@/lib/generation/types";
 import type { MediaAsset } from "@/lib/media/types";
 import { cn } from "@/lib/utils";
 import { SectionTitle } from "@/components/shared/section-title";
@@ -40,6 +41,7 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<CreativeStyle>(DEFAULT_STYLE);
   const [viewing, setViewing] = useState<MediaAsset | null>(null);
+  const [debug, setDebug] = useState<GenerationDebug | null>(null);
   const generateMut = useGenerateImage(projectId);
   const { data: history, isLoading: historyLoading } =
     useProjectGenerations(projectId);
@@ -54,6 +56,7 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
     try {
       const res = await generateMut.mutateAsync({ prompt: trimmed, style });
       setViewing(res.media);
+      setDebug(res.debug ?? null); // dev-only; undefined in production
       toast.success("Image generated");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Generation failed");
@@ -146,6 +149,8 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
         ) : null}
       </div>
 
+      {debug ? <CreativeDebugPanel debug={debug} /> : null}
+
       <div className="grid gap-3">
         <h3 className="text-sm font-medium">Recent generations</h3>
         {historyLoading ? (
@@ -173,5 +178,57 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
         }}
       />
     </div>
+  );
+}
+
+/**
+ * Developer Debug Mode (development only). The `debug` payload is populated by the generation
+ * layer solely when `NODE_ENV !== "production"`, so this panel never renders in production. It
+ * makes the Creative Director transparent: idea → detected intent → rules → compiled prompt →
+ * provider/model/payload. Contains no secrets.
+ */
+function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
+  const rows: { label: string; value: ReactNode }[] = [
+    { label: "User idea", value: debug.idea },
+    { label: "Detected intent", value: debug.intent },
+    { label: "Style", value: debug.style },
+    { label: "Focus", value: debug.focus },
+    {
+      label: "Creative rules applied",
+      value: debug.rulesApplied.length ? debug.rulesApplied.join(", ") : "—",
+    },
+    { label: "Compiled prompt", value: debug.compiledPrompt },
+    { label: "Provider", value: debug.provider },
+    { label: "Model", value: debug.model },
+  ];
+
+  return (
+    <section className="max-w-2xl rounded-lg border border-dashed bg-muted/30 p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <Bug className="size-4" />
+        <h3 className="text-sm font-medium">Creative Director — Debug</h3>
+        <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
+          dev only
+        </span>
+      </div>
+      <dl className="grid gap-2 text-sm">
+        {rows.map((row) => (
+          <div key={row.label} className="grid gap-0.5">
+            <dt className="text-muted-foreground text-xs">{row.label}</dt>
+            <dd className="font-mono text-xs break-words whitespace-pre-wrap">
+              {row.value}
+            </dd>
+          </div>
+        ))}
+        <div className="grid gap-0.5">
+          <dt className="text-muted-foreground text-xs">Generation payload</dt>
+          <dd className="bg-background overflow-x-auto rounded border p-2 font-mono text-xs">
+            <pre className="whitespace-pre-wrap">
+              {JSON.stringify(debug.payload, null, 2)}
+            </pre>
+          </dd>
+        </div>
+      </dl>
+    </section>
   );
 }
