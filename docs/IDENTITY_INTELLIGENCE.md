@@ -65,6 +65,50 @@ VisionProvider (observations)  →  normalizeToIdentityMetadata()  →  Identity
 - **`IdentityCoverage`** (per identity): what the reference set covers + **gaps** — the basis for
   automatic Hero/reference selection.
 
+## Identity Coverage Engine (Milestone 18B)
+
+The first **consumer** of the knowledge — `analyzeIdentityCoverage(metadatas) → CoverageReport`
+(`coverage-engine.ts`). It answers "how well does this identity's reference set cover each aspect of
+the person, and what's missing?" — the basis for **Smart Reference Selection** and **Training
+Quality Gates**. Pure, deterministic, provider-neutral; validated with **mocked** metadata
+(`scripts/verify-coverage.ts`, fully offline) **before any Vision API exists**.
+
+### Dimensions
+
+Face (front · left profile · right profile · back) · body (upper · full) · hair · tattoos (chest ·
+back · left arm · right arm · leg) · environment (indoor · outdoor). Each maps onto normalized
+knowledge via a small **matcher** (e.g. front = `face.visible && orientation === "front"`; leg
+tattoo = a tattoo whose `location` contains "leg").
+
+### Scoring algorithm (deterministic)
+
+Only **usable** images (`quality.usable`) contribute. For each dimension:
+
+1. **Per-image contribution** = `matchWeight × (quality.overall/100) × faceConfidence?` — face
+   dimensions are weighted by `face.confidence`; others use `1`. A generic `profile` (side unknown)
+   contributes `0.5` to *both* left and right profile.
+2. **score (0..1)** = `bestContribution × 0.6 + breadth × 0.4`, where `breadth = min(count, 3)/3`
+   (more angles → higher). One excellent image scores well; several push toward 1.0.
+3. **stars (0..5)** = `round(score × 5)`, clamped to `1..5` when ≥1 image contributes, else `0`.
+4. **status** = `covered` (≥3★) · `weak` (1–2★) · `missing` (0★) · `not-applicable`.
+5. **confidence** = quality of the best contributing image.
+
+**Overall (0..100)** = weight-averaged `score` over *applicable* dimensions. Weights: front face 3,
+full body 3, upper body 2, hair 2, profiles/back 1, each tattoo area 1, indoor/outdoor 0.5.
+**Suggestions** are the missing/weak applicable dimensions, ordered by weight then fewest stars.
+
+### Assumptions
+
+- **Tattoo dimensions are conditional.** They're only *applicable* if the identity is observed to
+  have **any** tattoo — otherwise "missing back tattoo" would be a false gap for a person with no
+  tattoos. Tattoo suggestions are phrased "*(if applicable)*" since we can't tell "no reference of
+  the tattoo" from "no tattoo there".
+- **Left/right profile** requires the specific orientation; a generic `profile` gives half credit
+  to each side (the normalizer accepts `left-profile`/`right-profile` when a provider distinguishes).
+- **Only usable images count** — this is where the quality gate feeds coverage.
+- The engine reasons purely from **knowledge**, so it's identical no matter which Vision provider
+  produced the observations.
+
 ## Boundaries — Milestone 18A
 
 **Architecture only.** No APIs, no Gemini/OpenAI/Florence/Qwen, no DB, no UI, no services. The

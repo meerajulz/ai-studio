@@ -44,6 +44,18 @@ export function isVisionConfigured(): boolean {
 export { normalizeToIdentityMetadata } from "./normalize";
 export { computeIdentityCoverage } from "./coverage";
 
+// Identity Coverage Engine — the first consumer of the knowledge (Milestone 18B)
+export {
+  analyzeIdentityCoverage,
+  renderStars,
+  COVERAGE_ENGINE_VERSION,
+  type CoverageDimensionId,
+  type CoverageReport,
+  type CoverageStatus,
+  type CoverageSuggestion,
+  type DimensionScore,
+} from "./coverage-engine";
+
 // Contracts + types
 export {
   visionCapabilities,

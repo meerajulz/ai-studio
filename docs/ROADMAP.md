@@ -151,9 +151,14 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       `normalizeToIdentityMetadata` → `IdentityMetadata`, plus `ImageQuality`/`ImageEmbedding`/
       `IdentityCoverage`. **No providers/APIs/DB/UI** (empty registry). Decision 040 ·
       `IDENTITY_INTELLIGENCE.md`.
-- [ ] **Milestone 18B — first Vision provider** ← **next** — implement ONE provider (best per
-      `RESEARCH_02_VISION.md`) behind `VisionProvider.analyzeImage` + a single `analyzeIdentity(image)`.
-      Nothing else. Then more providers slot in like image providers.
+- [x] **Milestone 18B — Identity Coverage Engine** (still no Vision provider) — `analyzeIdentityCoverage`
+      consumes `IdentityMetadata[]` → dimensioned `CoverageReport` (star scores, confidence, missing,
+      prioritized suggestions) across face/body/hair/tattoo/environment dimensions. Deterministic;
+      verified offline with mocked metadata (`scripts/verify-coverage.ts`). Proves the architecture
+      drives Smart Reference Selection + Quality Gates. Decision 041 · `IDENTITY_INTELLIGENCE.md`.
+- [ ] **First Vision provider** ← **next** — implement ONE provider (best per `RESEARCH_02_VISION.md`)
+      behind `VisionProvider.analyzeImage` + `analyzeIdentity(image)`; feed real knowledge into the
+      coverage engine + a training quality gate. Then more providers slot in like image providers.
 
 ### Future — documented, NOT scheduled (research first)
 

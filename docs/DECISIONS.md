@@ -1482,3 +1482,45 @@ Accepted — implemented (architecture only). Verified: an example observation n
 knowledge (hair/face/body/tattoos/quality/embedding) and `computeIdentityCoverage` aggregates + finds
 gaps; `isVisionConfigured()` is `false` (no providers). `npm run build` + `tsc --noEmit` pass. No
 schema change. Docs: `IDENTITY_INTELLIGENCE.md`.
+
+---
+
+# Decision 041
+
+Date
+2026-07-14
+
+Decision
+**Identity Coverage Engine — the first consumer of Identity Intelligence (Milestone 18B, still no
+Vision provider).** `analyzeIdentityCoverage(metadatas) → CoverageReport` (`vision/coverage-engine.ts`)
+consumes normalized `IdentityMetadata[]` and produces a **dimensioned coverage report** (star scores,
+confidence, status, missing areas, prioritized suggestions) across 14 dimensions: face front / left
+profile / right profile / back, upper / full body, hair, chest / back / left-arm / right-arm / leg
+tattoos, and indoor / outdoor. Pure, deterministic, provider-neutral; validated with **mocked**
+metadata (`scripts/verify-coverage.ts`, fully offline). **No Vision provider, no DB, no UI.**
+
+Scoring (documented in `IDENTITY_INTELLIGENCE.md`): only **usable** images contribute;
+`score = bestContribution·0.6 + breadth·0.4`; `stars = round(score·5)`; status covered/weak/missing;
+overall = weight-averaged score. **Assumption:** tattoo dimensions are only *applicable* when the
+identity has any observed tattoo (else "missing back tattoo" is a false gap). Also extended
+`FaceOrientation` with `left-profile`/`right-profile` (generic `profile` gives half credit to each
+side).
+
+Reason
+Before spending on a Vision API, prove the Identity Intelligence architecture can **drive real
+value** — Smart Reference Selection and Training Quality Gates — purely from knowledge. Building the
+consumer first de-risks 18B's provider choice and confirms the observation→knowledge contract
+(Decision 040) is sufficient. Mocked metadata makes verification deterministic and offline.
+
+Alternatives
+Wait for a provider before building consumers (rejected — couples architecture validation to a
+vendor, the opposite of the milestone's intent); return only booleans like `computeIdentityCoverage`
+(kept as the lightweight aggregate; the engine adds per-dimension stars + suggestions the UI/selection
+need); infer whether an unshown tattoo exists (rejected — undecidable; tattoo dimensions are
+conditional + suggestions say "if applicable").
+
+Status
+Accepted — implemented. Verified (`scripts/verify-coverage.ts`): a mocked identity yields Front face
+★★★★☆, Left profile ★★☆☆☆, Right profile/Back/Back-tattoo ☆ (missing), Full body/Hair covered, with
+prioritized suggestions; 8/8 deterministic checks pass. `npm run build` + `tsc --noEmit` pass. No
+schema change. Docs: `IDENTITY_INTELLIGENCE.md`.

@@ -7,8 +7,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 18A — Identity Intelligence
-> Architecture** (Decision 040, architecture only): a provider-agnostic **Vision layer**
+> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 18B — Identity Coverage Engine**
+> (Decision 041, still no Vision provider): `analyzeIdentityCoverage(metadatas) → CoverageReport` —
+> the first consumer of the 18A knowledge. Dimensioned star scores (face front/L/R profile/back,
+> upper/full body, hair, tattoo areas, indoor/outdoor) + confidence + missing + prioritized
+> suggestions. Pure/deterministic; verified OFFLINE with mocked metadata (`scripts/verify-coverage.ts`,
+> 8/8 checks). Proves the architecture drives Smart Reference Selection / Quality Gates before any
+> Vision API. **Next = still 18B-style: add ONE Vision provider** (`analyzeImage`). Before that:
+> **Milestone 18A — Identity Intelligence Architecture** (Decision 040, architecture only): a provider-agnostic **Vision layer**
 > (`src/lib/vision/`) on the principle **"the Vision provider gives OBSERVATIONS; AI Studio stores
 > KNOWLEDGE"** — `VisionProvider` + capabilities, a `VisionObservation` → `normalizeToIdentityMetadata`
 > → `IdentityMetadata` split, `ImageQuality`/`ImageEmbedding`/`IdentityCoverage`, a capability router,
@@ -142,6 +148,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **Identity Coverage Engine** (Milestone 18B, Decision 041; still **no Vision provider**): the first
+  consumer of Identity Intelligence knowledge — `analyzeIdentityCoverage(metadatas) → CoverageReport`
+  (`vision/coverage-engine.ts`). Consumes normalized `IdentityMetadata[]` and produces a **dimensioned
+  coverage report** across 14 dimensions (face **front / left profile / right profile / back**, **upper
+  / full body**, **hair**, **chest / back / left-arm / right-arm / leg tattoos**, **indoor / outdoor**)
+  with per-dimension **star scores (0–5)**, confidence, status (covered/weak/missing/n-a), an **overall
+  0–100**, **missing areas**, and **prioritized structured suggestions**. Deterministic scoring
+  (documented in `IDENTITY_INTELLIGENCE.md`): only *usable* images contribute; `score = best·0.6 +
+  breadth·0.4`; tattoo dimensions are **conditional** on the identity actually having tattoos (so
+  "missing back tattoo" isn't a false gap). Extended `FaceOrientation` with `left-profile`/`right-profile`.
+  Verified fully **offline** with mocked metadata (`scripts/verify-coverage.ts` — observation →
+  normalize → coverage; 8/8 deterministic checks; Front face ★★★★☆, Right profile/Back/Back-tattoo ☆
+  missing, etc.). Proves the architecture can drive **Smart Reference Selection** + **Training Quality
+  Gates** before any Vision API. **No provider, no DB, no UI.** `npm run build` + `tsc --noEmit` pass.
 - **Identity Intelligence Architecture — the Vision layer** (Milestone 18A, Decision 040;
   **architecture only**): a provider-agnostic `src/lib/vision/` built on the principle **"the Vision
   provider gives OBSERVATIONS; AI Studio stores KNOWLEDGE"** (`docs/IDENTITY_INTELLIGENCE.md`).

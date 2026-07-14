@@ -35,7 +35,14 @@ export type VisionObservation = {
 
 // ── AI Studio KNOWLEDGE: structured, normalized, provider-neutral ────────────
 
-export type FaceOrientation = "front" | "three-quarter" | "profile" | "back" | "unknown";
+export type FaceOrientation =
+  | "front"
+  | "three-quarter"
+  | "left-profile"
+  | "right-profile"
+  | "profile" // generic profile when the side is unknown
+  | "back"
+  | "unknown";
 export type Framing = "headshot" | "half-body" | "full-body" | "unknown";
 export type BodyVisibility = "face" | "upper" | "full" | "unknown";
 export type HairLength = "short" | "medium" | "long" | "unknown";

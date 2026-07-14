@@ -38,7 +38,15 @@ const strArr = (v: unknown): string[] =>
 const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
   typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
 
-const ORIENTATIONS = ["front", "three-quarter", "profile", "back", "unknown"] as const;
+const ORIENTATIONS = [
+  "front",
+  "three-quarter",
+  "left-profile",
+  "right-profile",
+  "profile",
+  "back",
+  "unknown",
+] as const;
 const FRAMINGS = ["headshot", "half-body", "full-body", "unknown"] as const;
 const BODY_VIS = ["face", "upper", "full", "unknown"] as const;
 const HAIR_LEN = ["short", "medium", "long", "unknown"] as const;
