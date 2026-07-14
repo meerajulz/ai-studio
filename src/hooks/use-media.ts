@@ -28,6 +28,14 @@ export const defaultMediaFilters: MediaFilters = {
   search: "",
 };
 
+/** Uploaded-only view — for the Uploads tab + training-media picker (not the Gallery). */
+export const uploadedMediaFilters: MediaFilters = {
+  kind: "all",
+  source: "uploaded",
+  sort: "newest",
+  search: "",
+};
+
 const PAGE_SIZE = 24;
 
 export const mediaKeys = {

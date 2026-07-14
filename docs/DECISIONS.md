@@ -814,3 +814,57 @@ status simply catches up on the next training-media change. Revisit if it matter
 Status
 Accepted — implemented and **verified end-to-end** against the live store + DB
 (`scripts/verify-identity.ts`). `npm run build` + `tsc --noEmit` pass.
+
+# Decision 029
+
+Date
+2026-07-14
+
+Decision
+**First Light** — the first end-to-end AI image generation, proving the architecture with one
+provider. Key choices:
+1. **Provider-agnostic via `ImageProvider`** (`src/lib/ai/`): feature code calls
+   `getImageProvider()` and depends only on the interface; **all Hugging Face specifics live
+   only in `src/lib/ai/providers/huggingface.ts`** (Decision 007). Future providers
+   (Fal/OpenAI/Replicate/local) = one file + a registry case, nothing else changes. Providers
+   return **bytes**, never URLs — storage is the app's job.
+2. **Generated media surfaces through the MEDIA layer** as `MediaAsset { source: "generated" }`.
+   The media layer now **unions `UploadedMedia` + `GeneratedMedia`** in
+   `listProjectMedia`/`getMedia`/`getMediaSignedUrl`/`deleteMedia` (composite `createdAt,id`
+   cursor across both tables), so a generated image appears in the **existing Gallery** with no
+   second browser/uploader/pipeline — finally making the reserved `source:"generated"` filter
+   real (Decision 024).
+3. **`GeneratedMedia` schema additions** (migration `generation_first_light`): `pathname` (to
+   mint signed URLs), `projectId` (to scope to the project Gallery), `originalFilename`. Served
+   via signed URLs exactly like uploads (Decision 021).
+4. **Synchronous generation** for First Light: the generation layer (`src/lib/generation/`)
+   authorizes → creates `Generation` → calls the provider → persists via the media layer →
+   sets `Generation.status` (`RUNNING → SUCCEEDED/FAILED`). The `Job` table (queue/progress/
+   attempts) stays **unused/deferred** for async providers (Fal/Replicate) later — the intended
+   Generation↔Job split (DATABASE #3).
+5. **Env:** `HF_TOKEN` (preferred) or `HUGGINGFACE_API_KEY`; optional `HF_IMAGE_MODEL`
+   (default `black-forest-labs/FLUX.1-schnell`). SDK: `@huggingface/inference`
+   (`InferenceClient.textToImage(..., { outputType: "blob" })`, `provider: "auto"`). HF
+   cold-start (503) is retried a bounded number of times **inside the provider** only.
+
+Identity may be attached to a `Generation` (provenance) but **identity-aware prompting is NOT
+built** — architecture kept ready. UI is intentionally minimal (one prompt, one button).
+
+Reason
+Proves the whole pipeline while honoring every layer boundary: Blob only via the blob layer,
+media only via the media layer, provider isolated behind `ImageProvider`, owner-scoped
+throughout. The media-layer union is the one substantive change and is the natural realization
+of Decision 024. Synchronous + no `Job` avoids over-engineering a queue a single sync provider
+doesn't need.
+
+Alternatives
+Store generated images as `UploadedMedia` (rejected — conflates sources, loses provenance);
+a separate "generated" gallery/pipeline (rejected — violates single-source media, Decision
+024); call the HF SDK from the generation layer or a component (rejected — provider must be
+isolated); use the `Job` queue now (deferred — no async provider yet); hardcode `HF_TOKEN`
+only (relaxed to also accept `HUGGINGFACE_API_KEY`, the name already in use).
+
+Status
+Accepted — implemented and **verified end-to-end** with a real Hugging Face generation
+(`scripts/verify-generation.ts`: prompt → image → Blob → Neon → Gallery; media union; owner
+authorization). `npm run build` + `tsc --noEmit` pass.

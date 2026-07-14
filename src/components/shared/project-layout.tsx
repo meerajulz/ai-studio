@@ -13,6 +13,7 @@ const TABS = [
   { label: "Overview", segment: "" },
   { label: "Uploads", segment: "uploads" },
   { label: "Gallery", segment: "gallery" },
+  { label: "Generate", segment: "generate" },
   { label: "Identities", segment: "identities" },
   { label: "Templates", segment: "templates" },
   { label: "Jobs", segment: "jobs" },

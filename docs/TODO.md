@@ -5,6 +5,20 @@
 
 ## High priority
 
+### First Light — AI generation (10) — done
+- [x] `ImageProvider` interface + registry (`src/lib/ai/`); Hugging Face provider (isolated)
+- [x] Generation layer (`src/lib/generation/`): sync, owner-scoped, status on `Generation`
+- [x] Media layer unions uploaded + generated → generated media shows in the Gallery
+- [x] `GeneratedMedia` schema: `pathname`/`projectId`/`originalFilename` (migration `generation_first_light`)
+- [x] Minimal Generate tab (`/projects/[id]/generate`); env `HF_TOKEN`/`HUGGINGFACE_API_KEY`
+- [x] Verified with a real HF generation (`scripts/verify-generation.ts`); build + tsc pass
+
+### First Light — follow-ups (later milestones, not now)
+- [ ] Async providers → activate the `Job` queue (progress/attempts/providerJobId)
+- [ ] More providers behind `ImageProvider` (Fal / OpenAI / Replicate / local)
+- [ ] Identity-aware prompting; negative prompts / size / seed / model controls; prompt history; video
+- [ ] Add `HF_TOKEN` (or `HUGGINGFACE_API_KEY`) + optional `HF_IMAGE_MODEL` to Vercel before deploy
+
 ### Storage Foundation (7A) — done
 - [x] Configure Vercel Blob (`@vercel/blob`, `BLOB_READ_WRITE_TOKEN`)
 - [x] Blob helper library (`src/lib/blob/` client/server/validation/constants/errors/types)

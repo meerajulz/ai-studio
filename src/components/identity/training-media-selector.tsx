@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ImageIcon, Loader2 } from "lucide-react";
 
 import {
-  defaultMediaFilters,
+  uploadedMediaFilters,
   useProjectMedia,
   type MediaFilters,
 } from "@/hooks/use-media";
@@ -45,7 +45,7 @@ export function TrainingMediaSelector({
   onOpenChange,
   linkedMediaIds,
 }: TrainingMediaSelectorProps) {
-  const [filters, setFilters] = useState<MediaFilters>(defaultMediaFilters);
+  const [filters, setFilters] = useState<MediaFilters>(uploadedMediaFilters);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const addMut = useAddTrainingMedia(identityId);
 

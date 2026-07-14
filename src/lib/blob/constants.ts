@@ -31,8 +31,17 @@ export const ALLOWED_MIME_TYPES = [
  * random suffix to avoid collisions.
  */
 export function buildUploadPathname(projectId: string, filename: string): string {
+  return `projects/${projectId}/uploads/${sanitizeFilename(filename)}`;
+}
+
+/** Path convention for AI-generated media — kept separate from uploads under the project. */
+export function buildGeneratedPathname(projectId: string, filename: string): string {
+  return `projects/${projectId}/generated/${sanitizeFilename(filename)}`;
+}
+
+function sanitizeFilename(filename: string): string {
   const safe = filename.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+/, "");
-  return `projects/${projectId}/uploads/${safe || "file"}`;
+  return safe || "file";
 }
 
 export function formatBytes(bytes: number): string {

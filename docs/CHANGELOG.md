@@ -46,6 +46,25 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **First Light — AI image generation** (Milestone 10): the first end-to-end generation,
+  provider-agnostic. New **AI layer** (`src/lib/ai/`, Decision 029): `ImageProvider` interface +
+  provider registry (`getImageProvider()`); **Hugging Face** is the only implementation
+  (`providers/huggingface.ts`, `@huggingface/inference` `textToImage`, default model
+  `black-forest-labs/FLUX.1-schnell`) — **no HF specifics leak outside the provider folder**.
+  New **generation layer** (`src/lib/generation/`): owner-scoped, synchronous (authorize →
+  `Generation` RUNNING → provider → persist via media layer → SUCCEEDED/FAILED); `Job` queue
+  deferred. **Media layer now unions `UploadedMedia` + `GeneratedMedia`** so generated images
+  appear in the **existing Gallery** as `source:"generated"` (making that filter real) — plus
+  a new `createGeneratedMedia`; `getMedia`/`getMediaSignedUrl`/`deleteMedia` work across both
+  tables (composite cursor pagination). **Schema** (migration `generation_first_light`):
+  `GeneratedMedia` gained `pathname`/`projectId`/`originalFilename`. Minimal **UI**: a
+  **Generate** workspace tab (`/projects/[id]/generate`) — one prompt, one button, loading/error,
+  result shown inline + in the Gallery. Server action + hook (invalidates the media query).
+  **Env:** `HF_TOKEN` or `HUGGINGFACE_API_KEY` (+ optional `HF_IMAGE_MODEL`). Blob only via the
+  blob layer, media only via the media layer, provider isolated behind `ImageProvider`,
+  owner-scoped throughout. Identity may be attached for provenance (no identity-aware prompting
+  yet). **Verified end-to-end with a real Hugging Face generation** (`scripts/verify-generation.ts`);
+  build + `tsc --noEmit` pass.
 - **Identity Manager** (Milestone 9A) — implements the frozen Identity design. **Schema:**
   extended `Identity` (`description`, `status` `IdentityStatus` DRAFT|ACTIVE|ARCHIVED,
   `displayImageId` Hero Image, **`projectId` required + Cascade**) and a new **`IdentityMedia`**

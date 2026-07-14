@@ -147,9 +147,10 @@ model Project {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  identities  Identity[]
-  uploads     UploadedMedia[]
-  generations Generation[]
+  identities     Identity[]
+  uploads        UploadedMedia[]
+  generations    Generation[]
+  generatedMedia GeneratedMedia[]
 
   @@index([userId])
 }
@@ -264,23 +265,30 @@ model Generation {
 }
 
 model GeneratedMedia {
-  id              String    @id @default(cuid())
-  type            MediaType
-  blobUrl         String
-  mimeType        String?
-  width           Int?
-  height          Int?
-  durationSeconds Int? // videos
-  sizeBytes       Int?
-  createdAt       DateTime  @default(now())
+  id               String    @id @default(cuid())
+  type             MediaType
+  blobUrl          String // raw (private) blob URL — used for deletion
+  pathname         String // blob key within the store — used to sign view URLs
+  originalFilename String? // a friendly name for the output
+  mimeType         String?
+  width            Int?
+  height           Int?
+  durationSeconds  Int? // videos
+  sizeBytes        Int?
+  createdAt        DateTime  @default(now())
 
   generationId String
   generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  // Project scoping so generated media surfaces in the project Gallery (Decision 029).
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([generationId])
+  @@index([projectId])
   @@index([userId])
 }
 

@@ -1,51 +1,53 @@
 /**
  * Media layer (server) — the application's single public API for media.
  *
- * Every media consumer (Uploads, Gallery, and later Identities, Templates, Jobs, AI
- * generation) depends on THIS. Nothing outside this folder calls the blob layer directly.
- * It owns the rules the blob layer intentionally doesn't know about: ownership, persistence,
+ * Every media consumer (Uploads, Gallery, Identities, and now AI Generation) depends on THIS.
+ * Nothing outside this folder calls the blob layer directly. It owns ownership, persistence,
  * filtering/pagination, and turning stored assets into signed, renderable URLs.
  *
- *   blob layer  = how to store/sign/delete bytes (src/lib/blob)
- *   media layer = what an "asset" is, who owns it, how it's persisted + queried  ← here
+ * Media lives in TWO tables — `UploadedMedia` (source "uploaded") and `GeneratedMedia`
+ * (source "generated", from AI). This layer **unions** them into one `MediaAsset` stream so
+ * the Gallery shows both with no second pipeline (Decisions 024 + 029).
  *
- * Public API (owner-scoped — every method takes the acting `userId`):
- *   createMedia          — persist an uploaded asset (after the browser stores the bytes)
- *   listProjectMedia     — a project's media, filtered/sorted/paginated, with signed URLs
- *   getMedia             — one asset with a fresh signed URL
- *   getMediaSignedUrl    — (re)mint a signed URL for one asset
- *   updateMediaMetadata  — patch stored metadata (e.g. rename)
- *   deleteMedia          — remove the blob + the record
- *   handleProjectUpload  — issue a scoped client-upload token (authorizes the upload)
- *
- * Planned (not yet — no consumer): move(), duplicate(), generateThumbnail(),
- * refreshSignedUrls() (bulk). Add them when a feature genuinely needs them.
+ * Public API (owner-scoped):
+ *   createMedia · createGeneratedMedia — persist an uploaded / AI-generated asset
+ *   listProjectMedia — a project's media (uploaded ∪ generated), filtered/sorted/paginated
+ *   getMedia · getMediaSignedUrl · getMediaByIds — read one/many with signed URLs
+ *   updateMediaMetadata · deleteMedia — mutate (delete works across both tables)
+ *   handleProjectUpload — issue a scoped client-upload token
  */
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 
-import { deleteAsset, getSignedUrl, isBlobConfigured } from "@/lib/blob/server";
+import {
+  deleteAsset,
+  getSignedUrl,
+  isBlobConfigured,
+  uploadAsset,
+} from "@/lib/blob/server";
 import {
   ALLOWED_MIME_TYPES,
+  buildGeneratedPathname,
   buildUploadPathname,
   MAX_VIDEO_SIZE_BYTES,
 } from "@/lib/blob/constants";
 import { StorageError } from "@/lib/blob/errors";
-import { validateFile } from "@/lib/blob/validation";
+import { mediaKindForMime, validateFile } from "@/lib/blob/validation";
 import { MediaType, Prisma, prisma } from "@/lib/db";
 import type {
   ListProjectMediaOptions,
   MediaAsset,
   MediaMetadataPatch,
   MediaPage,
+  MediaSort,
+  MediaSource,
   PersistUploadInput,
 } from "./types";
 
-/** Default and maximum page sizes for listing. */
 const DEFAULT_PAGE_SIZE = 24;
 const MAX_PAGE_SIZE = 100;
 
-/** Fields selected from `UploadedMedia` for the UI-facing asset shape. */
-const uploadSelect = {
+/** Columns shared by `UploadedMedia` + `GeneratedMedia` — the raw shape behind a `MediaAsset`. */
+const mediaSelect = {
   id: true,
   type: true,
   pathname: true,
@@ -58,14 +60,14 @@ const uploadSelect = {
   createdAt: true,
 } as const;
 
-type UploadRecord = Prisma.UploadedMediaGetPayload<{ select: typeof uploadSelect }>;
+type MediaRecord = Prisma.UploadedMediaGetPayload<{ select: typeof mediaSelect }>;
 
-/** Turn a stored upload record into a UI asset, minting a fresh signed URL (private store). */
-async function toAsset(record: UploadRecord): Promise<MediaAsset> {
+/** Turn a stored record (from either table) into a UI asset, minting a fresh signed URL. */
+async function toAsset(record: MediaRecord, source: MediaSource): Promise<MediaAsset> {
   const url = await getSignedUrl(record.pathname);
   return {
     id: record.id,
-    source: "uploaded",
+    source,
     type: record.type,
     url,
     originalFilename: record.originalFilename,
@@ -78,37 +80,26 @@ async function toAsset(record: UploadRecord): Promise<MediaAsset> {
   };
 }
 
-/** Throw unless `projectId` exists and belongs to `userId`. */
-async function assertProjectOwnership(
-  userId: string,
-  projectId: string,
-): Promise<void> {
+async function assertProjectOwnership(userId: string, projectId: string): Promise<void> {
   const project = await prisma.project.findFirst({
     where: { id: projectId, userId },
     select: { id: true },
   });
-  if (!project) {
-    throw new Error("Project not found");
-  }
+  if (!project) throw new Error("Project not found");
 }
 
-/** The path prefix every asset for a project must live under (see buildUploadPathname). */
 function projectUploadPrefix(projectId: string): string {
   return `projects/${projectId}/uploads/`;
 }
 
-/**
- * Persist an uploaded asset after the browser has stored the bytes. Re-validates everything
- * the client claimed (ownership, path, MIME + size) so a crafted request can't attach a blob
- * to someone else's project or dodge the size/type limits.
- */
+// ── uploads ──────────────────────────────────────────────────────────────────
+
 export async function createMedia(
   userId: string,
   input: PersistUploadInput,
 ): Promise<MediaAsset> {
   await assertProjectOwnership(userId, input.projectId);
 
-  // The blob must live under this user's owned project path — never trust the client path.
   if (!input.pathname.startsWith(projectUploadPrefix(input.projectId))) {
     throw new StorageError("UPLOAD_FAILED", "Upload path does not match project.");
   }
@@ -118,9 +109,7 @@ export async function createMedia(
     type: input.contentType,
     size: input.size,
   });
-  if (!check.ok) {
-    throw new StorageError(check.code, check.message);
-  }
+  if (!check.ok) throw new StorageError(check.code, check.message);
 
   const record = await prisma.uploadedMedia.create({
     data: {
@@ -133,22 +122,77 @@ export async function createMedia(
       mimeType: input.contentType,
       width: input.width ?? null,
       height: input.height ?? null,
-      durationSeconds: input.durationSeconds
-        ? Math.round(input.durationSeconds)
-        : null,
+      durationSeconds: input.durationSeconds ? Math.round(input.durationSeconds) : null,
       sizeBytes: input.size,
     },
-    select: uploadSelect,
+    select: mediaSelect,
   });
 
-  return toAsset(record);
+  return toAsset(record, "uploaded");
 }
 
-/**
- * List a project's media (owner-scoped), filtered/sorted/paginated, each with a fresh signed
- * URL. Source-agnostic by design: `generated` returns empty until AI outputs land, so the
- * Gallery UI can offer the filter today and get real results later with no UI change.
- */
+// ── AI-generated media (persist bytes from a provider; Blob only via this layer) ─────────
+
+export async function createGeneratedMedia(
+  userId: string,
+  params: {
+    projectId: string;
+    generationId: string;
+    data: Buffer;
+    contentType: string;
+    originalFilename: string;
+    width?: number;
+    height?: number;
+  },
+): Promise<MediaAsset> {
+  const kind = mediaKindForMime(params.contentType) ?? "image";
+  const stored = await uploadAsset({
+    pathname: buildGeneratedPathname(params.projectId, params.originalFilename),
+    data: params.data,
+    contentType: params.contentType,
+  });
+
+  const record = await prisma.generatedMedia.create({
+    data: {
+      userId,
+      projectId: params.projectId,
+      generationId: params.generationId,
+      type: kind === "video" ? MediaType.VIDEO : MediaType.IMAGE,
+      blobUrl: stored.url,
+      pathname: stored.pathname,
+      originalFilename: params.originalFilename,
+      mimeType: params.contentType,
+      width: params.width ?? null,
+      height: params.height ?? null,
+      sizeBytes: stored.size,
+    },
+    select: mediaSelect,
+  });
+
+  return toAsset(record, "generated");
+}
+
+// ── unified reads (uploaded ∪ generated) ─────────────────────────────────────
+
+/** Composite (createdAt,id) cursor so pagination is stable across both tables. */
+function encodeCursor(createdAt: Date, id: string): string {
+  return Buffer.from(`${createdAt.toISOString()}|${id}`).toString("base64url");
+}
+function decodeCursor(cursor: string): { createdAt: Date; id: string } | null {
+  try {
+    const [iso, id] = Buffer.from(cursor, "base64url").toString("utf8").split("|");
+    if (!iso || !id) return null;
+    return { createdAt: new Date(iso), id };
+  } catch {
+    return null;
+  }
+}
+function compareRecords(a: MediaRecord, b: MediaRecord, sort: MediaSort): number {
+  const delta = a.createdAt.getTime() - b.createdAt.getTime();
+  const base = delta !== 0 ? delta : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  return sort === "oldest" ? base : -base;
+}
+
 export async function listProjectMedia(
   userId: string,
   projectId: string,
@@ -156,59 +200,75 @@ export async function listProjectMedia(
 ): Promise<MediaPage> {
   await assertProjectOwnership(userId, projectId);
 
-  // No generated media exists yet — the filter is real, the data source isn't (return empty).
-  if (options.source === "generated") {
-    return { items: [], nextCursor: null };
-  }
+  const sort: MediaSort = options.sort === "oldest" ? "oldest" : "newest";
+  const dir: "asc" | "desc" = sort === "oldest" ? "asc" : "desc";
+  const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+  const source = options.source ?? "all";
+  const cursor = options.cursor ? decodeCursor(options.cursor) : null;
 
-  const direction = options.sort === "oldest" ? "asc" : "desc";
-  const limit = Math.min(
-    Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1),
-    MAX_PAGE_SIZE,
-  );
-
-  const where: Prisma.UploadedMediaWhereInput = { userId, projectId };
-  if (options.kind === "image") where.type = MediaType.IMAGE;
-  else if (options.kind === "video") where.type = MediaType.VIDEO;
+  // Common filters (valid on both tables — same columns).
+  const common: Record<string, unknown> = {};
+  if (options.kind === "image") common.type = MediaType.IMAGE;
+  else if (options.kind === "video") common.type = MediaType.VIDEO;
   const search = options.search?.trim();
-  if (search) {
-    where.originalFilename = { contains: search, mode: "insensitive" };
+  if (search) common.originalFilename = { contains: search, mode: "insensitive" };
+  if (cursor) {
+    const op = dir === "desc" ? "lt" : "gt";
+    common.OR = [
+      { createdAt: { [op]: cursor.createdAt } },
+      { AND: [{ createdAt: cursor.createdAt }, { id: { [op]: cursor.id } }] },
+    ];
   }
 
-  const records = await prisma.uploadedMedia.findMany({
-    where,
-    orderBy: [{ createdAt: direction }, { id: direction }],
-    take: limit,
-    ...(options.cursor
-      ? { cursor: { id: options.cursor }, skip: 1 }
-      : {}),
-    select: uploadSelect,
-  });
+  const orderBy = [{ createdAt: dir }, { id: dir }] as const;
+  const groups: { record: MediaRecord; source: MediaSource }[][] = [];
 
-  const items = await Promise.all(records.map(toAsset));
+  if (source === "all" || source === "uploaded") {
+    const rows = await prisma.uploadedMedia.findMany({
+      where: { userId, projectId, ...common } as Prisma.UploadedMediaWhereInput,
+      orderBy: [...orderBy],
+      take: limit,
+      select: mediaSelect,
+    });
+    groups.push(rows.map((record) => ({ record, source: "uploaded" as const })));
+  }
+  if (source === "all" || source === "generated") {
+    const rows = await prisma.generatedMedia.findMany({
+      where: { userId, projectId, ...common } as Prisma.GeneratedMediaWhereInput,
+      orderBy: [...orderBy],
+      take: limit,
+      select: mediaSelect,
+    });
+    groups.push(rows.map((record) => ({ record, source: "generated" as const })));
+  }
+
+  const merged = groups.flat().sort((a, b) => compareRecords(a.record, b.record, sort));
+  const page = merged.slice(0, limit);
+  const items = await Promise.all(page.map((x) => toAsset(x.record, x.source)));
+  const last = page[page.length - 1];
   const nextCursor =
-    records.length === limit ? records[records.length - 1].id : null;
+    page.length === limit && last
+      ? encodeCursor(last.record.createdAt, last.record.id)
+      : null;
+
   return { items, nextCursor };
 }
 
-/** Fetch a single asset (owner-scoped) with a fresh signed URL. */
 export async function getMedia(userId: string, id: string): Promise<MediaAsset> {
-  const record = await prisma.uploadedMedia.findFirst({
+  const uploaded = await prisma.uploadedMedia.findFirst({
     where: { id, userId },
-    select: uploadSelect,
+    select: mediaSelect,
   });
-  if (!record) {
-    throw new Error("Media not found");
-  }
-  return toAsset(record);
+  if (uploaded) return toAsset(uploaded, "uploaded");
+  const generated = await prisma.generatedMedia.findFirst({
+    where: { id, userId },
+    select: mediaSelect,
+  });
+  if (generated) return toAsset(generated, "generated");
+  throw new Error("Media not found");
 }
 
-/**
- * Fetch several assets by id (owner-scoped), each with a fresh signed URL. Used by consumers
- * that hold their own references to media (e.g. an identity's training media) but must not
- * touch the blob layer for signing. Returns only the caller's own media; missing/foreign ids
- * are silently dropped. Order is not guaranteed — callers re-order by their own metadata.
- */
+/** Fetch several UPLOADED assets by id (owner-scoped) — used for identity training media. */
 export async function getMediaByIds(
   userId: string,
   ids: string[],
@@ -216,72 +276,62 @@ export async function getMediaByIds(
   if (ids.length === 0) return [];
   const records = await prisma.uploadedMedia.findMany({
     where: { id: { in: ids }, userId },
-    select: uploadSelect,
+    select: mediaSelect,
   });
-  return Promise.all(records.map(toAsset));
+  return Promise.all(records.map((r) => toAsset(r, "uploaded")));
 }
 
-/** (Re)mint a short-lived signed URL for a single asset (owner-scoped). */
-export async function getMediaSignedUrl(
-  userId: string,
-  id: string,
-): Promise<string> {
-  const record = await prisma.uploadedMedia.findFirst({
+export async function getMediaSignedUrl(userId: string, id: string): Promise<string> {
+  const uploaded = await prisma.uploadedMedia.findFirst({
     where: { id, userId },
     select: { pathname: true },
   });
-  if (!record) {
-    throw new Error("Media not found");
-  }
-  return getSignedUrl(record.pathname);
+  if (uploaded) return getSignedUrl(uploaded.pathname);
+  const generated = await prisma.generatedMedia.findFirst({
+    where: { id, userId },
+    select: { pathname: true },
+  });
+  if (generated) return getSignedUrl(generated.pathname);
+  throw new Error("Media not found");
 }
 
-/** Update stored metadata (owner-scoped). Small on purpose — currently just rename. */
 export async function updateMediaMetadata(
   userId: string,
   id: string,
   patch: MediaMetadataPatch,
 ): Promise<MediaAsset> {
   const data: Prisma.UploadedMediaUpdateManyMutationInput = {};
-  if (patch.originalFilename !== undefined) {
-    data.originalFilename = patch.originalFilename;
-  }
+  if (patch.originalFilename !== undefined) data.originalFilename = patch.originalFilename;
 
-  const result = await prisma.uploadedMedia.updateMany({
-    where: { id, userId },
-    data,
-  });
-  if (result.count === 0) {
-    throw new Error("Media not found");
-  }
+  const result = await prisma.uploadedMedia.updateMany({ where: { id, userId }, data });
+  if (result.count === 0) throw new Error("Media not found");
   return getMedia(userId, id);
 }
 
-/** Delete an asset (owner-scoped) — removes the blob, then the record. */
-export async function deleteMedia(
-  userId: string,
-  id: string,
-): Promise<{ id: string }> {
-  const record = await prisma.uploadedMedia.findFirst({
+export async function deleteMedia(userId: string, id: string): Promise<{ id: string }> {
+  const uploaded = await prisma.uploadedMedia.findFirst({
     where: { id, userId },
     select: { id: true, blobUrl: true },
   });
-  if (!record) {
-    throw new Error("Media not found");
+  if (uploaded) {
+    await deleteAsset(uploaded.blobUrl);
+    await prisma.uploadedMedia.delete({ where: { id: uploaded.id } });
+    return { id: uploaded.id };
   }
-
-  await deleteAsset(record.blobUrl);
-  await prisma.uploadedMedia.delete({ where: { id: record.id } });
-  return { id: record.id };
+  const generated = await prisma.generatedMedia.findFirst({
+    where: { id, userId },
+    select: { id: true, blobUrl: true },
+  });
+  if (generated) {
+    await deleteAsset(generated.blobUrl);
+    await prisma.generatedMedia.delete({ where: { id: generated.id } });
+    return { id: generated.id };
+  }
+  throw new Error("Media not found");
 }
 
-/**
- * Issue a scoped client-upload token for the browser upload flow (`/api/uploads`).
- *
- * This lives in the media layer (not the blob layer) because minting the token is where
- * ownership is enforced: we authorize the *user* for the *project* and lock the token to
- * that project's path + the allowed MIME types and max size, before any bytes are sent.
- */
+// ── client-upload token issuance ─────────────────────────────────────────────
+
 export async function handleProjectUpload(params: {
   body: HandleUploadBody;
   request: Request;
@@ -298,36 +348,27 @@ export async function handleProjectUpload(params: {
     body: params.body,
     request: params.request,
     onBeforeGenerateToken: async (pathname, clientPayload) => {
-      if (!params.userId) {
-        throw new Error("Unauthorized");
-      }
+      if (!params.userId) throw new Error("Unauthorized");
       const projectId = parseProjectId(clientPayload);
       await assertProjectOwnership(params.userId, projectId);
-
       if (!pathname.startsWith(projectUploadPrefix(projectId))) {
         throw new Error("Upload path does not match project.");
       }
-
       return {
         allowedContentTypes: [...ALLOWED_MIME_TYPES],
-        maximumSizeInBytes: MAX_VIDEO_SIZE_BYTES, // absolute ceiling; per-kind limit enforced on persist
+        maximumSizeInBytes: MAX_VIDEO_SIZE_BYTES,
         addRandomSuffix: true,
         tokenPayload: JSON.stringify({ userId: params.userId, projectId }),
       };
     },
-    // Completion is confirmed by the client calling `createMedia` (this webhook does not
-    // fire against localhost), so nothing to do here.
     onUploadCompleted: async () => {},
   });
 }
 
-/** Build the canonical upload path for a file within a project (re-export for the client). */
 export { buildUploadPathname };
 
 function parseProjectId(clientPayload: string | null): string {
-  if (!clientPayload) {
-    throw new Error("Missing upload context.");
-  }
+  if (!clientPayload) throw new Error("Missing upload context.");
   try {
     const parsed = JSON.parse(clientPayload) as { projectId?: unknown };
     if (typeof parsed.projectId === "string" && parsed.projectId.length > 0) {

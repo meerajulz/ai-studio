@@ -84,10 +84,15 @@ Gallery (done) → Identity System → Templates → Prompt Builder → AI Provi
       Hero Image; Gallery selection → "Create identity". New identity layer (`src/lib/identity/`,
       Decision 028) reusing the media/Gallery components. Verified end-to-end
       (`scripts/verify-identity.ts`).
+- [x] **Milestone 10 — First Light (AI generation)** — provider-agnostic `ImageProvider` +
+      Hugging Face plug-in (`src/lib/ai/`), generation layer (`src/lib/generation/`), media
+      layer unions uploaded + generated so results land in the Gallery; minimal Generate tab.
+      Verified with a real HF generation (`scripts/verify-generation.ts`). Decision 029.
 - [ ] Templates ← **next** — reusable prompt/config presets, may target an Identity.
 - [ ] Prompt Builder — compose a generation from Identity + Template + inputs; consumes the
       Identity generation-defaults (deferred columns land here).
-- [ ] AI Provider layer — `ImageProvider`/`VideoProvider` adapters; Identity is the input.
+- [ ] AI Provider expansion — more providers behind `ImageProvider` (Fal/OpenAI/Replicate/
+      local); async via the `Job` queue; a parallel `VideoProvider`.
 - [ ] _Deferred:_ global `/uploads` + `/gallery` — decide whether to remove or merge into one
       global **Media** browser (see NAVIGATION.md).
 
@@ -108,11 +113,12 @@ Gallery (done) → Identity System → Templates → Prompt Builder → AI Provi
 
 # Sprint 3 – AI Integration
 
-- [ ] AI Provider Interface
-- [ ] Image Provider
+- [x] AI Provider Interface (`ImageProvider` + registry, `src/lib/ai/`)
+- [x] Image Provider (Hugging Face — first + only, First Light)
 - [ ] Video Provider
 - [ ] Prompt Builder
-- [ ] Generation Queue
+- [ ] Generation Queue (`Job` table — for async providers)
+- [ ] More image providers (Fal / OpenAI / Replicate / local)
 
 ---
 

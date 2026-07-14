@@ -3,10 +3,7 @@
 import { useMemo, useState } from "react";
 import { ImageIcon, TriangleAlert } from "lucide-react";
 
-import {
-  defaultMediaFilters,
-  useProjectMedia,
-} from "@/hooks/use-media";
+import { uploadedMediaFilters, useProjectMedia } from "@/hooks/use-media";
 import { useUploadManager } from "@/hooks/use-upload-manager";
 import type { MediaAsset } from "@/lib/media/types";
 import { SectionTitle } from "@/components/shared/section-title";
@@ -37,7 +34,7 @@ export function UploadsView({ projectId, blobReady }: UploadsViewProps) {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useProjectMedia(projectId, defaultMediaFilters);
+  } = useProjectMedia(projectId, uploadedMediaFilters);
   const manager = useUploadManager(projectId, { onPersisted: () => refetch() });
   const [viewing, setViewing] = useState<MediaAsset | null>(null);
   const [deleting, setDeleting] = useState<MediaAsset | null>(null);
