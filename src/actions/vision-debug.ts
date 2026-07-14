@@ -75,7 +75,10 @@ export async function listVisionModels(): Promise<{ provider: string; models: st
   return { provider: provider.id, models };
 }
 
-export async function analyzeVisionDebug(dataUrl: string): Promise<VisionDebugResult> {
+export async function analyzeVisionDebug(
+  dataUrl: string,
+  model?: string,
+): Promise<VisionDebugResult> {
   await requireUserId(); // gate — never an open Gemini proxy
   if (!dataUrl.startsWith("data:")) throw new Error("Expected an image data URL.");
   if (!isVisionConfigured()) {
@@ -85,7 +88,10 @@ export async function analyzeVisionDebug(dataUrl: string): Promise<VisionDebugRe
   const { provider } = routeVisionProvider({ needs: ["attributes", "quality"] });
 
   const start = Date.now();
-  const observation = await provider.analyzeImage({ imageUrl: dataUrl });
+  const observation = await provider.analyzeImage({
+    imageUrl: dataUrl,
+    model: model?.trim() || undefined,
+  });
   const durationMs = Date.now() - start;
 
   const metadata = normalizeToIdentityMetadata(observation);

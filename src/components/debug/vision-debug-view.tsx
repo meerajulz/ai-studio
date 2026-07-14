@@ -63,6 +63,7 @@ export function VisionDebugView({ visionConfigured }: { visionConfigured: boolea
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<string[] | null>(null);
+  const [model, setModel] = useState<string>("");
 
   async function onFile(file: File | undefined) {
     if (!file) return;
@@ -80,6 +81,14 @@ export function VisionDebugView({ visionConfigured }: { visionConfigured: boolea
     try {
       const { models: m } = await listVisionModels();
       setModels(m);
+      // Preselect a good default for identity analysis.
+      const preferred =
+        m.find((x) => x === "gemini-3.5-flash") ??
+        m.find((x) => x === "gemini-flash-latest") ??
+        m.find((x) => /flash/.test(x) && !/lite|image|tts/.test(x)) ??
+        m[0] ??
+        "";
+      if (!model) setModel(preferred);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not list models");
     }
@@ -91,7 +100,7 @@ export function VisionDebugView({ visionConfigured }: { visionConfigured: boolea
     setError(null);
     setResult(null);
     try {
-      setResult(await analyzeVisionDebug(dataUrl));
+      setResult(await analyzeVisionDebug(dataUrl, model || undefined));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Analysis failed");
     } finally {
@@ -129,7 +138,28 @@ export function VisionDebugView({ visionConfigured }: { visionConfigured: boolea
         <Button variant="outline" onClick={loadModels} disabled={!visionConfigured}>
           List models
         </Button>
+        {models && models.length ? (
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Model</span>
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="rounded border px-2 py-1 text-sm"
+            >
+              {models.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
+      <p className="text-muted-foreground text-xs">
+        {model
+          ? `Using model: ${model}`
+          : "Using the server default (GEMINI_VISION_MODEL or gemini-flash-latest). Click “List models” to pick one here."}
+      </p>
 
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
 

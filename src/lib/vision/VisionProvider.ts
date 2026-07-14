@@ -15,6 +15,8 @@ export type VisionRequest = {
   imageUrl: string;
   /** Which analyses to run. Omitted → all the provider supports. */
   tasks?: VisionCapability[];
+  /** Optional per-request model override (else the provider's env/default). Handy for debugging. */
+  model?: string;
 };
 
 export interface VisionProvider {

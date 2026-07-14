@@ -121,7 +121,8 @@ export const geminiVisionProvider: VisionProvider = {
   async analyzeImage(request: VisionRequest): Promise<VisionObservation> {
     const key = getKey();
     if (!key) throw new VisionError("MISSING_TOKEN", "Gemini is not configured (set GEMINI_API_KEY).");
-    const model = process.env.GEMINI_VISION_MODEL?.trim() || DEFAULT_MODEL;
+    // Per-request override (debug) → env → default.
+    const model = request.model?.trim() || process.env.GEMINI_VISION_MODEL?.trim() || DEFAULT_MODEL;
 
     const image = await fetchImageInline(request.imageUrl);
 
