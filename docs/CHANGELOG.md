@@ -8,6 +8,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Design (no code)
+- **Vision expanded — Creative Operating System** (docs only): evolved `VISION.md` (single
+  source of truth; structure preserved) — new one-liner (an intelligent Creative Operating
+  System that orchestrates multiple AI providers), "the **orchestration** engine is the
+  product", a new **AI Studio Philosophy** section (provider-agnostic forever · orchestration
+  not generation · users describe goals not models · complexity hidden behind simple UX · AI
+  Studio owns the workflow, not the provider), and a **Future Direction — Intelligent AI
+  Orchestration** section (long-term only: intent-driven generation, multi-provider workflows,
+  identity processing/relationships, multiple identities per generation, a ComfyUI-inspired
+  visual workflow builder, generation recipes, creative pipelines). Reinforces existing
+  decisions; no architectural change, no new Decision.
 - **Identity design frozen** (Decision 027, design only): final MVP refinements before
   implementation — **project-scoped identities** (`projectId` becomes required + Cascade;
   global library out of scope), a **dedicated Overview sub-tab** (default), **"Hero Image"**
