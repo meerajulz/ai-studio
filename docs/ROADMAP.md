@@ -92,9 +92,14 @@ Gallery (done) → Identity System → Templates → Prompt Builder → AI Provi
       `Generation` *is* the recipe; read-only `recipe` on generated `MediaAsset`s), Regenerate +
       Variation, generation history, improved Generate page, Gallery recipe actions. No schema
       change. Verified (`scripts/verify-generation.ts`). Decision 030 · `GENERATION_RECIPES.md`.
-- [ ] Templates ← **next** — reusable prompt/config presets, may target an Identity.
-- [ ] Prompt Builder — compose a generation from Identity + Template + inputs; consumes the
-      Identity generation-defaults (deferred columns land here).
+- [x] **Milestone 12 — Prompt Builder DESIGN** (design only) — the intent-driven "describe
+      what you want, AI Studio writes the prompt" experience: `PROMPT_BUILDER.md` +
+      `CREATIVE_WORKFLOW.md` (journey, UX philosophy, creative brief, compilation transform,
+      components/states, wireframes, identity/recipe/gallery/generation integration). No code.
+- [ ] **Prompt Builder — implementation** ← **next** — build the "Describe intent" stage on the
+      generation layer: creative brief → provider-agnostic `buildPrompt` (`src/lib/prompt/`) →
+      existing `generateImage`; brief stored in the recipe. Reuses media/identity components.
+- [ ] Templates — **saved briefs** (Prompt Builder presets); comes *after* the Prompt Builder.
 - [ ] AI Provider expansion — more providers behind `ImageProvider` (Fal/OpenAI/Replicate/
       local); async via the `Job` queue; a parallel `VideoProvider`.
 - [ ] _Deferred:_ global `/uploads` + `/gallery` — decide whether to remove or merge into one

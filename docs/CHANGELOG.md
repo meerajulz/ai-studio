@@ -8,6 +8,18 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Design (no code)
+- **Prompt Builder design** (Milestone 12 — design only): new **`PROMPT_BUILDER.md`** and
+  **`CREATIVE_WORKFLOW.md`** — the intent-driven experience where the user *describes what they
+  want* and AI Studio *writes the prompt*. Covers the user journey, UX philosophy (describe not
+  engineer; simple-by-default; the prompt is an output not an input; provider-agnostic), the
+  **creative brief** (Identity/Subject/Style/Mood/Lighting/Camera/Composition/Location/Time/
+  Aspect/Quality/Notes), a **provider-agnostic `buildPrompt` transform** (brief → neutral prompt
+  + params), planned components + states, ASCII **wireframes** (empty / builder / advanced /
+  review / mobile), and integration with Identity, **Recipes** (brief stored in the recipe →
+  Remix), Gallery ("Open in Builder"), and Generation (sits *above* the unchanged generation
+  layer). Documents future Templates (= saved briefs), multiple identities, video, and the
+  workflow builder. **No code, schema, routes, or components.** ROADMAP/TODO updated (Prompt
+  Builder is the next milestone, before Templates).
 - **Vision expanded — Creative Operating System** (docs only): evolved `VISION.md` (single
   source of truth; structure preserved) — new one-liner (an intelligent Creative Operating
   System that orchestrates multiple AI providers), "the **orchestration** engine is the

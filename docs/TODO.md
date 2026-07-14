@@ -5,6 +5,18 @@
 
 ## High priority
 
+### Prompt Builder — design (12) — done
+- [x] `docs/PROMPT_BUILDER.md` — intent-driven builder: journey, UX philosophy, creative brief,
+      provider-agnostic compilation (`buildPrompt`), components/states, wireframes (empty/builder/
+      advanced/review/mobile), identity/recipe/gallery/generation integration, future (templates/
+      multi-identity/video/workflow builder)
+- [x] `docs/CREATIVE_WORKFLOW.md` — the end-to-end creative loop + screen flow (Builder sits above
+      the generation layer; downstream unchanged)
+- [ ] **Prompt Builder — implementation (next):** creative brief UI + `src/lib/prompt/buildPrompt`
+      (pure, provider-agnostic) → existing `generateImage`; store brief in the recipe (`params`);
+      "Open in Builder" (remix) from the Gallery. Lock open decisions in PROMPT_BUILDER.md first.
+- [ ] Templates AFTER the Prompt Builder — saved briefs (Prompt Builder presets)
+
 ### AI Generation v2 — Creative Loop (11) — done
 - [x] Generation recipes — `Generation` is the recipe; read-only `recipe` on generated `MediaAsset` (Decision 030; no schema change)
 - [x] Regenerate + Generate Variation (shared `runImageGeneration`; lineage in `params`)
