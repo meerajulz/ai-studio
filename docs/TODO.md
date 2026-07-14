@@ -5,6 +5,18 @@
 
 ## High priority
 
+### AI Generation v2 — Creative Loop (11) — done
+- [x] Generation recipes — `Generation` is the recipe; read-only `recipe` on generated `MediaAsset` (Decision 030; no schema change)
+- [x] Regenerate + Generate Variation (shared `runImageGeneration`; lineage in `params`)
+- [x] Generation history (`listRecentGenerations`, reuses existing data)
+- [x] Generate page: larger editor, char counter, validation, loading/error, recent-generations list
+- [x] Gallery viewer actions: Copy Prompt · View Recipe · Generate Again · Variation
+- [x] `docs/GENERATION_RECIPES.md`; verified (`scripts/verify-generation.ts`); build + tsc pass
+
+### AI Generation v2 — follow-ups (later)
+- [ ] Recreate/Remix/Compare/branch UI on top of recipe lineage (`params.fromGenerationId`)
+- [ ] Real variation parameters (seed/strength) instead of same-prompt re-run
+
 ### First Light — AI generation (10) — done
 - [x] `ImageProvider` interface + registry (`src/lib/ai/`); Hugging Face provider (isolated)
 - [x] Generation layer (`src/lib/generation/`): sync, owner-scoped, status on `Generation`

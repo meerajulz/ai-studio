@@ -38,6 +38,7 @@ import type {
   MediaAsset,
   MediaMetadataPatch,
   MediaPage,
+  MediaRecipe,
   MediaSort,
   MediaSource,
   PersistUploadInput,
@@ -62,8 +63,40 @@ const mediaSelect = {
 
 type MediaRecord = Prisma.UploadedMediaGetPayload<{ select: typeof mediaSelect }>;
 
+/** Generated media additionally carries its `Generation` — the recipe (Decision 030). */
+const generatedSelect = {
+  ...mediaSelect,
+  generation: {
+    select: {
+      id: true,
+      prompt: true,
+      provider: true,
+      model: true,
+      identityId: true,
+      createdAt: true,
+    },
+  },
+} as const;
+
+type GeneratedRecord = Prisma.GeneratedMediaGetPayload<{ select: typeof generatedSelect }>;
+
+function buildRecipe(generation: GeneratedRecord["generation"]): MediaRecipe {
+  return {
+    generationId: generation.id,
+    prompt: generation.prompt,
+    provider: generation.provider,
+    model: generation.model,
+    identityId: generation.identityId,
+    createdAt: generation.createdAt,
+  };
+}
+
 /** Turn a stored record (from either table) into a UI asset, minting a fresh signed URL. */
-async function toAsset(record: MediaRecord, source: MediaSource): Promise<MediaAsset> {
+async function toAsset(
+  record: MediaRecord,
+  source: MediaSource,
+  recipe: MediaRecipe | null,
+): Promise<MediaAsset> {
   const url = await getSignedUrl(record.pathname);
   return {
     id: record.id,
@@ -77,6 +110,7 @@ async function toAsset(record: MediaRecord, source: MediaSource): Promise<MediaA
     durationSeconds: record.durationSeconds,
     sizeBytes: record.sizeBytes,
     createdAt: record.createdAt,
+    recipe,
   };
 }
 
@@ -128,7 +162,7 @@ export async function createMedia(
     select: mediaSelect,
   });
 
-  return toAsset(record, "uploaded");
+  return toAsset(record, "uploaded", null);
 }
 
 // ── AI-generated media (persist bytes from a provider; Blob only via this layer) ─────────
@@ -166,10 +200,25 @@ export async function createGeneratedMedia(
       height: params.height ?? null,
       sizeBytes: stored.size,
     },
-    select: mediaSelect,
+    select: generatedSelect,
   });
 
-  return toAsset(record, "generated");
+  return toAsset(record, "generated", buildRecipe(record.generation));
+}
+
+/** Fetch several GENERATED assets by id (owner-scoped), signed + with recipe. */
+export async function getGeneratedMediaByIds(
+  userId: string,
+  ids: string[],
+): Promise<MediaAsset[]> {
+  if (ids.length === 0) return [];
+  const records = await prisma.generatedMedia.findMany({
+    where: { id: { in: ids }, userId },
+    select: generatedSelect,
+  });
+  return Promise.all(
+    records.map((r) => toAsset(r, "generated", buildRecipe(r.generation))),
+  );
 }
 
 // ── unified reads (uploaded ∪ generated) ─────────────────────────────────────
@@ -221,7 +270,11 @@ export async function listProjectMedia(
   }
 
   const orderBy = [{ createdAt: dir }, { id: dir }] as const;
-  const groups: { record: MediaRecord; source: MediaSource }[][] = [];
+  const groups: {
+    record: MediaRecord;
+    source: MediaSource;
+    recipe: MediaRecipe | null;
+  }[][] = [];
 
   if (source === "all" || source === "uploaded") {
     const rows = await prisma.uploadedMedia.findMany({
@@ -230,21 +283,29 @@ export async function listProjectMedia(
       take: limit,
       select: mediaSelect,
     });
-    groups.push(rows.map((record) => ({ record, source: "uploaded" as const })));
+    groups.push(
+      rows.map((record) => ({ record, source: "uploaded" as const, recipe: null })),
+    );
   }
   if (source === "all" || source === "generated") {
     const rows = await prisma.generatedMedia.findMany({
       where: { userId, projectId, ...common } as Prisma.GeneratedMediaWhereInput,
       orderBy: [...orderBy],
       take: limit,
-      select: mediaSelect,
+      select: generatedSelect,
     });
-    groups.push(rows.map((record) => ({ record, source: "generated" as const })));
+    groups.push(
+      rows.map((record) => ({
+        record,
+        source: "generated" as const,
+        recipe: buildRecipe(record.generation),
+      })),
+    );
   }
 
   const merged = groups.flat().sort((a, b) => compareRecords(a.record, b.record, sort));
   const page = merged.slice(0, limit);
-  const items = await Promise.all(page.map((x) => toAsset(x.record, x.source)));
+  const items = await Promise.all(page.map((x) => toAsset(x.record, x.source, x.recipe)));
   const last = page[page.length - 1];
   const nextCursor =
     page.length === limit && last
@@ -259,12 +320,12 @@ export async function getMedia(userId: string, id: string): Promise<MediaAsset> 
     where: { id, userId },
     select: mediaSelect,
   });
-  if (uploaded) return toAsset(uploaded, "uploaded");
+  if (uploaded) return toAsset(uploaded, "uploaded", null);
   const generated = await prisma.generatedMedia.findFirst({
     where: { id, userId },
-    select: mediaSelect,
+    select: generatedSelect,
   });
-  if (generated) return toAsset(generated, "generated");
+  if (generated) return toAsset(generated, "generated", buildRecipe(generated.generation));
   throw new Error("Media not found");
 }
 
@@ -278,7 +339,7 @@ export async function getMediaByIds(
     where: { id: { in: ids }, userId },
     select: mediaSelect,
   });
-  return Promise.all(records.map((r) => toAsset(r, "uploaded")));
+  return Promise.all(records.map((r) => toAsset(r, "uploaded", null)));
 }
 
 export async function getMediaSignedUrl(userId: string, id: string): Promise<string> {

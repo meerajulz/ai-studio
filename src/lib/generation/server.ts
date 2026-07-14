@@ -1,15 +1,22 @@
 /**
- * Generation layer (server) — orchestrates one image generation, owner-scoped.
+ * Generation layer (server) — orchestrates image generation, owner-scoped.
  *
- * It is the only new orchestrator: authorize → create `Generation` → call the provider
- * (behind `ImageProvider`) → persist bytes via the MEDIA layer → set status. It never imports
- * Blob or a provider SDK directly. First Light is synchronous (status on `Generation`; the
- * `Job` queue is deferred to async providers). See docs/GENERATION_PIPELINE.md.
+ * The only new orchestrator: authorize → create `Generation` → call the provider (behind
+ * `ImageProvider`) → persist via the MEDIA layer → set status. Never imports Blob or a
+ * provider SDK directly. First Light is synchronous (status on `Generation`; the `Job` queue
+ * is deferred). The `Generation` record IS the recipe (Decision 030) — regenerate/variation
+ * reuse it and tag lineage in `params`. See docs/GENERATION_PIPELINE.md, GENERATION_RECIPES.md.
  */
 import { getImageProvider, isProviderError } from "@/lib/ai";
-import { GenerationStatus, MediaType, prisma } from "@/lib/db";
-import { createGeneratedMedia } from "@/lib/media/server";
-import type { GenerateImageInput, GenerationResult } from "./types";
+import { GenerationStatus, MediaType, Prisma, prisma } from "@/lib/db";
+import { createGeneratedMedia, getGeneratedMediaByIds } from "@/lib/media/server";
+import type {
+  GenerateImageInput,
+  GenerationHistoryItem,
+  GenerationResult,
+} from "./types";
+
+const HISTORY_LIMIT = 12;
 
 async function assertProjectOwnership(userId: string, projectId: string): Promise<void> {
   const project = await prisma.project.findFirst({
@@ -31,45 +38,46 @@ async function assertIdentityInProject(
   if (!identity) throw new Error("Identity not found");
 }
 
-/** Generate one image and store it via the media layer (visible in the Gallery). */
-export async function generateImage(
+/**
+ * Core runner: create a `Generation`, call the provider, persist the result via the media
+ * layer, and set status. Shared by generate / regenerate / variation. Assumes ownership has
+ * already been checked by the caller.
+ */
+async function runImageGeneration(
   userId: string,
   projectId: string,
-  input: GenerateImageInput,
+  opts: {
+    prompt: string;
+    identityId: string | null;
+    params?: Prisma.InputJsonValue;
+  },
 ): Promise<GenerationResult> {
-  await assertProjectOwnership(userId, projectId);
-
-  const prompt = input.prompt.trim();
-  if (!prompt) throw new Error("Prompt is required.");
-  if (input.identityId) {
-    await assertIdentityInProject(userId, projectId, input.identityId);
-  }
-
   const provider = getImageProvider();
 
   const generation = await prisma.generation.create({
     data: {
       userId,
       projectId,
-      identityId: input.identityId ?? null,
+      identityId: opts.identityId,
       type: MediaType.IMAGE,
-      prompt,
+      prompt: opts.prompt,
       provider: provider.id,
       model: "", // set from the provider result below
+      params: opts.params,
       status: GenerationStatus.RUNNING,
     },
     select: { id: true },
   });
 
   try {
-    const result = await provider.generateImage({ prompt });
+    const result = await provider.generateImage({ prompt: opts.prompt });
 
     const media = await createGeneratedMedia(userId, {
       projectId,
       generationId: generation.id,
       data: result.data,
       contentType: result.contentType,
-      originalFilename: buildGeneratedFilename(prompt, result.contentType),
+      originalFilename: buildGeneratedFilename(opts.prompt, result.contentType),
     });
 
     await prisma.generation.update({
@@ -93,6 +101,115 @@ export async function generateImage(
   }
 }
 
+/** Generate one image from a fresh prompt (optionally attached to an identity). */
+export async function generateImage(
+  userId: string,
+  projectId: string,
+  input: GenerateImageInput,
+): Promise<GenerationResult> {
+  await assertProjectOwnership(userId, projectId);
+
+  const prompt = input.prompt.trim();
+  if (!prompt) throw new Error("Prompt is required.");
+  if (input.identityId) {
+    await assertIdentityInProject(userId, projectId, input.identityId);
+  }
+
+  return runImageGeneration(userId, projectId, {
+    prompt,
+    identityId: input.identityId ?? null,
+  });
+}
+
+/** Re-run a generation's recipe unchanged (a new generation, lineage tagged in `params`). */
+export async function regenerateGeneration(
+  userId: string,
+  projectId: string,
+  generationId: string,
+): Promise<GenerationResult> {
+  const source = await loadOwnedGeneration(userId, projectId, generationId);
+  return runImageGeneration(userId, projectId, {
+    prompt: source.prompt,
+    identityId: source.identityId,
+    params: { source: "regenerate", fromGenerationId: generationId },
+  });
+}
+
+/** Generate a variation — for now, the same prompt (future: injected variation params). */
+export async function generateVariation(
+  userId: string,
+  projectId: string,
+  generationId: string,
+): Promise<GenerationResult> {
+  const source = await loadOwnedGeneration(userId, projectId, generationId);
+  return runImageGeneration(userId, projectId, {
+    prompt: source.prompt,
+    identityId: source.identityId,
+    params: { source: "variation", fromGenerationId: generationId },
+  });
+}
+
+/** Recent generations for a project (the recipe + its signed result) — owner-scoped. */
+export async function listRecentGenerations(
+  userId: string,
+  projectId: string,
+): Promise<GenerationHistoryItem[]> {
+  await assertProjectOwnership(userId, projectId);
+
+  const generations = await prisma.generation.findMany({
+    where: { userId, projectId, type: MediaType.IMAGE },
+    orderBy: { createdAt: "desc" },
+    take: HISTORY_LIMIT,
+    select: {
+      id: true,
+      prompt: true,
+      provider: true,
+      model: true,
+      identityId: true,
+      status: true,
+      createdAt: true,
+      results: {
+        select: { id: true },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
+    },
+  });
+
+  const resultIds = generations
+    .map((g) => g.results[0]?.id)
+    .filter((id): id is string => Boolean(id));
+  const assets = await getGeneratedMediaByIds(userId, resultIds);
+  const assetById = new Map(assets.map((a) => [a.id, a]));
+
+  return generations.map((g) => {
+    const resultId = g.results[0]?.id;
+    return {
+      generationId: g.id,
+      prompt: g.prompt,
+      provider: g.provider,
+      model: g.model,
+      identityId: g.identityId,
+      status: g.status,
+      createdAt: g.createdAt,
+      media: resultId ? (assetById.get(resultId) ?? null) : null,
+    };
+  });
+}
+
+async function loadOwnedGeneration(
+  userId: string,
+  projectId: string,
+  generationId: string,
+) {
+  const generation = await prisma.generation.findFirst({
+    where: { id: generationId, userId, projectId },
+    select: { id: true, prompt: true, identityId: true },
+  });
+  if (!generation) throw new Error("Generation not found");
+  return generation;
+}
+
 function extensionFor(contentType: string): string {
   if (contentType.includes("png")) return "png";
   if (contentType.includes("jpeg") || contentType.includes("jpg")) return "jpg";
@@ -110,7 +227,6 @@ function buildGeneratedFilename(prompt: string, contentType: string): string {
   return `${slug}-${Date.now()}.${extensionFor(contentType)}`;
 }
 
-/** Map provider/storage failures to a user-facing message (the generation is already FAILED). */
 function toFriendlyError(error: unknown): Error {
   if (isProviderError(error)) {
     switch (error.code) {

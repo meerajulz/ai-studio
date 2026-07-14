@@ -38,6 +38,20 @@ export type PersistUploadInput = BrowserUploadResult & {
 };
 
 /**
+ * The recipe behind a generated asset — a read-only view of its `Generation` (Decision 030).
+ * The `Generation` record IS the recipe; this is how the Gallery exposes prompt/provider/model
+ * for Copy Prompt / View Recipe / Generate Again. `null` for uploaded media.
+ */
+export type MediaRecipe = {
+  generationId: string;
+  prompt: string;
+  provider: string;
+  model: string;
+  identityId: string | null;
+  createdAt: Date;
+};
+
+/**
  * The serializable asset returned to the UI. `url` is a short-lived **signed** URL minted
  * per read (the store is private — Decision 021), so it is safe to render in `<img>`/`<video>`.
  */
@@ -53,6 +67,7 @@ export type MediaAsset = {
   durationSeconds: number | null;
   sizeBytes: number | null;
   createdAt: Date;
+  recipe: MediaRecipe | null; // generated media only (source: "generated")
 };
 
 /** Metadata fields a caller may update on an existing asset. Intentionally small for now. */

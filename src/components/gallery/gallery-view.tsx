@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Images, UserRoundPlus } from "lucide-react";
 
 import {
@@ -9,6 +10,10 @@ import {
   useProjectMedia,
   type MediaFilters,
 } from "@/hooks/use-media";
+import {
+  useGenerateVariation,
+  useRegenerate,
+} from "@/hooks/use-generation";
 import type { MediaAsset } from "@/lib/media/types";
 import { SectionTitle } from "@/components/shared/section-title";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -37,6 +42,28 @@ export function GalleryView({ projectId }: GalleryViewProps) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [createOpen, setCreateOpen] = useState(false);
+
+  const regenerateMut = useRegenerate(projectId);
+  const variationMut = useGenerateVariation(projectId);
+  const generating = regenerateMut.isPending || variationMut.isPending;
+
+  function handleRegenerate(media: MediaAsset) {
+    if (!media.recipe) return;
+    toast.promise(regenerateMut.mutateAsync(media.recipe.generationId), {
+      loading: "Generating…",
+      success: "New image added to the Gallery",
+      error: (e) => (e instanceof Error ? e.message : "Couldn't generate"),
+    });
+  }
+
+  function handleVariation(media: MediaAsset) {
+    if (!media.recipe) return;
+    toast.promise(variationMut.mutateAsync(media.recipe.generationId), {
+      loading: "Generating a variation…",
+      success: "Variation added to the Gallery",
+      error: (e) => (e instanceof Error ? e.message : "Couldn't generate"),
+    });
+  }
 
   const {
     data,
@@ -166,6 +193,9 @@ export function GalleryView({ projectId }: GalleryViewProps) {
           if (!open) setViewing(null);
         }}
         onDelete={setDeleting}
+        onRegenerate={handleRegenerate}
+        onVariation={handleVariation}
+        busy={generating}
       />
 
       <DeleteMediaDialog

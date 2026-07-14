@@ -56,6 +56,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **AI Generation v2 — Creative Loop** (Milestone 11, Decision 030): strengthens
+  `generate → gallery → improve → generate again`, no new storage. **Generation recipes** —
+  the `Generation` record *is* the recipe (prompt/provider/model/`params`/identity/timestamps);
+  the media layer now surfaces a read-only **`recipe`** on generated `MediaAsset`s. **Regenerate**
+  (`regenerateGeneration`) and **Generate Variation** (`generateVariation`) re-run a recipe as a
+  new generation, with lineage tagged in `params` (`source`, `fromGenerationId`) — via a shared
+  `runImageGeneration` runner. **Generation history** (`listRecentGenerations`) reuses existing
+  data (Generation + signed result). **Generate page** improved: larger prompt editor,
+  character counter + validation, clearer loading/error, and a recent-generations list (open /
+  copy prompt / use prompt). **Gallery viewer** exposes **Copy Prompt · View Recipe · Generate
+  Again · Variation** for generated media (added optional `onRegenerate`/`onVariation`/`busy` to
+  `MediaViewer`). New `docs/GENERATION_RECIPES.md`. Identity stays optional/provenance-only;
+  provider stays isolated behind `ImageProvider`. **No migration.** Verified end-to-end with
+  real HF generate + regenerate + variation (`scripts/verify-generation.ts`); build + tsc pass.
 - **First Light — AI image generation** (Milestone 10): the first end-to-end generation,
   provider-agnostic. New **AI layer** (`src/lib/ai/`, Decision 029): `ImageProvider` interface +
   provider registry (`getImageProvider()`); **Hugging Face** is the only implementation

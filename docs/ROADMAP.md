@@ -88,6 +88,10 @@ Gallery (done) → Identity System → Templates → Prompt Builder → AI Provi
       Hugging Face plug-in (`src/lib/ai/`), generation layer (`src/lib/generation/`), media
       layer unions uploaded + generated so results land in the Gallery; minimal Generate tab.
       Verified with a real HF generation (`scripts/verify-generation.ts`). Decision 029.
+- [x] **Milestone 11 — AI Generation v2 (Creative Loop)** — generation recipes (the
+      `Generation` *is* the recipe; read-only `recipe` on generated `MediaAsset`s), Regenerate +
+      Variation, generation history, improved Generate page, Gallery recipe actions. No schema
+      change. Verified (`scripts/verify-generation.ts`). Decision 030 · `GENERATION_RECIPES.md`.
 - [ ] Templates ← **next** — reusable prompt/config presets, may target an Identity.
 - [ ] Prompt Builder — compose a generation from Identity + Template + inputs; consumes the
       Identity generation-defaults (deferred columns land here).

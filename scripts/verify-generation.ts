@@ -16,7 +16,12 @@ config({ path: ".env.local", override: true });
 import { isImageProviderConfigured } from "../src/lib/ai";
 import { deleteAsset, isBlobConfigured } from "../src/lib/blob/server";
 import { GenerationStatus, MediaType, prisma } from "../src/lib/db";
-import { generateImage } from "../src/lib/generation/server";
+import {
+  generateImage,
+  generateVariation,
+  listRecentGenerations,
+  regenerateGeneration,
+} from "../src/lib/generation/server";
 import {
   createGeneratedMedia,
   deleteMedia,
@@ -86,6 +91,17 @@ async function main() {
       originalFilename: "gen-test.png",
     });
     assert(genMedia.source === "generated", "createGeneratedMedia should be source 'generated'.");
+    assert(
+      genMedia.recipe?.prompt === "test" && genMedia.recipe.generationId === generation.id,
+      "Generated media should carry its recipe (prompt + generationId).",
+    );
+
+    const history = await listRecentGenerations(owner.id, project.id);
+    assert(
+      history.length >= 1 && history[0]!.media?.id === genMedia.id,
+      "Generation history should list the generation with its result.",
+    );
+    console.log("  recipe on asset + generation history ✓");
 
     const generatedOnly = await listProjectMedia(owner.id, project.id, { source: "generated" });
     assert(generatedOnly.items.length === 1, "Generated filter should return 1 item.");
@@ -137,7 +153,33 @@ async function main() {
       assert(inGallery.items.some((m) => m.id === result.media.id), "Generated image should appear in the Gallery.");
       console.log(`  ✓ generated ${bytes.length} bytes with model ${gen?.model}; in Blob + DB + Gallery`);
 
+      // Regenerate — new generation, same prompt, lineage tagged in params.
+      console.log("  regenerating…");
+      const again = await regenerateGeneration(owner.id, project.id, result.generationId);
+      assert(again.generationId !== result.generationId, "Regenerate should create a new generation.");
+      assert(again.media.recipe?.prompt === gen?.prompt, "Regenerate should reuse the prompt.");
+      const againRow = await prisma.generation.findUnique({ where: { id: again.generationId } });
+      const againParams = againRow?.params as { source?: string; fromGenerationId?: string } | null;
+      assert(
+        againParams?.source === "regenerate" && againParams.fromGenerationId === result.generationId,
+        "Regenerate should record lineage in params.",
+      );
+
+      // Variation — same path, tagged as variation.
+      console.log("  generating a variation…");
+      const variation = await generateVariation(owner.id, project.id, result.generationId);
+      assert(variation.generationId !== result.generationId, "Variation should create a new generation.");
+      const varRow = await prisma.generation.findUnique({ where: { id: variation.generationId } });
+      const varParams = varRow?.params as { source?: string } | null;
+      assert(varParams?.source === "variation", "Variation should record source in params.");
+
+      const finalHistory = await listRecentGenerations(owner.id, project.id);
+      assert(finalHistory.length >= 3, "History should include generate + regenerate + variation.");
+      console.log(`  ✓ regenerate + variation + history (${finalHistory.length} entries)`);
+
       await deleteMedia(owner.id, result.media.id);
+      await deleteMedia(owner.id, again.media.id);
+      await deleteMedia(owner.id, variation.media.id);
     }
 
     console.log("\n✅ PASS — generation pipeline verified end-to-end against the live Blob store + DB.");

@@ -868,3 +868,46 @@ Status
 Accepted — implemented and **verified end-to-end** with a real Hugging Face generation
 (`scripts/verify-generation.ts`: prompt → image → Blob → Neon → Gallery; media union; owner
 authorization). `npm run build` + `tsc --noEmit` pass.
+
+# Decision 030
+
+Date
+2026-07-14
+
+Decision
+**AI Generation v2 (Creative Loop).** Strengthen the `generate → gallery → improve → generate
+again` loop without new storage:
+1. **The `Generation` record IS the recipe** — no separate recipes table. It already stores
+   prompt, provider, model, `params` (Json), `identityId`, status, and timestamps, and owns
+   its `GeneratedMedia` result(s). **No schema change** was needed (see GENERATION_RECIPES.md).
+2. **The media layer surfaces a read-only `recipe` on `MediaAsset`** for generated media
+   (prompt/provider/model/identity/generationId/date), joined from the `Generation`. Uploaded
+   media has `recipe: null`. This lets the Gallery show Copy Prompt / View Recipe / Generate
+   Again without any feature touching the DB — media still flows only through the media layer.
+3. **Regenerate + Variation are new generations** that reuse a recipe (same prompt/provider/
+   model) via a shared `runImageGeneration` runner; lineage is tagged in the existing `params`
+   Json (`source: "regenerate" | "variation"`, `fromGenerationId`) — the foundation for future
+   Recreate/Compare/branching, again with no new columns.
+4. **Generation history reuses existing data** — `listRecentGenerations` reads `Generation` +
+   its result (signed via the media layer); nothing is duplicated.
+
+UI stays intentionally minimal (larger prompt editor + counter + validation + clear loading/
+error, a history list, Gallery viewer actions). Identity remains optional/provenance-only (no
+identity-aware prompting). Provider stays isolated behind `ImageProvider` (Decision 029).
+
+Reason
+The recipe data already exists on `Generation`, so inventing a recipes table would duplicate
+it. Surfacing a read-only recipe on `MediaAsset` keeps the Gallery decoupled from the DB and
+respects the layer boundaries. Tagging lineage in `params` unlocks recreate/variation/branching
+foundations without premature schema work ("earns its columns").
+
+Alternatives
+A dedicated `Recipe` table (rejected — duplicates `Generation`); storing recipe JSON on
+`GeneratedMedia` (rejected — the `Generation` is the source of truth); a `parentGenerationId`
+column now (deferred — `params` carries lineage until a feature needs a typed edge); building
+Remix/Compare/branch UI now (out of scope — later milestones).
+
+Status
+Accepted — implemented and **verified end-to-end** (`scripts/verify-generation.ts`: recipe on
+asset, history, real regenerate + variation with lineage, owner authorization). `npm run build`
++ `tsc --noEmit` pass. No migration.

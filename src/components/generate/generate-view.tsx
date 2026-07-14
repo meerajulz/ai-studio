@@ -1,15 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, Sparkles, TriangleAlert } from "lucide-react";
+import { Loader2, Sparkles, TriangleAlert } from "lucide-react";
 
-import { useGenerateImage } from "@/hooks/use-generation";
+import {
+  useGenerateImage,
+  useProjectGenerations,
+} from "@/hooks/use-generation";
 import type { MediaAsset } from "@/lib/media/types";
+import { cn } from "@/lib/utils";
 import { SectionTitle } from "@/components/shared/section-title";
+import { EmptyState } from "@/components/shared/empty-state";
+import { LoadingState } from "@/components/shared/loading-state";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { MediaViewer } from "@/components/media/media-viewer";
+import { GenerationHistory } from "./generation-history";
+
+const MAX_PROMPT = 1000;
 
 type GenerateViewProps = {
   projectId: string;
@@ -17,22 +26,27 @@ type GenerateViewProps = {
 };
 
 /**
- * First Light — the minimal generation surface: one prompt, one button. The result flows
- * through the media layer and shows up in the Gallery. Intentionally minimal (no history,
- * models, negative prompts, or identity picker yet).
+ * AI Generation v2 — the creative loop: prompt → generate → history → improve → generate
+ * again. Intentionally simple (no chat, no prompt builder). Reuses existing generation data
+ * for history and the media layer for results.
  */
 export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   const [prompt, setPrompt] = useState("");
-  const [result, setResult] = useState<MediaAsset | null>(null);
+  const [viewing, setViewing] = useState<MediaAsset | null>(null);
   const generateMut = useGenerateImage(projectId);
+  const { data: history, isLoading: historyLoading } =
+    useProjectGenerations(projectId);
+
   const isPending = generateMut.isPending;
+  const trimmed = prompt.trim();
+  const tooLong = prompt.length > MAX_PROMPT;
+  const canGenerate = providerReady && !isPending && trimmed !== "" && !tooLong;
 
   async function handleGenerate() {
-    const value = prompt.trim();
-    if (!value) return;
+    if (!canGenerate) return;
     try {
-      const res = await generateMut.mutateAsync({ prompt: value });
-      setResult(res.media);
+      const res = await generateMut.mutateAsync({ prompt: trimmed });
+      setViewing(res.media);
       toast.success("Image generated");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Generation failed");
@@ -61,58 +75,81 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
         </div>
       ) : null}
 
-      <div className="grid max-w-2xl gap-3">
+      <div className="grid max-w-2xl gap-2">
         <Textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          rows={3}
+          rows={5}
           placeholder="A serene mountain lake at sunrise, cinematic lighting"
           disabled={isPending || !providerReady}
+          aria-invalid={tooLong}
         />
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={handleGenerate}
-            disabled={isPending || !providerReady || prompt.trim() === ""}
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Generating…
-              </>
-            ) : (
-              <>
-                <Sparkles className="size-4" />
-                Generate
-              </>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span
+            className={cn(
+              "text-xs tabular-nums",
+              tooLong ? "text-destructive" : "text-muted-foreground",
             )}
-          </Button>
-          {isPending ? (
-            <span className="text-muted-foreground text-sm">
-              This can take 10–30s (the model may be warming up)…
-            </span>
-          ) : null}
+          >
+            {prompt.length}/{MAX_PROMPT}
+            {tooLong ? " — too long" : ""}
+          </span>
+          <div className="flex items-center gap-3">
+            {isPending ? (
+              <span className="text-muted-foreground text-sm">
+                This can take 10–30s (the model may be warming up)…
+              </span>
+            ) : null}
+            <Button onClick={handleGenerate} disabled={!canGenerate}>
+              {isPending ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Generating…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="size-4" />
+                  Generate
+                </>
+              )}
+            </Button>
+          </div>
         </div>
+        {generateMut.isError ? (
+          <p className="text-destructive text-sm">
+            {generateMut.error instanceof Error
+              ? generateMut.error.message
+              : "Generation failed."}
+          </p>
+        ) : null}
       </div>
 
-      {result ? (
-        <div className="grid max-w-md gap-2">
-          <div className="bg-muted overflow-hidden rounded-lg border">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={result.url}
-              alt={result.originalFilename ?? "Generated image"}
-              className="w-full"
-            />
-          </div>
-          <Link
-            href={`/projects/${projectId}/gallery`}
-            className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-sm"
-          >
-            View in Gallery
-            <ArrowRight className="size-4" />
-          </Link>
-        </div>
-      ) : null}
+      <div className="grid gap-3">
+        <h3 className="text-sm font-medium">Recent generations</h3>
+        {historyLoading ? (
+          <LoadingState variant="list" rows={3} />
+        ) : !history || history.length === 0 ? (
+          <EmptyState
+            icon={Sparkles}
+            title="No generations yet"
+            description="Your generated images will show up here and in the Gallery."
+          />
+        ) : (
+          <GenerationHistory
+            items={history}
+            onOpen={setViewing}
+            onUsePrompt={setPrompt}
+          />
+        )}
+      </div>
+
+      <MediaViewer
+        media={viewing}
+        open={viewing !== null}
+        onOpenChange={(open) => {
+          if (!open) setViewing(null);
+        }}
+      />
     </div>
   );
 }
