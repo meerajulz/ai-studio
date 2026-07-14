@@ -18,7 +18,9 @@ import {
 import type { VisionObservation } from "../types";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-const DEFAULT_MODEL = "gemini-2.0-flash";
+// gemini-2.5-flash: strong vision + native JSON output, cheap/fast for per-image analysis at scale.
+// Override with GEMINI_VISION_MODEL (e.g. "gemini-2.5-pro" for max quality).
+const DEFAULT_MODEL = "gemini-2.5-flash";
 
 /** The JSON shape we ask Gemini for — keys align with what `normalizeToIdentityMetadata` reads. */
 const EXTRACTION_PROMPT = `You are building a private identity reference library for image generation.
