@@ -7,7 +7,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-14, build + tsc green):** **Fixed a Creative Director regression (Decision 039):**
+> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 18A — Identity Intelligence
+> Architecture** (Decision 040, architecture only): a provider-agnostic **Vision layer**
+> (`src/lib/vision/`) on the principle **"the Vision provider gives OBSERVATIONS; AI Studio stores
+> KNOWLEDGE"** — `VisionProvider` + capabilities, a `VisionObservation` → `normalizeToIdentityMetadata`
+> → `IdentityMetadata` split, `ImageQuality`/`ImageEmbedding`/`IdentityCoverage`, a capability router,
+> and an **empty provider registry** (NO Gemini/OpenAI/Florence/Qwen — no APIs/DB/UI). `normalize` +
+> `coverage` are pure and already work. **Next = 18B:** add ONE provider implementing `analyzeImage`
+> (+ `analyzeIdentity`). Before that: **Fixed a Creative Director regression (Decision 039):**
 > the v4 compiler was discarding user intent (bikini/Chihuahua/props/clothing dropped) by rebuilding
 > from graph nodes only — now the user's prompt is the **source of truth** (verbatim lead) and the
 > Director only **enriches** (genre/camera/composition/lighting/realism/quality). Before that, shipped
@@ -135,6 +142,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **Identity Intelligence Architecture — the Vision layer** (Milestone 18A, Decision 040;
+  **architecture only**): a provider-agnostic `src/lib/vision/` built on the principle **"the Vision
+  provider gives OBSERVATIONS; AI Studio stores KNOWLEDGE"** (`docs/IDENTITY_INTELLIGENCE.md`).
+  Mirrors the image layer: **`VisionProvider`** interface + **capabilities** (caption/attributes/
+  detect/segment/pose/faceEmbed/embed/quality/sceneRecognition), a capability **router**, and a
+  registry. The core split: a provider returns a loose **`VisionObservation`** ("woman with pink
+  hair wearing a black bikini"), which a **pure, deterministic `normalizeToIdentityMetadata`** turns
+  into structured **`IdentityMetadata`** knowledge (hair/face-orientation+confidence/body/tattoos/
+  clothing/lighting/embedding/…) — so swapping vision vendors never changes what AI Studio stores.
+  Plus **`ImageQuality`** (a 0–100 composite + a "usable" reject-poor-references gate),
+  **`ImageEmbedding`**, and **`IdentityCoverage`** (per-identity rollup: front face? full body?
+  tattoo locations? **gaps** → the basis for automatic Hero/request-aware selection). **No providers,
+  no APIs (empty registry, `isVisionConfigured()` = false), no DB/UI/services** — 18B adds the first
+  provider (a VLM per research) behind the interface. Follows `RESEARCH_02_VISION.md` §1/§11/§13;
+  `IdentityCoverage` + the explicit normalizer are documented additive extensions (Decision 040).
+  Verified: observations normalize to correct knowledge + coverage finds gaps; `npm run build` +
+  `tsc --noEmit` pass.
 - **Identity Preservation Foundation — Fal Kontext MVP** (Milestone 17, Decision 038): the Identity
   Visual Package (M15) now actually reaches the model, so AI Studio can generate the **real person**,
   not a generic one described by text. New **`docs/PROVIDER_RESEARCH.md`** evaluates Fal identity

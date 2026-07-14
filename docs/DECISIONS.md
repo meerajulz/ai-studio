@@ -1424,3 +1424,61 @@ living room, dog on sofa, coffee in Paris, fantasy castle, "woman in a red dress
 Tokyo at night") keep the full user text and enrich correctly. `npm run build` + `tsc --noEmit`
 pass. No schema change. (Part of the "Creative Director needs another pass" track — see
 `CREATIVE_DIRECTOR_FUTURE.md`.)
+
+---
+
+# Decision 040
+
+Date
+2026-07-14
+
+Decision
+**Vision layer architecture — "observations → knowledge" (Milestone 18A, architecture only).**
+Establish a provider-agnostic Vision layer (`src/lib/vision/`) mirroring the image layer, built on a
+single guiding principle:
+
+> **The Vision provider gives OBSERVATIONS. AI Studio stores KNOWLEDGE.**
+
+1. **`VisionProvider` + capabilities**, mirroring `ImageProvider` (Decision 007/036): providers
+   advertise capabilities (caption/attributes/detect/segment/pose/faceEmbed/embed/quality/
+   sceneRecognition); feature code + a router depend on capabilities, never a vendor name.
+2. **Observation vs Knowledge split.** A provider returns a loose `VisionObservation` (e.g. a
+   caption "woman with pink hair wearing a black bikini"). AI Studio **never stores that** — a pure,
+   deterministic `normalizeToIdentityMetadata` turns it into structured **`IdentityMetadata`**
+   knowledge (hair/face/body/tattoos/quality/lighting/embedding/…). Swapping providers never changes
+   what AI Studio stores.
+3. **Knowledge model** = `IdentityMetadata` (per image, RESEARCH_02 §11) + `ImageQuality` (the
+   reject-poor-references gate) + `ImageEmbedding` + **`IdentityCoverage`** (per-identity aggregate —
+   an addition beyond §11's per-image record, needed for automatic Hero/request-aware selection).
+4. **Split of Milestone 18** (user decision): **18A = architecture only** — no APIs, no Gemini/
+   OpenAI/Florence/Qwen, no DB/UI/services; the provider **registry is empty**, `isVisionConfigured()`
+   is `false`, and `normalize`/`coverage` are pure and already functional. **18B** adds ONE provider
+   implementing `analyzeImage` behind the interface (+ a single `analyzeIdentity(image)`).
+5. **Not biometric identification** — attributes + face embeddings serve richer Identity Packages,
+   reference ranking, and consistency of the user's own subject; never identification.
+
+Reason
+We already learned this lesson with image generation: if a vendor (Gemini) is used everywhere,
+replacing it later means rewriting the project. The observation→knowledge normalizer + a capability
+router make the Vision vendor an interchangeable component from day one. Building the architecture
+first (18A) — with pure, testable normalization/coverage and zero providers — de-risks the provider
+choice in 18B and guarantees nothing else in AI Studio depends on a specific vision vendor.
+
+Alternatives
+Store the provider's caption/raw output directly (rejected — couples storage to a vendor, isn't
+queryable/rankable, and breaks on provider swap); wire a provider now (rejected — the user
+explicitly split 18A/18B to avoid vendor lock-in and premature choice); fixed attribute schema per
+provider (rejected — the normalizer gives one stable schema across all providers).
+
+Validation against research
+Follows `RESEARCH_02_VISION.md` §1 (`VisionProvider` + capabilities), §11 (`IdentityMetadata`
+record), §13 (provider-neutral, results as metadata). Two documented deltas: **`IdentityCoverage`**
+(per-identity aggregate the research implied via §12 automatic selection but didn't name) and an
+**explicit normalizer module** (the research said "never store a provider's shape"; this makes that
+concrete). No conflicts.
+
+Status
+Accepted — implemented (architecture only). Verified: an example observation normalizes to correct
+knowledge (hair/face/body/tattoos/quality/embedding) and `computeIdentityCoverage` aggregates + finds
+gaps; `isVisionConfigured()` is `false` (no providers). `npm run build` + `tsc --noEmit` pass. No
+schema change. Docs: `IDENTITY_INTELLIGENCE.md`.

@@ -145,6 +145,15 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
 - [x] **Creative Director — preserve user intent** (Decision 039) — the compiler no longer discards
       user words (bikini/Chihuahua/props); the user's prompt is the source of truth, enriched not
       replaced. First fix of the "Preserve User Intent" milestone; richer enrichment is future.
+- [x] **Milestone 18A — Identity Intelligence Architecture** (architecture only) — provider-agnostic
+      **Vision layer** (`src/lib/vision/`) on the principle *"Vision gives observations; AI Studio
+      stores knowledge"*: `VisionProvider` + capabilities + router, `VisionObservation` →
+      `normalizeToIdentityMetadata` → `IdentityMetadata`, plus `ImageQuality`/`ImageEmbedding`/
+      `IdentityCoverage`. **No providers/APIs/DB/UI** (empty registry). Decision 040 ·
+      `IDENTITY_INTELLIGENCE.md`.
+- [ ] **Milestone 18B — first Vision provider** ← **next** — implement ONE provider (best per
+      `RESEARCH_02_VISION.md`) behind `VisionProvider.analyzeImage` + a single `analyzeIdentity(image)`.
+      Nothing else. Then more providers slot in like image providers.
 
 ### Future — documented, NOT scheduled (research first)
 
