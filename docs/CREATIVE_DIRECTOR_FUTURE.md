@@ -14,7 +14,30 @@ idea → analyzeScene → analyzeSpatial → analyzeIntent → planComposition �
 ```
 
 The Spatial stage builds an internal scene graph (nodes + relationships) that informs composition
-and keeps relationships intact in the compiled prompt.
+and keeps relationships intact in the compiled prompt. **Milestone 14** added a passive **Identity
+Context** stage (Stage 0) — provider-unaware, deterministic.
+
+## Agreed next step — RETURN to the Creative Director (deferred, not abandoned)
+
+> Recorded per Milestone 14. Identity-aware Generation was done *first* on purpose — to surface
+> real-world requirements before evolving the Director further. **After Milestone 14 we return to
+> the Creative Director**, and the next CD milestone **continues the Spatial Analysis work — NOT a
+> jump to LLMs.** Planned:
+>
+> - Improve the **Scene Graph** (richer nodes, better relationship extraction, better spatial
+>   reasoning, better layout planning).
+> - Make the **Scene Graph the primary source for prompt compilation** instead of leading with the
+>   flattened original sentence — while still preserving the user's spatial relationships in the
+>   compiled prompt.
+> - Improve **intent classification** (e.g. reliably distinguish **Interior Design** from
+>   **Lifestyle Photography**).
+> - Keep evolving the Creative Director as the application's **intelligence layer**.
+
+### Long-term evolution order (agreed)
+
+Better Scene Graph → Better Spatial Analysis → Creative Goals → Prompt Builder → Templates →
+Multi-provider optimization → Video reasoning → Multi-identity generation → Creative Critic →
+Optional LLM reasoning (behind the same architecture). *Documentation only — not implemented.*
 
 Each stage is a pure function with a single responsibility and a structured hand-off. The next
 milestone (**M14 — Identity-aware Generation, foundation**) inserts an optional **Identity

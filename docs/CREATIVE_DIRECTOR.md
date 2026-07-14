@@ -23,8 +23,8 @@ multi-stage reasoning pipeline** — it analyses the *whole scene*, then its *sp
 instead of stopping at the first entity:
 
 ```
-idea → analyzeScene → analyzeSpatial → analyzeIntent → planComposition → compilePrompt → prompt
-        (Stage 1)      (Stage 1.5)      (Stage 2)       (Stage 3)         (Stage 4)
+idea → resolveIdentity → analyzeScene → analyzeSpatial → analyzeIntent → planComposition → compilePrompt → prompt
+        (Stage 0)         (Stage 1)      (Stage 1.5)      (Stage 2)       (Stage 3)         (Stage 4)
 ```
 
 Each stage is a **pure function with a single responsibility** that returns structured data and
@@ -32,11 +32,23 @@ knows nothing about a provider. Only the final compiled `prompt` leaves the laye
 
 | Stage | File | Input → Output |
 | ----- | ---- | -------------- |
-| 1 · Scene Analysis | `stages/scene.ts` | idea → `Scene` (primary/secondary subjects, objects, living beings, environment, setting, location, time, weather, actions, fantasy) |
+| 0 · Identity Context | `stages/identity.ts` | idea + optional `IdentityContext` → an `effectiveIdea` (identity woven in as the subject) + `IdentityReasoning`. Passive: the context is loaded upstream by the generation layer; the Director never fetches it. |
+| 1 · Scene Analysis | `stages/scene.ts` | (effective) idea → `Scene` (primary/secondary subjects, objects, living beings, environment, setting, location, time, weather, actions, fantasy) |
 | 1.5 · Spatial Analysis | `stages/spatial.ts` | idea + `Scene` → `SceneGraph` (nodes with descriptor + frame position, and directed spatial **relationships** — "dog" —on→ "sofa", "window" —behind→ "sofa") |
 | 2 · Intent Analysis | `stages/intent.ts` | `Scene` → `IntentAnalysis` (portrait / lifestyle / interior-design / automotive / food / product / landscape / wildlife / concept-art / …) |
 | 3 · Composition Planning | `stages/composition.ts` | `Scene` + `SceneGraph` + `IntentAnalysis` (+ style/focus) → `CompositionPlan` (framing, camera distance/angle, composition, perspective, depth of field, lighting, realism, quality floor) |
 | 4 · Prompt Compilation | `stages/compile.ts` | all of the above → the final prompt, assembled **Scene → Spatial → Intent → Composition → Quality** |
+
+### Identity context (Stage 0)
+
+When the user selects an identity, the generation layer loads a passive `IdentityContext` (name,
+description, `hasHeroImage`, `trainingMediaCount`; provider artifacts reserved) and hands it to the
+Director. `resolveIdentity` weaves a subject reference — *"Emma, a young woman with red hair"* —
+into the idea so the *whole* downstream pipeline reasons about the identity as the subject (e.g.
+"drinking coffee in Paris" becomes a lifestyle portrait of Emma rather than a coffee close-up).
+**Identity is passive and provider-unaware**: it never reasons or emits prompts, no stage below
+knows what an identity is, and the provider still receives only the final compiled prompt. This is
+a *foundation* — name + description only; LoRA/embeddings/training are a later milestone.
 
 ### Spatial understanding (Stage 1.5)
 
@@ -93,9 +105,9 @@ people mention (*"no person on it"*) is not read as a person subject.
 
 Every generation returns a `debug` trace **only when `NODE_ENV !== "production"`**
 (`GenerationResult.debug`, `undefined` in production). The Generate page renders it with **each
-pipeline stage shown separately**: User prompt · Scene analysis · **Spatial analysis (scene graph)**
-· Intent analysis · Composition plan · Creative rules applied · Compiled prompt · Provider · Model
-· Generation payload. The
+pipeline stage shown separately**: User prompt · **Identity context** · Scene analysis · **Spatial
+analysis (scene graph)** · Intent analysis · Composition plan · Creative rules applied · Compiled
+prompt · Provider · Model · Generation payload. The
 payload is a **secret-free echo** the provider adapter builds (`ImageGenerationResult.requestPayload`
 — never contains the token). Nothing debug-related ships to production.
 

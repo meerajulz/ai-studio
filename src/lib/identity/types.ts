@@ -8,6 +8,19 @@ import type { MediaAsset } from "@/lib/media/types";
 
 export type IdentityStatusValue = "DRAFT" | "ACTIVE" | "ARCHIVED";
 
+/**
+ * A minimal, passive snapshot of an identity for generation-time reasoning (Milestone 14).
+ * Deliberately light — name/description + a couple of signals, no signed media. The generation
+ * layer maps this into the Creative Director's `IdentityContext`.
+ */
+export type IdentityContextInfo = {
+  id: string;
+  name: string;
+  description: string | null;
+  hasHeroImage: boolean;
+  trainingMediaCount: number;
+};
+
 export type TrainingMediaRoleValue =
   | "PRIMARY"
   | "SECONDARY"

@@ -7,6 +7,7 @@
  * touching callers. See docs/CREATIVE_DIRECTOR.md.
  */
 export { directCreative } from "./director";
+export { resolveIdentity } from "./stages/identity";
 export { analyzeScene } from "./stages/scene";
 export { analyzeSpatial } from "./stages/spatial";
 export { analyzeIntent } from "./stages/intent";
@@ -23,6 +24,8 @@ export {
   type CreativeStyle,
   type EntityKind,
   type Environment,
+  type IdentityContext,
+  type IdentityReasoning,
   type IntentAnalysis,
   type IntentType,
   type Scene,

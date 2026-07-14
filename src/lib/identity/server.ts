@@ -12,6 +12,7 @@ import { IdentityStatus, Prisma, prisma, TrainingMediaRole } from "@/lib/db";
 import { getMediaByIds } from "@/lib/media/server";
 import type {
   CreateIdentityInput,
+  IdentityContextInfo,
   IdentityDetail,
   IdentitySummary,
   ListIdentitiesOptions,
@@ -217,6 +218,35 @@ export async function getIdentity(
     createdAt: identity.createdAt,
     updatedAt: identity.updatedAt,
     trainingMedia,
+  };
+}
+
+/**
+ * A lightweight, owner-scoped identity snapshot for generation-time reasoning (Milestone 14).
+ * Unlike `getIdentity`, it does NOT sign or load media — just the fields the Creative Director's
+ * Identity Context stage needs. Returns `null` if the identity doesn't exist or isn't the user's.
+ */
+export async function getIdentityContext(
+  userId: string,
+  identityId: string,
+): Promise<IdentityContextInfo | null> {
+  const identity = await prisma.identity.findFirst({
+    where: { id: identityId, userId },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      displayImageId: true,
+      _count: { select: { trainingMedia: true } },
+    },
+  });
+  if (!identity) return null;
+  return {
+    id: identity.id,
+    name: identity.name,
+    description: identity.description,
+    hasHeroImage: identity.displayImageId !== null,
+    trainingMediaCount: identity._count.trainingMedia,
   };
 }
 

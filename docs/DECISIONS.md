@@ -1135,3 +1135,64 @@ table; cup —on→ wooden desk; Ferrari —in front of→ Eiffel Tower; dragon 
 graph is built correctly and relationships are preserved into the compiled prompt. Also tightened
 the "living room" inference to living-room-specific furniture. Deterministic + `npm run build` +
 `tsc --noEmit` pass. No migration.
+
+---
+
+# Decision 035
+
+Date
+2026-07-14
+
+Decision
+**Identity-aware Generation, foundation — Identity is a passive context, consumed by a new
+Creative Director stage (Milestone 14).** Connect the Identity system to generation for the first
+time without giving Identity any reasoning or provider knowledge:
+
+  `idea → resolveIdentity (Stage 0) → scene → spatial → intent → composition → compile → prompt`
+
+1. **Identity is passive context, loaded upstream.** The generation layer (which does I/O) loads a
+   lightweight, owner-scoped `IdentityContext` (name, description, `hasHeroImage`,
+   `trainingMediaCount`; `providerArtifacts` reserved/unused) via the identity layer's new
+   `getIdentityContext`, and hands it to the Director in the brief. The Director stays PURE — it
+   never fetches identity data.
+2. **A new first stage, `resolveIdentity` (`stages/identity.ts`).** When an identity is present it
+   weaves a subject reference ("Emma, a young woman with red hair") into the idea, producing an
+   `effectiveIdea` the rest of the pipeline reasons over — so scene/intent/composition treat the
+   identity as the subject (e.g. "drinking coffee in Paris" flips from food-photography to
+   lifestyle once Emma is the subject). No downstream stage knows what an "identity" is.
+3. **Provider contract unchanged.** The provider still receives only the final compiled prompt.
+   Identity never generates prompts, never contains provider logic, and never knows about Hugging
+   Face or any future provider (Decision 007 upheld).
+4. **User's idea preserved.** `Generation.prompt` still stores the raw user idea; only the
+   Director's internal `effectiveIdea` carries the identity weave. Recipes/regenerate/variation
+   reload the identity context so they stay identity-aware. **No schema change.**
+5. **UI: an optional Identity selector** on the Generate page (None + the project's identities). No
+   identity selected → generation behaves exactly as before (verified byte-identical prompt). Debug
+   panel gained a Stage 0 "Identity context" section.
+
+This is a **foundation** — it deliberately uses only name + description; **no LoRA, embeddings,
+training, or provider-specific logic.** The goal is to prove the architecture + UX and surface
+real-world requirements for the next Creative Director evolution.
+
+Reason
+Doing identity-aware generation as a Director stage (not a provider feature, not inside the
+Identity layer) keeps every boundary intact: Identity stays a passive data domain, the Director
+remains the sole reasoning layer, and providers remain swappable and identity-unaware. Loading the
+context upstream preserves the Director's determinism/purity. Weaving a subject reference into the
+idea is the simplest deterministic mechanism that makes the whole existing pipeline identity-aware
+with zero changes to scene/spatial/intent/composition.
+
+Alternatives
+Pass identity into every stage's signature (rejected — churns every stage and leaks the concept
+across the pipeline; the subject-reference weave needs none of it); build identity-aware prompting
+inside the Identity layer (rejected — Identity must stay passive/provider-agnostic; reasoning is
+the Director's job); inject identity strings in the provider adapter (rejected — providers must
+never know about identities, Decision 007); implement LoRA/embeddings now (deferred — this is a
+foundation to prove architecture + UX, not maximize quality).
+
+Status
+Accepted — implemented. Verified: no-identity prompt is byte-identical to baseline; with-identity
+reasoning changes (food-photography → lifestyle as the identity becomes the subject) and the
+description reaches the compiled prompt; provider/media/blob layers untouched; recipes/regenerate/
+variation reload context; owner-scoped throughout (`getIdentityContext` + `assertIdentityInProject`).
+`npm run build` + `tsc --noEmit` pass. Not live-verified against DB/Blob this session. No migration.

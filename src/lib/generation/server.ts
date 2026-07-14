@@ -8,8 +8,13 @@
  * reuse it and tag lineage in `params`. See docs/GENERATION_PIPELINE.md, GENERATION_RECIPES.md.
  */
 import { getImageProvider, isProviderError } from "@/lib/ai";
-import { directCreative, type CreativeBrief } from "@/lib/creative";
+import {
+  directCreative,
+  type CreativeBrief,
+  type IdentityContext,
+} from "@/lib/creative";
 import { GenerationStatus, MediaType, Prisma, prisma } from "@/lib/db";
+import { getIdentityContext } from "@/lib/identity/server";
 import { createGeneratedMedia, getGeneratedMediaByIds } from "@/lib/media/server";
 import type {
   GenerateImageInput,
@@ -114,6 +119,7 @@ async function runImageGeneration(
     const debug: GenerationDebug | undefined = DEBUG_ENABLED
       ? {
           idea: opts.brief.idea,
+          identity: directive.meta.identity,
           scene: directive.meta.scene,
           graph: directive.meta.graph,
           intent: directive.meta.intent,
@@ -152,11 +158,33 @@ export async function generateImage(
   if (identityId) {
     await assertIdentityInProject(userId, projectId, identityId);
   }
+  const identity = await loadIdentityContext(userId, identityId);
 
   return runImageGeneration(userId, projectId, {
-    brief: { idea, style: input.style, focus: input.focus, identityId },
+    brief: { idea, style: input.style, focus: input.focus, identityId, identity },
     identityId,
   });
+}
+
+/**
+ * Load an identity into a passive `IdentityContext` for the Creative Director (Milestone 14).
+ * Owner-scoped via the identity layer; returns `null` when no identity is attached. The provider
+ * never sees any of this — the Director reasons over it and emits only a prompt.
+ */
+async function loadIdentityContext(
+  userId: string,
+  identityId: string | null,
+): Promise<IdentityContext | null> {
+  if (!identityId) return null;
+  const info = await getIdentityContext(userId, identityId);
+  if (!info) return null;
+  return {
+    id: info.id,
+    name: info.name,
+    description: info.description,
+    hasHeroImage: info.hasHeroImage,
+    trainingMediaCount: info.trainingMediaCount,
+  };
 }
 
 /** Re-run a generation's recipe unchanged (a new generation, lineage tagged in `params`). */
@@ -166,8 +194,10 @@ export async function regenerateGeneration(
   generationId: string,
 ): Promise<GenerationResult> {
   const source = await loadOwnedGeneration(userId, projectId, generationId);
+  const brief = briefFromGeneration(source);
+  brief.identity = await loadIdentityContext(userId, source.identityId);
   return runImageGeneration(userId, projectId, {
-    brief: briefFromGeneration(source),
+    brief,
     identityId: source.identityId,
     lineage: { source: "regenerate", fromGenerationId: generationId },
   });
@@ -180,8 +210,10 @@ export async function generateVariation(
   generationId: string,
 ): Promise<GenerationResult> {
   const source = await loadOwnedGeneration(userId, projectId, generationId);
+  const brief = briefFromGeneration(source);
+  brief.identity = await loadIdentityContext(userId, source.identityId);
   return runImageGeneration(userId, projectId, {
-    brief: briefFromGeneration(source),
+    brief,
     identityId: source.identityId,
     lineage: { source: "variation", fromGenerationId: generationId },
   });

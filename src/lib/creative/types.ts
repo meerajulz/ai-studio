@@ -153,6 +153,35 @@ export type CompositionPlan = {
 };
 
 /**
+ * Identity Context — a PASSIVE snapshot of a selected identity, loaded by the generation layer
+ * (which does the I/O) and handed to the Director. Identity never reasons or touches a provider;
+ * it only provides context for the Director to reason over. `providerArtifacts` is reserved for a
+ * future milestone (LoRA/embeddings) and is unused today.
+ */
+export type IdentityContext = {
+  id: string;
+  name: string;
+  description: string | null;
+  hasHeroImage: boolean;
+  trainingMediaCount: number;
+  providerArtifacts?: Record<string, never>; // reserved — NOT used yet
+};
+
+/** Stage 0 output — how the Director wove the identity into its reasoning (for meta/debug). */
+export type IdentityReasoning = {
+  present: boolean;
+  name: string | null;
+  /** The subject reference woven into the scene, e.g. "Emma, a young woman with red hair". */
+  referencePhrase: string | null;
+  /** Signals the Director considered (transparency only — no provider artifacts used yet). */
+  signals: {
+    hasDescription: boolean;
+    hasHeroImage: boolean;
+    trainingMediaCount: number;
+  };
+};
+
+/**
  * A creative brief — the user's INTENT, never technical settings. `idea` is required; the
  * rest are optional (the Director fills sensible defaults).
  */
@@ -160,11 +189,13 @@ export type CreativeBrief = {
   idea: string;
   style?: CreativeStyle;
   focus?: CreativeFocus;
-  /**
-   * The selected identity, if any. The Director is AWARE an identity exists (architecture
-   * prep) but does NOT do identity-aware prompting yet.
-   */
+  /** Provenance only — the identity id attached to the generation record. */
   identityId?: string | null;
+  /**
+   * Optional Identity Context (Milestone 14). When present, the Director's Identity stage weaves
+   * the identity into its reasoning. Passive — loaded upstream; the Director never fetches it.
+   */
+  identity?: IdentityContext | null;
 };
 
 /** The Director's output: a professional prompt + reserved params + full reasoning trace. */
@@ -176,6 +207,7 @@ export type CreativeDirective = {
     idea: string;
     style: CreativeStyle;
     /** The full reasoning trace (also powers the dev Debug panel). */
+    identity: IdentityReasoning;
     scene: Scene;
     graph: SceneGraph;
     intent: IntentAnalysis;

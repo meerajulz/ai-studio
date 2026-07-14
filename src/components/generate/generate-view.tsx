@@ -8,6 +8,7 @@ import {
   useGenerateImage,
   useProjectGenerations,
 } from "@/hooks/use-generation";
+import { useIdentities, defaultIdentityFilters } from "@/hooks/use-identities";
 import {
   CREATIVE_STYLE_OPTIONS,
   DEFAULT_STYLE,
@@ -40,11 +41,13 @@ type GenerateViewProps = {
 export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<CreativeStyle>(DEFAULT_STYLE);
+  const [identityId, setIdentityId] = useState<string>("");
   const [viewing, setViewing] = useState<MediaAsset | null>(null);
   const [debug, setDebug] = useState<GenerationDebug | null>(null);
   const generateMut = useGenerateImage(projectId);
   const { data: history, isLoading: historyLoading } =
     useProjectGenerations(projectId);
+  const { data: identities } = useIdentities(projectId, defaultIdentityFilters);
 
   const isPending = generateMut.isPending;
   const trimmed = prompt.trim();
@@ -54,7 +57,11 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   async function handleGenerate() {
     if (!canGenerate) return;
     try {
-      const res = await generateMut.mutateAsync({ prompt: trimmed, style });
+      const res = await generateMut.mutateAsync({
+        prompt: trimmed,
+        style,
+        identityId: identityId || undefined,
+      });
       setViewing(res.media);
       setDebug(res.debug ?? null); // dev-only; undefined in production
       toast.success("Image generated");
@@ -94,6 +101,33 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
           disabled={isPending || !providerReady}
           aria-invalid={tooLong}
         />
+        {identities && identities.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-muted-foreground mr-1 text-sm">Identity</span>
+            <Button
+              type="button"
+              size="sm"
+              variant={identityId === "" ? "default" : "outline"}
+              disabled={isPending || !providerReady}
+              onClick={() => setIdentityId("")}
+            >
+              None
+            </Button>
+            {identities.map((identity) => (
+              <Button
+                key={identity.id}
+                type="button"
+                size="sm"
+                variant={identityId === identity.id ? "default" : "outline"}
+                disabled={isPending || !providerReady}
+                onClick={() => setIdentityId(identity.id)}
+              >
+                {identity.name}
+              </Button>
+            ))}
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-muted-foreground mr-1 text-sm">Style</span>
           {CREATIVE_STYLE_OPTIONS.map((option) => (
@@ -209,7 +243,7 @@ const entityList = (entities: { token: string; kind: string }[]) =>
  * scene analysis → intent analysis → composition plan → compiled prompt → provider/payload.
  */
 function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
-  const { scene, graph, intent, composition } = debug;
+  const { identity, scene, graph, intent, composition } = debug;
   const nodeLabel = (id: string) => {
     const n = graph.nodes.find((node) => node.id === id);
     return n ? (n.descriptor ? `${n.descriptor} ${n.token}` : n.token) : "?";
@@ -227,6 +261,21 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
       <div className="grid gap-3 text-sm">
         <DebugStage title="User prompt">
           <DebugRow label="Idea" value={debug.idea} />
+        </DebugStage>
+
+        <DebugStage title="0 · Identity context">
+          <DebugRow label="Identity" value={identity.present ? identity.name : "none"} />
+          {identity.present ? (
+            <>
+              <DebugRow label="Reference phrase" value={identity.referencePhrase ?? "—"} />
+              <DebugRow
+                label="Signals"
+                value={`description: ${identity.signals.hasDescription ? "yes" : "no"} · hero image: ${
+                  identity.signals.hasHeroImage ? "yes" : "no"
+                } · training media: ${identity.signals.trainingMediaCount}`}
+              />
+            </>
+          ) : null}
         </DebugStage>
 
         <DebugStage title="1 · Scene analysis">

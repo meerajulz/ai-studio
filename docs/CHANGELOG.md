@@ -7,17 +7,18 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 13.5 — Creative Director v2.5
-> (Spatial Understanding)** (Decision 034): a new **Spatial Analysis** stage builds an internal
-> `SceneGraph` (nodes with descriptor + position, directed relationships like dog —on→ sofa) —
-> `idea → scene → spatial → intent → composition → compile`. Composition now frames the whole
-> arrangement for real scenes (but isolates for product/food/portrait), and the compiler preserves
-> relationships instead of flattening. Debug panel shows the scene graph. Deterministic; no LLM, no
-> provider/schema change (graph is internal-only). Also: 13.1 Gallery↔Generate delete-sync stays in
-> place (Decision 033). **Next = Milestone 14 — Identity-aware Generation (foundation):** optional
-> Identity selector → an Identity Context stage *before* scene analysis; provider stays
-> identity-unaware. See `docs/CREATIVE_DIRECTOR_FUTURE.md`. Below: **Creative Director v2 — Scene
-> Understanding** (Milestone 13, Decision 032): `src/lib/creative/` is now a deterministic,
+> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 14 — Identity-aware Generation
+> (foundation)** (Decision 035): an optional Identity selector on Generate → a passive **Identity
+> Context** stage (Stage 0) in the Creative Director —
+> `idea → resolveIdentity → scene → spatial → intent → composition → compile → prompt`. The
+> generation layer loads a lightweight owner-scoped `IdentityContext` (name/description/hero flag/
+> training-media count) and hands it to the Director, which weaves the identity in as the subject;
+> **the provider stays 100% identity-unaware** and gets only the final prompt. No identity → prompt
+> is byte-identical to before. No LoRA/embeddings/training; no schema change. **Next = return to the
+> Creative Director and continue Spatial Analysis** (improve the Scene Graph / make it the primary
+> compilation source / better intent classification) — deliberately *not* an LLM jump; the long-term
+> order is recorded in `docs/CREATIVE_DIRECTOR_FUTURE.md` + ROADMAP. Below: **Creative Director v2.5
+> — Spatial Understanding** (Milestone 13.5, Decision 034): `src/lib/creative/` is now a deterministic,
 > provider-agnostic **reasoning pipeline** — `idea → analyzeScene → analyzeIntent →
 > planComposition → compilePrompt → prompt`. It analyses the *whole scene* (primary/secondary
 > subjects, objects, environment, setting, location, time, weather, actions, fantasy) and infers
@@ -90,6 +91,26 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **Identity-aware Generation (foundation)** (Milestone 14, Decision 035): the Identity system now
+  informs real generations for the first time — as **passive context**, never a provider feature.
+  New Creative Director **Stage 0** `resolveIdentity` (`stages/identity.ts`): when an identity is
+  selected it weaves a subject reference ("Emma, a young woman with red hair") into the idea so the
+  *whole* downstream pipeline (scene → spatial → intent → composition → compile) reasons about the
+  identity as the subject — e.g. "drinking coffee in Paris" flips from food-photography to a
+  lifestyle portrait of Emma. The generation layer loads a lightweight, owner-scoped
+  `IdentityContext` (name, description, `hasHeroImage`, `trainingMediaCount`; `providerArtifacts`
+  reserved/unused) via the identity layer's new `getIdentityContext` and passes it in the brief —
+  **the Director stays pure** (never fetches) and **the provider stays 100% identity-unaware**
+  (still receives only the final compiled prompt; Decision 007 upheld). The **Generate page** gains
+  an optional **Identity selector** (None + the project's identities); with none selected the
+  prompt is **byte-identical to before**. `Generation.prompt` keeps the raw user idea;
+  regenerate/variation reload the identity context so recipes stay identity-aware. Debug panel
+  gained a **Stage 0 · Identity context** section. **Foundation only** — name + description; no
+  LoRA/embeddings/training/provider-specific logic; **no schema change.** Verified: no-identity
+  unchanged, with-identity reasoning changes and the description reaches the prompt, provider/media/
+  recipes/owner-auth intact. `npm run build` + `tsc --noEmit` pass. See `docs/CREATIVE_DIRECTOR.md`.
+  **Next: return to the Creative Director to continue Spatial Analysis** (deferred, not abandoned —
+  see `docs/CREATIVE_DIRECTOR_FUTURE.md`).
 - **Creative Director v2.5 — Spatial Understanding** (Milestone 13.5, Decision 034): a new
   **Spatial Analysis** stage (`stages/spatial.ts`) between Scene and Intent builds a lightweight,
   **internal-only `SceneGraph`** — entities become nodes with an optional descriptor ("red" sofa,

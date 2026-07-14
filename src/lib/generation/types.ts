@@ -2,6 +2,7 @@ import type {
   CompositionPlan,
   CreativeFocus,
   CreativeStyle,
+  IdentityReasoning,
   IntentAnalysis,
   Scene,
   SceneGraph,
@@ -27,6 +28,7 @@ export type GenerateImageInput = {
  */
 export type GenerationDebug = {
   idea: string; // what the user typed
+  identity: IdentityReasoning; // Stage 0 — identity context
   scene: Scene; // Stage 1 — scene analysis
   graph: SceneGraph; // Stage 1.5 — spatial analysis (scene graph)
   intent: IntentAnalysis; // Stage 2 — intent analysis

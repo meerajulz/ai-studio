@@ -115,12 +115,19 @@ Gallery ✓ → Identity ✓ → AI Generation ✓ → Creative Director ✓ →
       stage builds an internal `SceneGraph` (nodes w/ descriptor+position, directed relationships);
       composition frames whole scenes, compiler preserves relationships (no flattening). Debug shows
       the graph. Deterministic; no LLM/provider/schema change. Decision 034 · `CREATIVE_DIRECTOR.md`.
-- [ ] **Milestone 14 — Identity-aware Generation (foundation)** ← **next** — optional Identity
-      selector on Generate → an **Identity Context** stage in the Creative Director *before* scene
-      analysis (name/description/hero/training-media metadata; provider stays identity-unaware).
-      Prove the architecture + UX; no LoRA/embeddings/training. See `CREATIVE_DIRECTOR_FUTURE.md`.
-- [ ] **Creative Director v3** — LLM-backed stage(s) behind the same pipeline, richer Creative
-      Questions (mood/lighting), prompt optimization; deeper identity-aware reasoning.
+- [x] **Milestone 14 — Identity-aware Generation (foundation)** — optional Identity selector on
+      Generate → a passive **Identity Context** stage (Stage 0) in the Creative Director that weaves
+      the identity (name + description) into the reasoning as the subject. Provider stays 100%
+      identity-unaware; no LoRA/embeddings/training. Decision 035 · `CREATIVE_DIRECTOR.md`.
+- [ ] **Creative Director — continue Spatial Analysis** ← **next** (deferred, not abandoned; we did
+      Identity first to surface real-world requirements). Improve the Scene Graph + relationship
+      extraction + spatial reasoning + layout planning; make the **Scene Graph the primary source
+      for prompt compilation** (preserving relationships) instead of leading with the flattened
+      sentence; improve intent classification (distinguish Interior Design vs Lifestyle). **Not an
+      LLM jump.** See `CREATIVE_DIRECTOR_FUTURE.md`.
+- [ ] **Long-term CD order** (documented, not scheduled): Better Scene Graph → Better Spatial →
+      Creative Goals → Prompt Builder → Templates → Multi-provider optimization → Video reasoning →
+      Multi-identity generation → Creative Critic → optional LLM reasoning (same architecture).
 - [ ] Templates — **saved briefs** (Creative Director presets); comes *after* the richer Director.
 - [ ] AI Provider expansion — more providers behind `ImageProvider` (Fal/OpenAI/Replicate/
       local); async via the `Job` queue; a parallel `VideoProvider`.
