@@ -75,8 +75,8 @@
 Near-term sequence (each revolves around the **Identity** — see [VISION.md](./VISION.md)):
 
 ```
-Gallery (done) → Identity System → Templates → Prompt Builder → AI Providers → Generation
-                 ▲ design done (9); Identity Manager implements it next
+Gallery ✓ → Identity ✓ → AI Generation ✓ → Creative Director ✓ → [richer builder] → Templates → more providers/video
+            (each revolves around the Identity; the Creative Director is the new intelligent layer)
 ```
 
 - [x] **Milestone 9A — Identity Manager** — Identity CRUD + Training Media (`IdentityMedia`
@@ -96,10 +96,16 @@ Gallery (done) → Identity System → Templates → Prompt Builder → AI Provi
       what you want, AI Studio writes the prompt" experience: `PROMPT_BUILDER.md` +
       `CREATIVE_WORKFLOW.md` (journey, UX philosophy, creative brief, compilation transform,
       components/states, wireframes, identity/recipe/gallery/generation integration). No code.
-- [ ] **Prompt Builder — implementation** ← **next** — build the "Describe intent" stage on the
-      generation layer: creative brief → provider-agnostic `buildPrompt` (`src/lib/prompt/`) →
-      existing `generateImage`; brief stored in the recipe. Reuses media/identity components.
-- [ ] Templates — **saved briefs** (Prompt Builder presets); comes *after* the Prompt Builder.
+- [x] **Milestone 12 — Creative Director MVP** — the first *intelligent* layer: a provider-agnostic
+      **`src/lib/creative/`** (`directCreative(brief) → directive`) that turns a plain idea into a
+      professional prompt (deterministic now, LLM-swappable later behind the same contract). Wired
+      at the generation chokepoint; user's idea stays in `Generation.prompt`, brief + compiled
+      prompt in `params.creative` (recipes/regenerate/variation intact). One optional **Style**
+      question in the UI; no technical settings exposed. Decision 031 · `CREATIVE_DIRECTOR.md`.
+- [ ] **Creative Director v2** ← **next** — richer brief facets + Creative Questions (focus,
+      mood, lighting), a fuller "describe intent" UI on top of the Director, and prompt
+      optimization; the groundwork for identity-aware prompting.
+- [ ] Templates — **saved briefs** (Creative Director presets); comes *after* the richer builder.
 - [ ] AI Provider expansion — more providers behind `ImageProvider` (Fal/OpenAI/Replicate/
       local); async via the `Job` queue; a parallel `VideoProvider`.
 - [ ] _Deferred:_ global `/uploads` + `/gallery` — decide whether to remove or merge into one
@@ -125,7 +131,8 @@ Gallery (done) → Identity System → Templates → Prompt Builder → AI Provi
 - [x] AI Provider Interface (`ImageProvider` + registry, `src/lib/ai/`)
 - [x] Image Provider (Hugging Face — first + only, First Light)
 - [ ] Video Provider
-- [ ] Prompt Builder
+- [x] Creative Director (idea → professional prompt, `src/lib/creative/`) — MVP; deterministic,
+      LLM-swappable. Future home for prompt optimization + provider/model/pipeline selection.
 - [ ] Generation Queue (`Job` table — for async providers)
 - [ ] More image providers (Fal / OpenAI / Replicate / local)
 

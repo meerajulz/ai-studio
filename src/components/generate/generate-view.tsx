@@ -8,6 +8,11 @@ import {
   useGenerateImage,
   useProjectGenerations,
 } from "@/hooks/use-generation";
+import {
+  CREATIVE_STYLE_OPTIONS,
+  DEFAULT_STYLE,
+  type CreativeStyle,
+} from "@/lib/creative";
 import type { MediaAsset } from "@/lib/media/types";
 import { cn } from "@/lib/utils";
 import { SectionTitle } from "@/components/shared/section-title";
@@ -26,12 +31,14 @@ type GenerateViewProps = {
 };
 
 /**
- * AI Generation v2 — the creative loop: prompt → generate → history → improve → generate
- * again. Intentionally simple (no chat, no prompt builder). Reuses existing generation data
- * for history and the media layer for results.
+ * AI Generation — the creative loop: describe an idea → generate → history → improve →
+ * generate again. The user only describes what they want (plus an optional Style); the
+ * Creative Director (`src/lib/creative`) turns that idea into a professional prompt. No
+ * technical AI settings are exposed. Reuses existing generation data + the media layer.
  */
 export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   const [prompt, setPrompt] = useState("");
+  const [style, setStyle] = useState<CreativeStyle>(DEFAULT_STYLE);
   const [viewing, setViewing] = useState<MediaAsset | null>(null);
   const generateMut = useGenerateImage(projectId);
   const { data: history, isLoading: historyLoading } =
@@ -45,7 +52,7 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   async function handleGenerate() {
     if (!canGenerate) return;
     try {
-      const res = await generateMut.mutateAsync({ prompt: trimmed });
+      const res = await generateMut.mutateAsync({ prompt: trimmed, style });
       setViewing(res.media);
       toast.success("Image generated");
     } catch (error) {
@@ -57,7 +64,7 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
     <div className="grid gap-6">
       <SectionTitle
         title="Generate"
-        description="Describe an image. When it's ready it appears here and in the Gallery."
+        description="Describe your idea — AI Studio writes the prompt. Results appear here and in the Gallery."
       />
 
       {!providerReady ? (
@@ -84,6 +91,21 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
           disabled={isPending || !providerReady}
           aria-invalid={tooLong}
         />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted-foreground mr-1 text-sm">Style</span>
+          {CREATIVE_STYLE_OPTIONS.map((option) => (
+            <Button
+              key={option.value}
+              type="button"
+              size="sm"
+              variant={style === option.value ? "default" : "outline"}
+              disabled={isPending || !providerReady}
+              onClick={() => setStyle(option.value)}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span
             className={cn(

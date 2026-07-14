@@ -7,13 +7,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (paused 2026-07-14, clean tree at `3a078fe`, build + tsc green):** Shipped through
-> **Milestone 12 — Prompt Builder DESIGN** (docs only). **Next = Prompt Builder implementation**
-> (before Templates): lock the open decisions in `PROMPT_BUILDER.md`, then build the creative-brief
-> UI + a pure provider-agnostic `buildPrompt` in `src/lib/prompt/` → the existing `generateImage`,
-> store the brief in the recipe, add "Open in Builder" (remix) from the Gallery. Templates come
-> after (= saved briefs). First run: `nvm use` (Node 24); restart `npm run dev` only after a prisma
-> migrate. Env for AI: `HF_TOKEN` / `HUGGINGFACE_API_KEY` (+ optional `HF_IMAGE_MODEL`).
+> **▶ Resume (2026-07-14, build + tsc green):** Shipped the **Creative Director MVP**
+> (Milestone 12 implementation, Decision 031) — a provider-agnostic `src/lib/creative/` layer that
+> turns a plain idea ("my dog") into a professional prompt before it reaches the provider. It is
+> deterministic now and swappable for an LLM later (same `directCreative(brief) → directive`
+> contract). **Next candidates:** richer brief facets / Creative Questions, then Templates
+> (= saved briefs), then prompt-optimization / more providers behind the same Director. First run:
+> `nvm use` (Node 24); restart `npm run dev` only after a prisma migrate (this milestone had none).
+> Env for AI: `HF_TOKEN` / `HUGGINGFACE_API_KEY` (+ optional `HF_IMAGE_MODEL`).
 
 ### Design (no code)
 - **Prompt Builder design** (Milestone 12 — design only): new **`PROMPT_BUILDER.md`** and
@@ -76,6 +77,26 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **Creative Director MVP** (Milestone 12 implementation, Decision 031): the first step toward
+  an *intelligent* AI Studio — a new provider-agnostic **`src/lib/creative/`** layer that turns a
+  plain creative **idea** into a professional prompt (VISION: *"the user thinks creatively; AI
+  Studio thinks technically"*). One public entry **`directCreative(brief) → directive`**
+  (`CreativeBrief` = `idea` + optional `style`/`focus` + optional `identityId`;
+  `CreativeDirective` = `prompt` + reserved `params` + transparency `meta`). **Deterministic**
+  rules engine (style presets · subject detection · a "professional" **quality floor**) — same
+  brief → same prompt, no I/O/AI — designed to be **swapped for an LLM later behind the same
+  contract**. It is the **only** place the app enriches a prompt. Wired at the single generation
+  chokepoint (`runImageGeneration`): the Director's compiled prompt goes to the provider, the
+  user's **idea** stays in `Generation.prompt`, and the brief + compiled prompt are stored in
+  `params.creative`, so **Recipes/Regenerate/Variation stay reproducible** (regenerate/variation
+  reconstruct the brief and re-run it). **No schema change.** UI stays simple — one optional
+  **Style** question (Realistic/Cinematic/Illustration/Fantasy); no CFG/steps/sampler/negative-
+  prompt/LoRA/model/provider is ever exposed. The brief carries `identityId` so the Director
+  *knows* an identity exists (identity-aware prompting deferred). Example: `"my dog"` now compiles
+  to *"my dog, detailed fur, expressive eyes, portrait, close-up, photorealistic, natural soft
+  lighting, highly detailed, sharp focus, professional photography, high resolution, shallow depth
+  of field."* New `docs/CREATIVE_DIRECTOR.md`. `npm run build` + `tsc --noEmit` pass; existing
+  generation/Gallery/Recipes unchanged; provider stays isolated behind `ImageProvider`.
 - **AI Generation v2 — Creative Loop** (Milestone 11, Decision 030): strengthens
   `generate → gallery → improve → generate again`, no new storage. **Generation recipes** —
   the `Generation` record *is* the recipe (prompt/provider/model/`params`/identity/timestamps);

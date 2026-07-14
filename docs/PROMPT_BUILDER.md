@@ -1,5 +1,12 @@
 # Prompt Builder
 
+> **Update (2026-07-14):** The **Creative Director MVP** shipped the *engine* half of this design —
+> the intent→prompt transform now lives as **`directCreative(brief)` in `src/lib/creative/`** (not
+> `buildPrompt` in `src/lib/prompt/`), deterministic and provider-agnostic, wired at the generation
+> chokepoint with the brief stored in `params.creative`. See [CREATIVE_DIRECTOR.md](./CREATIVE_DIRECTOR.md)
+> and Decision 031. This document remains the design target for the fuller **builder UI** (creative
+> brief facets, Review, "Open in Builder"/remix) that will sit on top of that Director.
+>
 > **Status: DESIGN ONLY (Milestone 12).** No code, schema, routes, or components. This is the
 > experience the Prompt Builder will implement. Companion: [CREATIVE_WORKFLOW.md](./CREATIVE_WORKFLOW.md).
 > Related: [VISION.md](./VISION.md), [IDENTITIES.md](./IDENTITIES.md),

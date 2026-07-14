@@ -8,6 +8,7 @@
  * reuse it and tag lineage in `params`. See docs/GENERATION_PIPELINE.md, GENERATION_RECIPES.md.
  */
 import { getImageProvider, isProviderError } from "@/lib/ai";
+import { directCreative, type CreativeBrief } from "@/lib/creative";
 import { GenerationStatus, MediaType, Prisma, prisma } from "@/lib/db";
 import { createGeneratedMedia, getGeneratedMediaByIds } from "@/lib/media/server";
 import type {
@@ -39,20 +40,36 @@ async function assertIdentityInProject(
 }
 
 /**
- * Core runner: create a `Generation`, call the provider, persist the result via the media
- * layer, and set status. Shared by generate / regenerate / variation. Assumes ownership has
- * already been checked by the caller.
+ * Core runner: run the brief through the Creative Director, create a `Generation`, call the
+ * provider with the ENRICHED prompt, persist the result via the media layer, and set status.
+ * Shared by generate / regenerate / variation. Assumes ownership has already been checked.
+ *
+ * `Generation.prompt` stores the user's IDEA (the creative source); the compiled professional
+ * prompt + brief live in `params.creative` so recipes stay reproducible and remixable. The
+ * Director is the ONLY place a prompt is enriched — this runner never touches prompt text itself.
  */
 async function runImageGeneration(
   userId: string,
   projectId: string,
   opts: {
-    prompt: string;
+    brief: CreativeBrief;
     identityId: string | null;
-    params?: Prisma.InputJsonValue;
+    /** Lineage tags (regenerate/variation) merged alongside the creative record. */
+    lineage?: Record<string, unknown>;
   },
 ): Promise<GenerationResult> {
   const provider = getImageProvider();
+  const directive = directCreative(opts.brief);
+
+  const params: Prisma.InputJsonValue = {
+    ...(opts.lineage ?? {}),
+    creative: {
+      version: directive.meta.version,
+      style: directive.meta.style,
+      focus: directive.meta.focus,
+      compiledPrompt: directive.prompt,
+    },
+  };
 
   const generation = await prisma.generation.create({
     data: {
@@ -60,24 +77,24 @@ async function runImageGeneration(
       projectId,
       identityId: opts.identityId,
       type: MediaType.IMAGE,
-      prompt: opts.prompt,
+      prompt: opts.brief.idea, // the user's idea — the creative source, not the compiled prompt
       provider: provider.id,
       model: "", // set from the provider result below
-      params: opts.params,
+      params,
       status: GenerationStatus.RUNNING,
     },
     select: { id: true },
   });
 
   try {
-    const result = await provider.generateImage({ prompt: opts.prompt });
+    const result = await provider.generateImage({ prompt: directive.prompt });
 
     const media = await createGeneratedMedia(userId, {
       projectId,
       generationId: generation.id,
       data: result.data,
       contentType: result.contentType,
-      originalFilename: buildGeneratedFilename(opts.prompt, result.contentType),
+      originalFilename: buildGeneratedFilename(opts.brief.idea, result.contentType),
     });
 
     await prisma.generation.update({
@@ -101,7 +118,7 @@ async function runImageGeneration(
   }
 }
 
-/** Generate one image from a fresh prompt (optionally attached to an identity). */
+/** Generate one image from a fresh creative idea (optionally attached to an identity). */
 export async function generateImage(
   userId: string,
   projectId: string,
@@ -109,15 +126,16 @@ export async function generateImage(
 ): Promise<GenerationResult> {
   await assertProjectOwnership(userId, projectId);
 
-  const prompt = input.prompt.trim();
-  if (!prompt) throw new Error("Prompt is required.");
-  if (input.identityId) {
-    await assertIdentityInProject(userId, projectId, input.identityId);
+  const idea = input.prompt.trim();
+  if (!idea) throw new Error("Prompt is required.");
+  const identityId = input.identityId ?? null;
+  if (identityId) {
+    await assertIdentityInProject(userId, projectId, identityId);
   }
 
   return runImageGeneration(userId, projectId, {
-    prompt,
-    identityId: input.identityId ?? null,
+    brief: { idea, style: input.style, focus: input.focus, identityId },
+    identityId,
   });
 }
 
@@ -129,13 +147,13 @@ export async function regenerateGeneration(
 ): Promise<GenerationResult> {
   const source = await loadOwnedGeneration(userId, projectId, generationId);
   return runImageGeneration(userId, projectId, {
-    prompt: source.prompt,
+    brief: briefFromGeneration(source),
     identityId: source.identityId,
-    params: { source: "regenerate", fromGenerationId: generationId },
+    lineage: { source: "regenerate", fromGenerationId: generationId },
   });
 }
 
-/** Generate a variation — for now, the same prompt (future: injected variation params). */
+/** Generate a variation — for now, the same brief (future: injected variation params). */
 export async function generateVariation(
   userId: string,
   projectId: string,
@@ -143,9 +161,9 @@ export async function generateVariation(
 ): Promise<GenerationResult> {
   const source = await loadOwnedGeneration(userId, projectId, generationId);
   return runImageGeneration(userId, projectId, {
-    prompt: source.prompt,
+    brief: briefFromGeneration(source),
     identityId: source.identityId,
-    params: { source: "variation", fromGenerationId: generationId },
+    lineage: { source: "variation", fromGenerationId: generationId },
   });
 }
 
@@ -204,10 +222,51 @@ async function loadOwnedGeneration(
 ) {
   const generation = await prisma.generation.findFirst({
     where: { id: generationId, userId, projectId },
-    select: { id: true, prompt: true, identityId: true },
+    select: { id: true, prompt: true, identityId: true, params: true },
   });
   if (!generation) throw new Error("Generation not found");
   return generation;
+}
+
+/**
+ * Rebuild the creative brief from a stored generation so regenerate/variation re-run the SAME
+ * intent through the Creative Director. `Generation.prompt` is the idea; style/focus (if the
+ * generation was created after the Creative Director shipped) live in `params.creative`. Older
+ * generations simply fall back to a bare idea + Director defaults.
+ */
+function briefFromGeneration(source: {
+  prompt: string;
+  identityId: string | null;
+  params: Prisma.JsonValue;
+}): CreativeBrief {
+  const creative = extractCreative(source.params);
+  return {
+    idea: source.prompt,
+    style: creative.style,
+    focus: creative.focus,
+    identityId: source.identityId,
+  };
+}
+
+/** Safely read `params.creative` (written by us) without trusting its runtime shape. */
+function extractCreative(params: Prisma.JsonValue): {
+  style?: CreativeBrief["style"];
+  focus?: CreativeBrief["focus"];
+} {
+  if (!params || typeof params !== "object" || Array.isArray(params)) return {};
+  const creative = (params as Record<string, unknown>).creative;
+  if (!creative || typeof creative !== "object" || Array.isArray(creative)) return {};
+  const record = creative as Record<string, unknown>;
+  return {
+    style:
+      typeof record.style === "string"
+        ? (record.style as CreativeBrief["style"])
+        : undefined,
+    focus:
+      typeof record.focus === "string"
+        ? (record.focus as CreativeBrief["focus"])
+        : undefined,
+  };
 }
 
 function extensionFor(contentType: string): string {

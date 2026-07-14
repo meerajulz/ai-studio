@@ -911,3 +911,58 @@ Status
 Accepted — implemented and **verified end-to-end** (`scripts/verify-generation.ts`: recipe on
 asset, history, real regenerate + variation with lineage, owner authorization). `npm run build`
 + `tsc --noEmit` pass. No migration.
+
+---
+
+# Decision 031
+
+Date
+2026-07-14
+
+Decision
+**Creative Director layer (`src/lib/creative/`).** Introduce a dedicated, provider-agnostic
+layer that turns a user's plain creative **idea** into a professional prompt — the first step in
+making AI Studio *intelligent* rather than a pass-through to a provider (VISION: "the user thinks
+creatively; AI Studio thinks technically").
+1. **One public entry: `directCreative(brief) → directive`.** Input is a `CreativeBrief`
+   (`idea` + optional `style`/`focus` + optional `identityId`); output is a `CreativeDirective`
+   (`prompt`, reserved `params`, and `meta` for transparency/recipe). The whole layer is **pure
+   and deterministic** for the MVP — same brief → same prompt, no I/O, no provider SDKs, no AI.
+2. **It is the ONLY place prompts are enriched.** The rest of the app passes the user's words
+   straight through; nothing else manually decorates a prompt. This keeps enrichment auditable
+   and swappable.
+3. **Deterministic rules now, LLM later — same contract.** A small rules engine (style presets +
+   subject detection + a "professional" quality floor) produces the enrichment today. Because the
+   contract is `CreativeBrief → CreativeDirective`, an LLM implementation can replace the rules
+   engine WITHOUT touching callers.
+4. **Wired at the single generation chokepoint.** `runImageGeneration` calls the Director, sends
+   the compiled prompt to the provider, and stores the user's **idea** in `Generation.prompt`
+   with the brief + compiled prompt in `params.creative`. Regenerate/variation reconstruct the
+   brief and re-run it, so recipes (Decision 030) stay reproducible/remixable. **No schema change.**
+5. **UI stays simple.** Only one optional creative question is exposed — **Style**
+   (Realistic/Cinematic/Illustration/Fantasy). No CFG/steps/sampler/negative-prompt/LoRA/model/
+   provider ever surfaces.
+6. **Identity-aware, not yet.** The brief carries `identityId` so the Director *knows* an
+   identity is present (recorded in `meta.identityAware`); identity-aware prompting is deferred.
+
+Reason
+Enrichment scattered across the UI or the provider would leak prompt-engineering into places
+that must stay simple/provider-neutral, and would be impossible to evolve into an LLM cleanly.
+A single deterministic layer with a stable contract gives an immediate quality lift (a bare
+"my dog" becomes a rich professional prompt) and becomes the future home for prompt
+optimization, provider/model/pipeline selection, and video prompting — added later behind the
+same entry point.
+
+Alternatives
+Enrich inside the provider adapter (rejected — couples enrichment to Hugging Face, violates
+Decision 007); enrich in the Generate UI (rejected — leaks prompt engineering into the client
+and can't be reused by regenerate/variation); store the compiled prompt in `Generation.prompt`
+(rejected — would double-enrich on regenerate and expose engineered text as the "recipe"); use an
+LLM now (deferred — deterministic rules are enough for the MVP and keep recipes reproducible);
+a full Prompt Builder UI with the whole creative brief (deferred — this MVP is the intelligent
+*layer*; the richer builder UI comes later on top of it).
+
+Status
+Accepted — implemented. `directCreative` verified deterministic + subject/style-aware ("my dog"
+→ rich prompt); `npm run build` + `tsc --noEmit` pass; existing generation/Gallery/Recipes
+unchanged. No migration.

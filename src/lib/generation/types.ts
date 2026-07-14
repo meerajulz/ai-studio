@@ -1,9 +1,15 @@
+import type { CreativeFocus, CreativeStyle } from "@/lib/creative";
 import type { MediaAsset } from "@/lib/media/types";
 
 export type GenerateImageInput = {
+  /** The user's creative idea in plain words — the Creative Director enriches it. */
   prompt: string;
   /** Optional — attached for provenance only; identity-aware prompting is NOT built yet. */
   identityId?: string;
+  /** Optional creative direction ("What style?"). Defaults to realistic in the Director. */
+  style?: CreativeStyle;
+  /** Optional emphasis ("What matters most?"). Defaults to auto-detect in the Director. */
+  focus?: CreativeFocus;
 };
 
 export type GenerationResult = {
