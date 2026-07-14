@@ -28,6 +28,8 @@ export interface VisionProvider {
    * (`normalizeToIdentityMetadata`) — this raw shape is never stored.
    */
   analyzeImage(request: VisionRequest): Promise<VisionObservation>;
+  /** Optional: list the model ids this provider/key can use (for setup + debugging). */
+  listModels?(): Promise<string[]>;
 }
 
 export type VisionErrorCode =

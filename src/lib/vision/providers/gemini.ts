@@ -18,9 +18,10 @@ import {
 import type { VisionObservation } from "../types";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-// gemini-2.5-flash: strong vision + native JSON output, cheap/fast for per-image analysis at scale.
-// Override with GEMINI_VISION_MODEL (e.g. "gemini-2.5-pro" for max quality).
-const DEFAULT_MODEL = "gemini-2.5-flash";
+// A ROLLING alias that always points to the current stable Flash model — avoids the version
+// treadmill (a pinned "gemini-2.5-flash" gets retired for new keys). If your key doesn't have this
+// alias, set GEMINI_VISION_MODEL to one from `listGeminiModels()` (see /debug/vision → "List models").
+const DEFAULT_MODEL = "gemini-flash-latest";
 
 /** The JSON shape we ask Gemini for — keys align with what `normalizeToIdentityMetadata` reads. */
 const EXTRACTION_PROMPT = `You are building a private identity reference library for image generation.
@@ -57,10 +58,33 @@ function mapError(status: number, message: string): VisionError {
   if (status === 401 || status === 403) {
     return new VisionError("MISSING_TOKEN", "Gemini rejected the credentials (check GEMINI_API_KEY).");
   }
+  if (status === 404) {
+    return new VisionError(
+      "UNSUPPORTED",
+      "The vision model isn't available for your key. Set GEMINI_VISION_MODEL to a supported model " +
+        '(use "List models" on /debug/vision). ' +
+        message,
+    );
+  }
   if (status === 429 || status === 503) {
     return new VisionError("PROVIDER_UNAVAILABLE", "Gemini is busy — try again in a moment.");
   }
   return new VisionError("ANALYSIS_FAILED", message || "Gemini image analysis failed.");
+}
+
+/** List the models this key can use with `generateContent` (so you can pick a valid one). */
+export async function listGeminiModels(): Promise<string[]> {
+  const key = getKey();
+  if (!key) return [];
+  const res = await fetch(`${API_BASE}?key=${key}&pageSize=1000`);
+  if (!res.ok) return [];
+  const json = (await res.json()) as {
+    models?: { name?: string; supportedGenerationMethods?: string[] }[];
+  };
+  return (json.models ?? [])
+    .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
+    .map((m) => (m.name ?? "").replace(/^models\//, ""))
+    .filter(Boolean);
 }
 
 /** Fetch an image URL → base64 + mime type (Gemini needs inline data). */
@@ -92,6 +116,7 @@ export const geminiVisionProvider: VisionProvider = {
     "sceneRecognition",
   ),
   isConfigured: isGeminiConfigured,
+  listModels: listGeminiModels,
 
   async analyzeImage(request: VisionRequest): Promise<VisionObservation> {
     const key = getKey();

@@ -64,6 +64,17 @@ function buildWarnings(metadata: IdentityMetadata): string[] {
   return w;
 }
 
+/** List the vision models the configured provider/key can use (to fix "model not available" 404s). */
+export async function listVisionModels(): Promise<{ provider: string; models: string[] }> {
+  await requireUserId();
+  if (!isVisionConfigured()) {
+    throw new Error("No vision provider is configured. Set GEMINI_API_KEY and restart the dev server.");
+  }
+  const { provider } = routeVisionProvider();
+  const models = provider.listModels ? await provider.listModels() : [];
+  return { provider: provider.id, models };
+}
+
 export async function analyzeVisionDebug(dataUrl: string): Promise<VisionDebugResult> {
   await requireUserId(); // gate — never an open Gemini proxy
   if (!dataUrl.startsWith("data:")) throw new Error("Expected an image data URL.");

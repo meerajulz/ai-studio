@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { Loader2, TriangleAlert } from "lucide-react";
 
-import { analyzeVisionDebug, type VisionDebugResult } from "@/actions/vision-debug";
+import {
+  analyzeVisionDebug,
+  listVisionModels,
+  type VisionDebugResult,
+} from "@/actions/vision-debug";
 import { renderStars } from "@/lib/vision";
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/shared/page-container";
@@ -58,6 +62,7 @@ export function VisionDebugView({ visionConfigured }: { visionConfigured: boolea
   const [result, setResult] = useState<VisionDebugResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [models, setModels] = useState<string[] | null>(null);
 
   async function onFile(file: File | undefined) {
     if (!file) return;
@@ -67,6 +72,16 @@ export function VisionDebugView({ visionConfigured }: { visionConfigured: boolea
       setDataUrl(await toDownscaledDataUrl(file));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not read the image");
+    }
+  }
+
+  async function loadModels() {
+    setError(null);
+    try {
+      const { models: m } = await listVisionModels();
+      setModels(m);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not list models");
     }
   }
 
@@ -111,9 +126,25 @@ export function VisionDebugView({ visionConfigured }: { visionConfigured: boolea
           {loading ? <Loader2 className="size-4 animate-spin" /> : null}
           {loading ? "Analyzing…" : "Analyze"}
         </Button>
+        <Button variant="outline" onClick={loadModels} disabled={!visionConfigured}>
+          List models
+        </Button>
       </div>
 
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
+
+      {models ? (
+        <div className="rounded-lg border p-4 text-sm">
+          <p className="mb-2 font-medium">
+            Models your key can use ({models.length}) — set <code>GEMINI_VISION_MODEL</code> to one:
+          </p>
+          <div className="grid gap-0.5 font-mono text-xs">
+            {models.map((m) => (
+              <div key={m}>{m}</div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {dataUrl ? (
