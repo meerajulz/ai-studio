@@ -52,7 +52,19 @@ export type GenerationDebug = {
   providerCapabilities: ProviderCapability[]; // what the chosen provider can do
   routing: RoutingDecision; // how the provider was chosen
   visualPackage: VisualPackageSummary | null; // identity reference images (Milestone 15)
+  referenceImages: ReferenceImageDebug; // what was offered/sent to the provider (Milestone 17)
+  responseMetadata: Record<string, unknown> | null; // provider response metadata (seed/timings/…)
   payload: Record<string, unknown>; // secret-free echo of the provider request
+};
+
+/** Which reference images were selected + sent to the provider, and why (Milestone 17). */
+export type ReferenceImageDebug = {
+  supportsReferenceImages: boolean;
+  offered: number; // candidates AI Studio prepared (provider-neutral)
+  offeredRoles: string[];
+  sent: number; // what the provider/model actually used
+  sentRoles: string[];
+  selectionReason: string;
 };
 
 export type GenerationResult = {

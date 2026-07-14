@@ -1313,3 +1313,66 @@ coffee in Paris → food; product → product; fantasy castle → concept-art) p
 → automotive, retriever on beach → wildlife, dragon → concept-art) — anchors, intents, and
 relationships are consistent, and identity reasoning (M14) is preserved. Deterministic + `npm run
 build` + `tsc --noEmit` pass. No provider change, no schema change.
+
+---
+
+# Decision 038
+
+Date
+2026-07-14
+
+Decision
+**Identity Preservation Foundation — FLUX.1 Kontext via Fal (Milestone 17).** Make the Identity
+Visual Package (M15) actually reach the model, so AI Studio generates the *real person*, not a
+generic one described by text.
+
+1. **Model — FLUX.1 Kontext** (research in `docs/PROVIDER_RESEARCH.md`). Chosen over the face-ID
+   models (PuLID / InstantID / IP-Adapter / PhotoMaker) because it is the only candidate that is
+   identity-preserving **and** an editing / in-context model **and** multi-reference capable —
+   which matches AI Studio's long-term vision (AI photo editing, scene replacement, outfit changes,
+   travel photos). Face-ID models only inject a face into a fresh generation and are a roadmap dead
+   end.
+2. **Fal adapter picks the model (all Fal specifics stay inside the adapter).** No reference images
+   → fast text-to-image (`FAL_IMAGE_MODEL`, default `fal-ai/flux/schnell`). With reference images →
+   Kontext: `FAL_IDENTITY_MODEL` (`fal-ai/flux-pro/kontext`) for one reference, `FAL_IDENTITY_MULTI_MODEL`
+   (`fal-ai/flux-pro/kontext/max/multi`) for several. The router/Creative Director/identity layer
+   never learn any of this — they speak **capabilities** and provider-neutral reference images
+   (Decision 007 upheld).
+3. **The provider finally consumes the Identity Visual Package.** The generation layer flattens it
+   into provider-neutral reference images **best-first** (hero → portrait → full body → curated
+   references); the adapter uses the best one (single-ref model) or the set (multi-ref model,
+   capped at 4). Selection order is decided **provider-neutrally**; the adapter only maps it to
+   Kontext's `image_url` / `image_urls`.
+4. **Capability routing (expanded).** When reference images exist, the router requires
+   `identityPreservation` **+** `referenceImages`; Fal wins. With no references (or Fal not
+   configured) it falls back to normal text-to-image — so **no-identity generation is unchanged**.
+5. **Debug (expanded, dev-only):** selected provider/model, capabilities, supports-reference-images,
+   #references offered vs sent (+ roles), why they were selected, and provider response metadata
+   (seed / timings / safety).
+
+This is a **foundation**: no LoRA / DreamBooth / embeddings / fine-tuning / video / multi-identity.
+Kontext needs none — it preserves identity directly from reference images.
+
+Reason
+The architecture (capability system + router + Identity Visual Package, M15) was already correct;
+the only missing piece was a model that accepts reference images. Kontext plugs into the existing
+`ImageProvider` contract with zero changes to the Creative Director, Identity, Gallery, or router
+*interfaces* — proving the provider-agnostic design. Choosing an editing model (not face-ID)
+aligns the foundation with the editing/Photoshop roadmap.
+
+Alternatives
+Face-ID models (rejected — face-only, single-reference, generation-not-editing; roadmap dead end);
+put model selection in the router (rejected — model choice is provider-specific and must stay in
+the adapter; the router routes on capabilities); pass reference images through the Creative Director
+(rejected — the Director is text-only/provider-agnostic; visual references are a provider input);
+implement a Job queue for Kontext latency now (deferred — the sync `fal.run` endpoint is used for
+the MVP; queue via the `asyncJobs` capability + `Job` table is future work).
+
+Status
+Accepted — implemented. Verified deterministically: routing requires identityPreservation +
+referenceImages when references exist (→ Fal) and falls back gracefully; the Fal adapter selects
+Kontext single/multi by reference count and echoes secret-free selection metadata; no-identity path
+is unchanged (t2i schnell). `npm run build` + `tsc --noEmit` pass. **NOT live-verified this session**
+(needs `FAL_KEY` + network + a real identity with training media) — the six manual tests
+(Julieta: coffee in Paris / Tokyo night / business suit / luxury apartment / cyberpunk; + no-identity)
+are for the user to run. No schema change.

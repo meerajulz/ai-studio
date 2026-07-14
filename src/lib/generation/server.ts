@@ -80,14 +80,21 @@ async function runImageGeneration(
 ): Promise<GenerationResult> {
   const directive = directCreative(opts.brief);
 
-  // Route by capability, never by name. When an identity is attached we prefer a provider that can
-  // preserve identity (falls back to the first configured provider otherwise).
-  const needs: ProviderCapability[] = opts.brief.identity ? ["identityPreservation"] : [];
-  const { provider, decision } = routeImageProvider({ needs });
-
-  // Reference images from the Identity Visual Package (provider-neutral). Capable adapters use
-  // them; others ignore them. The Creative Director never sees these — it reasons in text only.
+  // Reference images from the Identity Visual Package (provider-neutral, best-first). Capable
+  // adapters use them; others ignore them. The Creative Director never sees these — text only.
   const referenceImages = toReferenceImages(opts.visualPackage);
+  const referenceSelectionReason = referenceImages.length
+    ? `curated from the identity visual package, best-first: ${referenceImages
+        .map((r) => r.role)
+        .join(", ")}`
+    : "no reference images available";
+
+  // Route by capability, never by name. When we actually have reference images we require a
+  // provider that can preserve identity (falls back to the first configured provider otherwise).
+  const needs: ProviderCapability[] = referenceImages.length
+    ? ["identityPreservation", "referenceImages"]
+    : [];
+  const { provider, decision } = routeImageProvider({ needs });
 
   const params: Prisma.InputJsonValue = {
     ...(opts.lineage ?? {}),
@@ -154,6 +161,15 @@ async function runImageGeneration(
           providerCapabilities: [...provider.capabilities],
           routing: decision,
           visualPackage: summarizeVisualPackage(opts.visualPackage, referenceImages.length),
+          referenceImages: {
+            supportsReferenceImages: readBool(result.requestPayload, "supportsReferenceImages"),
+            offered: referenceImages.length,
+            offeredRoles: referenceImages.map((r) => r.role),
+            sent: readNumber(result.requestPayload, "usedReferenceImages"),
+            sentRoles: readStringArray(result.requestPayload, "referenceRoles"),
+            selectionReason: referenceSelectionReason,
+          },
+          responseMetadata: result.metadata ?? null,
           payload: result.requestPayload ?? { prompt: directive.prompt },
         }
       : undefined;
@@ -188,6 +204,19 @@ function toReferenceImages(pkg?: IdentityVisualPackage | null): ReferenceImage[]
     seen.add(r.url);
     return true;
   });
+}
+
+/** Safe readers for the provider's secret-free requestPayload echo. */
+function readBool(obj: Record<string, unknown> | undefined, key: string): boolean {
+  return Boolean(obj?.[key]);
+}
+function readNumber(obj: Record<string, unknown> | undefined, key: string): number {
+  const v = obj?.[key];
+  return typeof v === "number" ? v : 0;
+}
+function readStringArray(obj: Record<string, unknown> | undefined, key: string): string[] {
+  const v = obj?.[key];
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
 
 /** Debug-safe summary of the Visual Package (booleans + counts, never signed URLs). */

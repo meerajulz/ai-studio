@@ -1,11 +1,16 @@
 /**
- * Fal.ai image provider (Milestone 15) — the first premium provider.
+ * Fal.ai image provider (Milestone 15 · identity via Kontext in Milestone 17).
  *
  * The single file allowed to know about Fal. It maps a provider-neutral request → Fal's HTTP API
- * → image bytes, and maps failures → `ProviderError`. Auth via `FAL_KEY`. Uses `fetch` (no SDK
- * dependency). Reference images (from an Identity Visual Package) are used ONLY when the chosen
- * model supports them; otherwise they are gracefully ignored — the Creative Director never cares.
- * See docs/PROVIDER_INTERFACE.md.
+ * → image bytes, and maps failures → `ProviderError`. Auth via `FAL_KEY`. Uses `fetch` (no SDK).
+ *
+ * Model selection is a FAL-INTERNAL decision (all Fal specifics live here):
+ *  - no reference images → a fast text-to-image model (`FAL_IMAGE_MODEL`, default flux/schnell).
+ *  - with reference images → FLUX.1 **Kontext** for identity preservation (`FAL_IDENTITY_MODEL`
+ *    for one reference, `FAL_IDENTITY_MULTI_MODEL` for several). See docs/PROVIDER_RESEARCH.md.
+ *
+ * The Creative Director / router / identity layer never know any of this — they speak capabilities
+ * and provider-neutral reference images.
  */
 import { capabilities } from "../capabilities";
 import {
@@ -17,17 +22,10 @@ import {
 } from "../ImageProvider";
 
 const FAL_ENDPOINT = "https://fal.run";
-const DEFAULT_MODEL = "fal-ai/flux/schnell";
-
-/**
- * Models that accept a reference image, and the request field they expect. The default t2i model
- * is not here, so reference images are ignored for it (graceful). Adding identity-preserving
- * models later = one entry here; no change anywhere else.
- */
-const REFERENCE_IMAGE_FIELD: Record<string, string> = {
-  "fal-ai/flux-pulid": "reference_image_url",
-  "fal-ai/ip-adapter-face-id": "face_image_url",
-};
+const DEFAULT_T2I_MODEL = "fal-ai/flux/schnell";
+const DEFAULT_IDENTITY_MODEL = "fal-ai/flux-pro/kontext"; // single reference
+const DEFAULT_IDENTITY_MULTI_MODEL = "fal-ai/flux-pro/kontext/max/multi"; // multiple references
+const MAX_REFERENCES = 4;
 
 function getKey(): string | undefined {
   const value = process.env.FAL_KEY;
@@ -36,6 +34,14 @@ function getKey(): string | undefined {
 
 export function isFalConfigured(): boolean {
   return Boolean(getKey());
+}
+
+function models() {
+  return {
+    t2i: process.env.FAL_IMAGE_MODEL?.trim() || DEFAULT_T2I_MODEL,
+    identity: process.env.FAL_IDENTITY_MODEL?.trim() || DEFAULT_IDENTITY_MODEL,
+    identityMulti: process.env.FAL_IDENTITY_MULTI_MODEL?.trim() || DEFAULT_IDENTITY_MULTI_MODEL,
+  };
 }
 
 function mapError(status: number, message: string): ProviderError {
@@ -50,13 +56,52 @@ function mapError(status: number, message: string): ProviderError {
 }
 
 type FalImage = { url: string; content_type?: string };
-type FalResponse = { images?: FalImage[] };
+type FalResponse = {
+  images?: FalImage[];
+  seed?: number;
+  timings?: Record<string, unknown>;
+  has_nsfw_concepts?: boolean[];
+};
+
+/** Decide the Fal model + request body from the provider-neutral request. */
+function planRequest(request: ImageGenerationRequest): {
+  model: string;
+  body: Record<string, unknown>;
+  usedRefs: ReferenceImage[];
+  supportsReferenceImages: boolean;
+} {
+  const m = models();
+  const refs = (request.referenceImages ?? []).slice(0, MAX_REFERENCES);
+
+  if (refs.length === 0) {
+    return {
+      model: m.t2i,
+      body: { prompt: request.prompt, image_size: "square_hd", num_images: 1 },
+      usedRefs: [],
+      supportsReferenceImages: false,
+    };
+  }
+
+  if (refs.length === 1) {
+    return {
+      model: m.identity,
+      body: { prompt: request.prompt, image_url: refs[0].url, num_images: 1 },
+      usedRefs: refs,
+      supportsReferenceImages: true,
+    };
+  }
+
+  return {
+    model: m.identityMulti,
+    body: { prompt: request.prompt, image_urls: refs.map((r) => r.url), num_images: 1 },
+    usedRefs: refs,
+    supportsReferenceImages: true,
+  };
+}
 
 export const falProvider: ImageProvider = {
   id: "fal",
-  defaultModel: DEFAULT_MODEL,
-  // Fal (as a platform) supports the full premium feature set across its models. Whether a given
-  // GENERATION uses references depends on the selected model (see REFERENCE_IMAGE_FIELD).
+  defaultModel: DEFAULT_T2I_MODEL,
   capabilities: capabilities(
     "imageGeneration",
     "imageEditing",
@@ -79,30 +124,14 @@ export const falProvider: ImageProvider = {
     if (!key) {
       throw new ProviderError("MISSING_TOKEN", "Fal is not configured (set FAL_KEY).");
     }
-    const model = process.env.FAL_IMAGE_MODEL?.trim() || DEFAULT_MODEL;
 
-    const body: Record<string, unknown> = {
-      prompt: request.prompt,
-      image_size: "square_hd",
-      num_images: 1,
-    };
-
-    // Use the Identity Visual Package's reference images ONLY if this model supports them.
-    const refField = REFERENCE_IMAGE_FIELD[model];
-    const usableRefs: ReferenceImage[] =
-      refField && request.referenceImages?.length ? request.referenceImages : [];
-    if (refField && usableRefs.length > 0) {
-      body[refField] = usableRefs[0].url;
-    }
+    const { model, body, usedRefs, supportsReferenceImages } = planRequest(request);
 
     let response: Response;
     try {
       response = await fetch(`${FAL_ENDPOINT}/${model}`, {
         method: "POST",
-        headers: {
-          Authorization: `Key ${key}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Key ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
     } catch {
@@ -139,8 +168,14 @@ export const falProvider: ImageProvider = {
         provider: "fal",
         model,
         prompt: request.prompt,
-        supportsReferenceImages: Boolean(refField),
-        usedReferenceImages: usableRefs.length,
+        supportsReferenceImages,
+        usedReferenceImages: usedRefs.length,
+        referenceRoles: usedRefs.map((r) => r.role),
+      },
+      metadata: {
+        seed: json.seed ?? null,
+        timings: json.timings ?? null,
+        hasNsfwConcepts: json.has_nsfw_concepts ?? null,
       },
     };
   },

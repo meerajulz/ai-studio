@@ -35,6 +35,8 @@ export type ImageGenerationResult = {
    * panel only. MUST NEVER contain tokens/credentials. Optional.
    */
   requestPayload?: Record<string, unknown>;
+  /** Provider response metadata (seed, timings, safety flags, …) for the dev Debug panel. */
+  metadata?: Record<string, unknown>;
 };
 
 export interface ImageProvider {

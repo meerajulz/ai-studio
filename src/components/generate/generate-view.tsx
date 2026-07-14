@@ -407,6 +407,31 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
             }
           />
           <DebugRow
+            label="Supports reference images"
+            value={debug.referenceImages.supportsReferenceImages ? "yes" : "no"}
+          />
+          <DebugRow
+            label="Reference images sent"
+            value={`${debug.referenceImages.sent} of ${debug.referenceImages.offered} offered${
+              debug.referenceImages.sentRoles.length
+                ? ` (${debug.referenceImages.sentRoles.join(", ")})`
+                : ""
+            }`}
+          />
+          <DebugRow label="Why these images" value={debug.referenceImages.selectionReason} />
+          <DebugRow
+            label="Provider response metadata"
+            value={
+              debug.responseMetadata ? (
+                <pre className="bg-muted overflow-x-auto rounded p-2 whitespace-pre-wrap">
+                  {JSON.stringify(debug.responseMetadata, null, 2)}
+                </pre>
+              ) : (
+                "—"
+              )
+            }
+          />
+          <DebugRow
             label="Generation payload"
             value={
               <pre className="bg-muted overflow-x-auto rounded p-2 whitespace-pre-wrap">

@@ -16,8 +16,11 @@
 - **Router (`ai/router.ts`).** `routeImageProvider({ needs })` picks a provider by capability +
   configuration, **premium-first**, returning a `RoutingDecision` (chosen/model/reason/considered).
   `IMAGE_PROVIDER=fal|huggingface` forces one (e.g. to verify HF). Ready for richer auto-routing.
-- **Fal (`providers/fal.ts`).** First premium provider — `fetch`-based (no SDK), `FAL_KEY`, default
-  `fal-ai/flux/schnell` (`FAL_IMAGE_MODEL`). All Fal specifics isolated here.
+- **Fal (`providers/fal.ts`).** First premium provider — `fetch`-based (no SDK), `FAL_KEY`. The
+  adapter picks the model itself: no reference images → text-to-image (`FAL_IMAGE_MODEL`, default
+  `fal-ai/flux/schnell`); with reference images → **FLUX.1 Kontext** for identity preservation
+  (`FAL_IDENTITY_MODEL` single, `FAL_IDENTITY_MULTI_MODEL` multi — Milestone 17, see
+  `PROVIDER_RESEARCH.md`). All Fal specifics isolated here.
 - **Reference images / Identity Visual Package.** `ImageGenerationRequest.referenceImages` is a
   provider-neutral list built from an identity's **Visual Package**
   (`identity/getIdentityVisualPackage` — signed hero/portrait/full-body/reference URLs). It flows

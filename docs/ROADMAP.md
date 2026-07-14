@@ -134,9 +134,14 @@ Gallery ✓ → Identity ✓ → AI Generation ✓ → Creative Director ✓ →
 - [ ] **Creative Director — next** (per `CREATIVE_DIRECTOR_FUTURE.md`): confidence-driven ambiguity
       (one clarification question when low), Creative Goals, prompt-specificity scoring; still
       deterministic, LLM optional later behind the same stages.
-- [ ] _Future (enabled by M15):_ true **identity preservation** via reference-capable Fal models
-      (IP-Adapter / PuLID) using the Identity Visual Package; async **Job** queue for slow providers;
-      capability-driven auto-routing; more providers (OpenAI / Replicate / local); video provider.
+- [x] **Milestone 17 — Identity Preservation Foundation (Fal Kontext MVP)** — the Identity Visual
+      Package now reaches the model. `docs/PROVIDER_RESEARCH.md` → **FLUX.1 Kontext**; the Fal adapter
+      switches to Kontext (single/multi) when reference images are present, else text-to-image; router
+      requires identityPreservation+referenceImages when refs exist. No LoRA/embeddings/training; no
+      schema change. Decision 038 · `docs/PROVIDER_RESEARCH.md`.
+- [ ] _Future (enabled by M17):_ async **Job** queue for Kontext latency (behind `asyncJobs` +
+      the `Job` table); AI photo editing / scene replacement / outfit changes on existing media;
+      identity-consistent **video**; multi-identity; capability-driven auto-routing; more providers.
 - [ ] **Long-term CD order** (documented, not scheduled): Better Scene Graph → Better Spatial →
       Creative Goals → Prompt Builder → Templates → Multi-provider optimization → Video reasoning →
       Multi-identity generation → Creative Critic → optional LLM reasoning (same architecture).

@@ -7,8 +7,18 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 16 — Creative Director v4 (Scene
-> Graph & Spatial Reasoning)** (Decision 037): a true scene graph with an **anchor** (central object),
+> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 17 — Identity Preservation
+> Foundation (Fal Kontext MVP)** (Decision 038): the Identity Visual Package now **reaches the model**.
+> Researched Fal identity models (`docs/PROVIDER_RESEARCH.md`) → chose **FLUX.1 Kontext** (editing +
+> multi-reference). The **Fal adapter** now picks the model itself: no references → `flux/schnell`
+> (t2i, unchanged); with references → Kontext (`fal-ai/flux-pro/kontext` single, `.../kontext/max/multi`
+> multiple). Generation flattens the visual package **best-first** (hero→portrait→full body→refs);
+> router requires `identityPreservation`+`referenceImages` when refs exist (→ Fal), else normal t2i.
+> Debug shows selected refs / why / provider response metadata. **No-identity generation is unchanged;
+> no LoRA/embeddings/training; no schema change.** **NOT live-verified this session** — the 6 manual
+> Julieta tests are for the user (needs `FAL_KEY` + an identity with training media). Env:
+> `FAL_IDENTITY_MODEL`, `FAL_IDENTITY_MULTI_MODEL`. Below: **Milestone 16 — Creative Director v4
+> (Scene Graph & Spatial Reasoning)** (Decision 037): a true scene graph with an **anchor** (central object),
 > node **roles**, **confidence-scored** relationships (explicit → high/exact; co-mentioned → low/
 > neutral, no fabricated directions), **intent v2** (architectural vs interior vs lifestyle; fantasy
 > adjectives), and a **structured compiler** (`CompiledStructure` → rendered plain text, not
@@ -100,6 +110,26 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **Identity Preservation Foundation — Fal Kontext MVP** (Milestone 17, Decision 038): the Identity
+  Visual Package (M15) now actually reaches the model, so AI Studio can generate the **real person**,
+  not a generic one described by text. New **`docs/PROVIDER_RESEARCH.md`** evaluates Fal identity
+  models (Flux Kontext, PuLID, IP-Adapter FaceID, PhotoMaker, InstantID) across identity/editing/
+  reference/multi-reference/quality/API/pricing/latency and recommends **FLUX.1 Kontext** (the only
+  identity-preserving *editing* + multi-reference model — the right base for the AI-Photoshop/scene-
+  replacement roadmap). The **Fal adapter** now chooses the model internally: no reference images →
+  `fal-ai/flux/schnell` (text-to-image, unchanged); with reference images → **Kontext**
+  (`fal-ai/flux-pro/kontext` for one, `fal-ai/flux-pro/kontext/max/multi` for several), consuming the
+  package's `image_url`/`image_urls`. **All Fal specifics stay in the adapter.** The generation layer
+  flattens the visual package into provider-neutral reference images **best-first** (hero → portrait →
+  full body → curated refs, capped at 4) with a selection reason; the **router** now requires
+  `identityPreservation` **+** `referenceImages` when references exist (routes to Fal), and falls back
+  to normal text-to-image otherwise — so **no-identity generation behaves exactly as before**. The
+  provider result gained optional `metadata` (seed/timings/safety). **Debug** (dev-only) extended:
+  selected provider/model, capabilities, supports-reference-images, references offered vs sent (+
+  roles), why they were selected, and provider response metadata. **Foundation only** — no LoRA/
+  DreamBooth/embeddings/fine-tuning/video/multi-identity; **no schema change**. `npm run build` +
+  `tsc --noEmit` pass; routing verified deterministically. **NOT live-verified this session** — the 6
+  manual tests (Julieta) are for the user. New env: `FAL_IDENTITY_MODEL`, `FAL_IDENTITY_MULTI_MODEL`.
 - **Creative Director v4 — Scene Graph & Spatial Reasoning** (Milestone 16, Decision 037): a true
   scene graph now drives compilation. Nodes carry a **`role`** (primary/secondary/object); the graph
   has an **`anchor`** — the central object others are positioned around (subject when present, else
