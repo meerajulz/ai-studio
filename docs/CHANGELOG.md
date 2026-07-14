@@ -7,8 +7,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Creative Director v2 — Scene
-> Understanding** (Milestone 13, Decision 032): `src/lib/creative/` is now a deterministic,
+> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 13.1 — Generation History
+> Synchronization** (Decision 033): deleting a generated image from the Gallery now deletes its
+> owning `Generation` (Blob(s) removed, then the `Generation` — `GeneratedMedia` cascades), and
+> `useDeleteMedia` invalidates the generation history query too, so the Generate page always
+> reflects reality (no empty result-less cards). No schema change; not yet live-verified vs DB/Blob.
+> **Next = Milestone 14 — Identity-aware Generation (foundation):** optional Identity selector on
+> Generate → an Identity Context stage in the Creative Director *before* scene analysis; provider
+> stays identity-unaware. See `docs/CREATIVE_DIRECTOR_FUTURE.md` for later phases. Below: **Creative
+> Director v2 — Scene Understanding** (Milestone 13, Decision 032): `src/lib/creative/` is now a deterministic,
 > provider-agnostic **reasoning pipeline** — `idea → analyzeScene → analyzeIntent →
 > planComposition → compilePrompt → prompt`. It analyses the *whole scene* (primary/secondary
 > subjects, objects, environment, setting, location, time, weather, actions, fantasy) and infers
@@ -317,6 +324,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   runtime connects via a driver adapter.
 
 ### Fixed
+- **Generation history synchronization** (Milestone 13.1, Decision 033): the Generate page and the
+  Gallery now stay in sync. Deleting a generated image previously left its `Generation` orphaned,
+  so the Generate page showed an empty, result-less history card. Fix: a generated image and its
+  `Generation` (the recipe) **share one lifecycle** — `deleteMedia` now removes the Blob(s) and
+  deletes the owning `Generation` (its `GeneratedMedia` child cascades via `onDelete: Cascade`),
+  and `useDeleteMedia` invalidates the **generation history** query as well as the media query, so
+  the Generate page updates the instant a Gallery delete succeeds. Chosen over soft-delete (no
+  restore/trash UI — YAGNI) and over keeping orphan recipes (invisible, unbounded); rationale in
+  Decision 033 / `GENERATION_RECIPES.md`. Uploaded media unchanged. **No schema change.** `npm run
+  build` + `tsc --noEmit` pass; not yet live-verified against DB/Blob.
 - **Creative Director intent-classification bug** (Milestone 12 follow-up): generic object and
   interior ideas were rendered as people/animals — `sofa → cat`, `chair/table/kitchen/bathroom →
   woman`, and `"modern living room … no person on it" → portrait of a man`. **Root cause was ours**

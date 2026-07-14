@@ -379,13 +379,26 @@ export async function deleteMedia(userId: string, id: string): Promise<{ id: str
     await prisma.uploadedMedia.delete({ where: { id: uploaded.id } });
     return { id: uploaded.id };
   }
+  // A generated asset shares its lifecycle with its owning `Generation` (the recipe). In this
+  // synchronous single-result MVP the two are effectively 1:1 and the image is a generation's only
+  // surface, so deleting it from the Gallery deletes the `Generation` too — the Generate page never
+  // shows an empty "result-less" card, and no orphan recipe lingers (Decision 033). We remove the
+  // Blob(s) first (a DB cascade can't reach Blob storage), then delete the `Generation`; its
+  // `GeneratedMedia` children go via `onDelete: Cascade`.
   const generated = await prisma.generatedMedia.findFirst({
     where: { id, userId },
-    select: { id: true, blobUrl: true },
+    select: { id: true, generationId: true },
   });
   if (generated) {
-    await deleteAsset(generated.blobUrl);
-    await prisma.generatedMedia.delete({ where: { id: generated.id } });
+    const results = await prisma.generatedMedia.findMany({
+      where: { generationId: generated.generationId },
+      select: { blobUrl: true },
+    });
+    // Best-effort per result: a missing Blob must not block the DB cleanup.
+    await Promise.all(results.map((r) => deleteAsset(r.blobUrl).catch(() => {})));
+    await prisma.generation.deleteMany({
+      where: { id: generated.generationId, userId },
+    });
     return { id: generated.id };
   }
   throw new Error("Media not found");

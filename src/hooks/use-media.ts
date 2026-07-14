@@ -72,7 +72,12 @@ export function useDeleteMedia(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteMediaAction(id),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: mediaKeys.all(projectId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: mediaKeys.all(projectId) });
+      // Deleting a generated asset also deletes its `Generation` (Decision 033), so the Generate
+      // page's history must refresh too. Key mirrors `generationKeys.all` in use-generation.ts —
+      // kept literal to avoid a circular import between the two hook modules.
+      qc.invalidateQueries({ queryKey: ["generations", projectId] });
+    },
   });
 }

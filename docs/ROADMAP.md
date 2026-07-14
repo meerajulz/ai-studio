@@ -107,9 +107,16 @@ Gallery ✓ → Identity ✓ → AI Generation ✓ → Creative Director ✓ →
       analyses the whole scene and infers intent instead of letting the first keyword win. Same
       `directCreative` contract; each stage is an LLM-swappable seam. Debug panel shows every stage.
       No LLM, no new providers, HF unchanged. Decision 032 · `CREATIVE_DIRECTOR.md`.
-- [ ] **Creative Director v3** ← **next** — LLM-backed stage(s) behind the same pipeline, richer
-      Creative Questions (mood/lighting), and prompt optimization; groundwork for identity-aware
-      prompting.
+- [x] **Milestone 13.1 — Generation History Synchronization** — Gallery ↔ Generate stay in sync:
+      deleting a generated image deletes its owning `Generation` (Blob + cascade) and refreshes the
+      generation-history query, so the Generate page never shows empty result-less cards. Decision
+      033 · `GENERATION_RECIPES.md`.
+- [ ] **Milestone 14 — Identity-aware Generation (foundation)** ← **next** — optional Identity
+      selector on Generate → an **Identity Context** stage in the Creative Director *before* scene
+      analysis (name/description/hero/training-media metadata; provider stays identity-unaware).
+      Prove the architecture + UX; no LoRA/embeddings/training. See `CREATIVE_DIRECTOR_FUTURE.md`.
+- [ ] **Creative Director v3** — LLM-backed stage(s) behind the same pipeline, richer Creative
+      Questions (mood/lighting), prompt optimization; deeper identity-aware reasoning.
 - [ ] Templates — **saved briefs** (Creative Director presets); comes *after* the richer Director.
 - [ ] AI Provider expansion — more providers behind `ImageProvider` (Fal/OpenAI/Replicate/
       local); async via the `Job` queue; a parallel `VideoProvider`.

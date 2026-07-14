@@ -1030,3 +1030,54 @@ room [+sofa/windows] → interior; red sofa with dog+cat → lifestyle; woman…
 Ferrari…Tokyo → automotive; pizza → food; golden retriever…beach → wildlife; dragon…castle →
 concept-art) — scene understanding is richer and no longer dominated by the first entity.
 Deterministic + build + `tsc --noEmit` pass. No migration.
+
+---
+
+# Decision 033
+
+Date
+2026-07-14
+
+Decision
+**A generated image and its `Generation` (recipe) share one lifecycle — deleting the image
+deletes the `Generation` too (Milestone 13.1).** When a *generated* `MediaAsset` is deleted from
+the Gallery, `deleteMedia` removes the Blob object(s) and then deletes the owning `Generation`;
+its `GeneratedMedia` child row(s) go via the existing `onDelete: Cascade`. The Generate page's
+history query is invalidated alongside the media query so both surfaces update immediately.
+Uploaded media is unchanged. **No schema change** (the cascade already exists).
+
+Reason
+The bug: deleting a generated image left its `Generation` orphaned, and the Generate page
+(`listRecentGenerations`) then rendered it as an empty, result-less card — the page no longer
+reflected reality. Three options were weighed *on architecture, not convenience*:
+1. **Delete the `Generation` with the media (chosen).** In this synchronous, single-result MVP a
+   `Generation` and its one result are effectively 1:1, and the image is the recipe's *only*
+   surface — there is no recipe library or Templates yet. So a result-less recipe is invisible
+   clutter, and deleting the image is an unambiguous "remove this." This keeps history == reality
+   with zero orphans and matches user intent. It is also forward-compatible: when Templates land,
+   "save as template" will *copy* the recipe deliberately, so nothing a user chose to keep is lost
+   by deleting an image.
+2. **Soft-delete the `Generation`** (rejected) — a `deletedAt` column plus filtering everywhere,
+   for a recipe with no restore/trash UI and no audit need. Pure overhead (YAGNI).
+3. **Keep the `Generation`, mark/skip it as result-less** (rejected) — preserves unbounded,
+   invisible orphan recipes the user can neither see nor act on, and muddies the meaning of
+   "delete". If we ever want a recipe without its image, that should be an explicit "keep recipe"
+   action, not a side effect of deleting an image.
+
+The synchronization also has a **client half**: `useDeleteMedia` now invalidates the generations
+query as well as the media query, so the Generate page refreshes the instant a Gallery delete
+succeeds. And a **Blob half**: the DB cascade cannot reach Blob storage, so the delete path
+explicitly removes each result's Blob first (best-effort per file).
+
+Alternatives
+See options 2–3 above (rejected). Also considered: leaving the DB as-is and only filtering
+result-less generations out of history (rejected — hides orphans instead of removing them, and
+they accumulate). Revisit when a recipe/Templates library exists — at that point deletion may
+preserve a recipe the user explicitly saved (via copy-to-Template), which is compatible with this
+decision.
+
+Status
+Accepted — implemented (`deleteMedia` deletes the owning `Generation` + Blobs; `useDeleteMedia`
+invalidates media **and** generation queries). `npm run build` + `tsc --noEmit` pass. **Not
+live-verified against the DB/Blob this session** (needs `DATABASE_URL` + Blob token) — verify a
+real Gallery delete reflects on the Generate page during review. No migration.

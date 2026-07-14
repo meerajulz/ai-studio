@@ -56,3 +56,17 @@ exactly how it was made, and re-run. It's the foundation for the creative loop
 - **Provider-agnostic.** A recipe records *what* was asked and *which* provider/model ran —
   never provider SDK internals. Swapping providers later doesn't change the recipe concept.
 - **Owner-scoped.** Recipes are read/re-run only by their owner (like all generation actions).
+
+## Deletion & lifecycle (Decision 033)
+
+A generated image and its `Generation` (recipe) **share one lifecycle** in this MVP. Deleting a
+generated asset from the Gallery deletes the owning `Generation` too: `deleteMedia` removes the
+Blob object(s), then deletes the `Generation` (its `GeneratedMedia` child cascades via
+`onDelete: Cascade`), and `useDeleteMedia` invalidates the generation-history query so the Generate
+page reflects the change immediately — no empty, result-less cards, no orphan recipes.
+
+Why couple them: today the image is a generation's *only* surface (no recipe library / Templates
+yet), so a recipe with no image is invisible clutter and deleting the image is an unambiguous
+"remove this". This is forward-compatible — when Templates arrive, "save as template" will *copy*
+the recipe deliberately, so nothing a user chose to keep is lost by deleting an image. Soft-delete
+and keep-orphan-recipe were rejected (see Decision 033).
