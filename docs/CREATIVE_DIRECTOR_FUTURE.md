@@ -17,6 +17,18 @@ The Spatial stage builds an internal scene graph (nodes + relationships) that in
 and keeps relationships intact in the compiled prompt. **Milestone 14** added a passive **Identity
 Context** stage (Stage 0) — provider-unaware, deterministic.
 
+## Two now-independent tracks (post-M17)
+
+Identity generation now feeds Kontext correctly, so the two systems evolve independently:
+
+- **Identity System (~85%)** — better reference *ranking*, automatic face / body / tattoo selection,
+  smarter identity packages (which of the training media best represents the person for a given
+  scene). Lives in `identity/` + the visual-package builder; provider-neutral.
+- **Creative Director (needs another pass)** — *preserve all user intent* (**done — Decision 039**),
+  better **action extraction** (holding / wearing / sitting / running), better **object
+  relationships**, and never discard clothing / props / interactions. The next visible quality gains
+  come from here, since the compiler was previously stripping the details that make each scene unique.
+
 ## Agreed next step — RETURN to the Creative Director (deferred, not abandoned)
 
 > Recorded per Milestone 14. Identity-aware Generation was done *first* on purpose — to surface

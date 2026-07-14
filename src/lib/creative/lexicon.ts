@@ -26,9 +26,11 @@ const ENTITY_LEXICON: ReadonlyArray<readonly [EntityKind, readonly string[]]> = 
   [
     "animal",
     [
-      "golden retriever", "german shepherd", "dog", "puppy", "cat", "kitten",
-      "pet", "horse", "bird", "fox", "wolf", "lion", "tiger", "rabbit", "bear",
-      "deer", "elephant", "panda", "owl", "eagle", "fish", "dolphin",
+      "golden retriever", "german shepherd", "chihuahua", "poodle", "labrador",
+      "bulldog", "husky", "corgi", "dachshund", "pug", "beagle", "rottweiler",
+      "dog", "puppy", "cat", "kitten", "pet", "horse", "bird", "fox", "wolf",
+      "lion", "tiger", "rabbit", "bear", "deer", "elephant", "panda", "owl",
+      "eagle", "fish", "dolphin",
     ],
   ],
   [
@@ -64,6 +66,10 @@ const ENTITY_LEXICON: ReadonlyArray<readonly [EntityKind, readonly string[]]> = 
       "cosmetic", "lipstick", "gadget", "cup", "mug", "bowl", "plate", "book",
       "vase", "candle", "clock", "mirror", "television", "tv", "painting",
       "rug", "carpet", "pillow", "cushion", "umbrella", "lamp",
+      // clothing / accessories (props on a subject)
+      "bikini", "swimsuit", "dress", "gown", "suit", "tuxedo", "hat", "cap",
+      "jacket", "coat", "shirt", "hoodie", "uniform", "sunglasses", "scarf",
+      "boots", "helmet",
     ],
   ],
   [
@@ -140,7 +146,9 @@ const WEATHER: readonly string[] = [
 const ACTIONS: readonly string[] = [
   "running", "walking", "sitting", "standing", "drinking", "eating", "flying",
   "jumping", "dancing", "swimming", "driving", "riding", "playing", "reading",
-  "holding", "smiling", "laughing", "sleeping", "cooking", "fighting", "posing",
+  "holding", "holds", "smiling", "laughing", "sleeping", "cooking", "fighting",
+  "posing", "wearing", "wears", "carrying", "hugging", "petting", "cuddling",
+  "kissing", "leaning", "relaxing", "lounging", "walking", "waving",
 ];
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

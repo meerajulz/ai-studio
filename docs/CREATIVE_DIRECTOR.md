@@ -64,14 +64,19 @@ become **high-confidence** edges with exact wording. Co-mentioned objects with *
 become a **low-confidence, neutral** "near the anchor" association ("with two plants and a window")
 — the Director never invents a specific direction it wasn't given.
 
-### Structured compilation (Stage 4, v4)
+### Compilation — enrich, never replace (Stage 4, v4.1)
 
-The compiler builds a **`CompiledStructure`** from the graph — subject (the anchor or the identity
-reference), explicit relationships, neutral objects, scene context, genre, composition, quality —
-then **renders** it to plain text (structured, not concatenated). The anchor's action + first
-explicit relationship fold into one clause ("a dog sitting on the sofa"). Intent drives
-composition (interiors go wide; product/food/portrait isolate the subject). **The provider still
-receives only plain text.**
+**The user's prompt is the source of truth.** The compiler leads with the full idea **verbatim**
+(with the identity reference woven in by Stage 0), so every clothing item, prop, action,
+interaction and location the user wrote **survives into the compiled prompt**. It then **appends**
+only what the user didn't specify — genre, camera, composition, perspective, depth of field,
+lighting, realism, quality — de-duplicated so nothing already stated is repeated or weakened.
+
+The scene graph still drives *reasoning* (anchor, intent, composition) and powers the Debug panel's
+`CompiledStructure`, but it **never replaces the user's words** (Decision 039 — the earlier
+"compile from the graph" approach silently dropped unrecognized words like "bikini"/"Chihuahua").
+Intent still drives composition (interiors go wide; product/food/portrait isolate the subject).
+**The provider still receives only plain text.**
 
 The vocabulary (entity/setting/location/time/weather/action lexicons + the entity finder) lives
 in `lexicon.ts` — the one place raw keyword knowledge sits, and the seam an LLM would replace.

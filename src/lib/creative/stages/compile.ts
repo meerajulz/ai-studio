@@ -1,14 +1,16 @@
 /**
- * Stage 4 — Structured Prompt Compilation (v4).
+ * Stage 4 — Prompt Compilation (v4.1: preserve user intent, then enrich).
  *
- * Compiles from STRUCTURED DATA (the scene graph), not by concatenating the raw sentence. It
- * builds a `CompiledStructure` — anchor subject, explicit high-confidence relationships, neutral
- * low-confidence objects, scene context, genre, composition, quality — then renders it to a single
- * plain-text prompt (the provider interface is unchanged; providers still get plain text).
+ * **The user's prompt is the source of truth.** The Creative Director ENRICHES it — it never
+ * rebuilds or compresses it. The full idea (with the identity reference woven in by Stage 0) leads
+ * the compiled prompt VERBATIM, so every clothing item, prop, action, interaction and location the
+ * user wrote survives. The Director then APPENDS what the user didn't specify — genre, camera,
+ * composition, perspective, depth of field, lighting, realism and the quality floor — de-duplicated
+ * so nothing already stated is repeated.
  *
- * Spatial fidelity: explicit relationships (high confidence) are stated with their exact relation;
- * low-confidence anchor associations use NEUTRAL wording ("with …") and never a fabricated
- * direction. The identity reference (Stage 0) leads the subject so the name/description survive.
+ * The scene graph still drives reasoning (anchor, intent, composition) and the Debug panel, but it
+ * is NEVER allowed to replace the user's words. (Regression fix — Decision 039: the previous
+ * "compile from the graph" approach silently dropped unrecognized words like "bikini"/"Chihuahua".)
  */
 import type {
   CompiledStructure,
@@ -43,56 +45,33 @@ const DOF_PHRASE: Record<DepthOfField, string | null> = {
   medium: null,
 };
 
-/** A low-confidence relationship is rendered neutrally (never a fabricated direction). */
 const CONFIDENCE_THRESHOLD = 0.6;
 
 const label = (node: SceneNode | undefined): string =>
   node ? (node.descriptor ? `${node.descriptor} ${node.token}` : node.token) : "";
 
-const INDOOR_ROOMS = /living room|dining room|bedroom|bathroom|kitchen|office|hallway|lobby|loft|apartment/;
-
-/** Render the final plain-text prompt from the structured representation. */
-function render(structure: CompiledStructure): string {
-  // Skip the setting if it's already named in the subject / relationships / objects.
-  const alreadySaid = [structure.subject, ...structure.relationships, ...structure.objects]
-    .join(" ")
-    .toLowerCase();
-  const settingPhrase =
-    structure.setting && !alreadySaid.includes(structure.setting)
-      ? INDOOR_ROOMS.test(structure.setting)
-        ? `in a ${structure.setting}`
-        : structure.setting
-      : null;
-
-  const parts: (string | null)[] = [
-    structure.subject,
-    ...structure.relationships,
-    structure.objects.length ? `with ${joinList(structure.objects)}` : null,
-    settingPhrase,
-    structure.environment,
-    structure.location,
-    structure.timeOfDay,
-    structure.weather,
-    structure.genre,
-    ...structure.composition,
-    ...structure.quality,
-  ];
-  const seen = new Set<string>();
-  return parts
-    .filter((p): p is string => Boolean(p && p.trim()))
-    .filter((p) => {
-      const key = p.toLowerCase().trim();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .join(", ");
-}
-
-function joinList(items: string[]): string {
-  if (items.length <= 1) return items[0] ?? "";
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+/**
+ * Base first (the user's full prompt — never altered), then only NEW enrichment phrases: empties
+ * dropped, no repeats, and nothing the user already said (case-insensitive substring).
+ */
+function enrich(base: string, phrases: (string | null)[]): {
+  prompt: string;
+  applied: string[];
+} {
+  const baseLower = base.toLowerCase();
+  const seen = new Set<string>([baseLower]);
+  const parts: string[] = [base];
+  const applied: string[] = [];
+  for (const phrase of phrases) {
+    if (!phrase) continue;
+    const key = phrase.toLowerCase().trim();
+    if (!key || seen.has(key)) continue;
+    if (baseLower.includes(key)) continue;
+    seen.add(key);
+    parts.push(phrase);
+    applied.push(phrase);
+  }
+  return { prompt: parts.join(", "), applied };
 }
 
 export function compilePrompt(
@@ -101,71 +80,44 @@ export function compilePrompt(
   graph: SceneGraph,
   intent: IntentAnalysis,
   composition: CompositionPlan,
-  identity: IdentityReasoning,
+  _identity: IdentityReasoning,
 ): { prompt: string; appliedModifiers: string[]; structure: CompiledStructure } {
+  // The idea already includes the identity reference (Stage 0). It is the SOURCE OF TRUTH.
+  const base = idea.trim();
+
+  // Enrichment the Director adds ON TOP — scene context the user may have omitted, then the
+  // photographic direction. Deduped against the user's words so intent is never weakened.
+  const enrichmentPhrases: (string | null)[] = [
+    scene.timeOfDay,
+    scene.weather,
+    scene.location,
+    scene.environment !== "unknown" ? `${scene.environment} scene` : null,
+    INTENT_PHRASE[intent.type],
+    composition.framing,
+    composition.cameraAngle !== "eye-level" ? composition.cameraAngle : null,
+    composition.composition,
+    composition.perspective,
+    DOF_PHRASE[composition.depthOfField],
+    composition.lighting,
+    composition.realism,
+    ...composition.qualityFloor,
+  ];
+
+  const { prompt, applied } = enrich(base, enrichmentPhrases);
+
+  // Structured view for the Debug panel (does NOT drive the prompt text — the base does).
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
-  const anchor = graph.anchor ? nodeById.get(graph.anchor) : undefined;
-
-  const anchorLabel = label(anchor);
-  const subjectIsAnchor = !(identity.present && identity.referencePhrase);
-  const action = scene.actions[0] ?? null;
-  const consumed = new Set<string>(anchor ? [anchor.id] : []);
-
-  // ── Subject. When the subject IS the anchor, fold its action + first explicit relationship into
-  //    one natural clause ("a dog sitting on the sofa") instead of repeating the anchor.
-  let subject: string;
-  const anchorRel =
-    subjectIsAnchor && anchor
-      ? graph.relationships.find(
-          (r) => r.from === anchor.id && r.confidence >= CONFIDENCE_THRESHOLD,
-        )
-      : undefined;
-  if (subjectIsAnchor) {
-    const bits = [anchorLabel || idea];
-    if (action) bits.push(action);
-    if (anchorRel) {
-      const to = nodeById.get(anchorRel.to);
-      if (to) {
-        bits.push(`${anchorRel.type} the ${to.token}`);
-        consumed.add(to.id);
-      }
-    }
-    subject = bits.join(" ");
-  } else {
-    subject = action
-      ? `${identity.referencePhrase} ${action}`
-      : (identity.referencePhrase as string);
-  }
-
-  // ── Relationships: remaining explicit (high-confidence) edges; the rest become neutral objects.
-  const relationships: string[] = [];
-  const neutralObjects: string[] = [];
-  for (const rel of graph.relationships) {
-    if (rel === anchorRel) continue;
-    const from = nodeById.get(rel.from);
-    const to = nodeById.get(rel.to);
-    if (!from || !to) continue;
-
-    if (rel.confidence >= CONFIDENCE_THRESHOLD) {
-      const fromLabel = from.id === anchor?.id ? "the " + from.token : label(from);
-      relationships.push(`${fromLabel} ${rel.type} the ${to.token}`);
-      consumed.add(from.id);
-      consumed.add(to.id);
-    }
-  }
-
-  // ── Surrounding objects with no explicit relation → neutral mention (positioned around anchor).
-  for (const node of graph.nodes) {
-    if (consumed.has(node.id)) continue;
-    if (node.role === "primary") continue; // already the subject
-    neutralObjects.push(label(node));
-    consumed.add(node.id);
-  }
+  const relationships = graph.relationships
+    .filter((r) => r.confidence >= CONFIDENCE_THRESHOLD)
+    .map((r) => `${label(nodeById.get(r.from))} ${r.type} ${label(nodeById.get(r.to))}`);
+  const objects = graph.nodes
+    .filter((n) => n.role === "object")
+    .map((n) => label(n));
 
   const structure: CompiledStructure = {
-    subject,
+    subject: base, // the preserved user prompt (source of truth)
     relationships,
-    objects: neutralObjects,
+    objects,
     setting: scene.setting,
     environment: scene.environment !== "unknown" ? `${scene.environment} scene` : null,
     location: scene.location,
@@ -183,16 +135,5 @@ export function compilePrompt(
     quality: [composition.realism, ...composition.qualityFloor],
   };
 
-  const prompt = render(structure);
-
-  // Everything the Director added beyond the subject (for the debug "rules applied" list).
-  const appliedModifiers = [
-    ...relationships,
-    ...neutralObjects,
-    structure.genre,
-    ...structure.composition,
-    ...structure.quality,
-  ];
-
-  return { prompt, appliedModifiers, structure };
+  return { prompt, appliedModifiers: applied, structure };
 }

@@ -1376,3 +1376,51 @@ is unchanged (t2i schnell). `npm run build` + `tsc --noEmit` pass. **NOT live-ve
 (needs `FAL_KEY` + network + a real identity with training media) — the six manual tests
 (Julieta: coffee in Paris / Tokyo night / business suit / luxury apartment / cyberpunk; + no-identity)
 are for the user to run. No schema change.
+
+---
+
+# Decision 039
+
+Date
+2026-07-14
+
+Decision
+**Creative Director — preserve user intent (regression fix; supersedes the "compile from the graph"
+part of Decision 037).** The v4 structured compiler rebuilt the prompt from *recognized scene-graph
+nodes only*, silently discarding any word the deterministic lexicon didn't know. Real example:
+*"She wears a bikini on a boat holding a Chihuahua"* compiled to *"…the woman on the boat, portrait
+photography…"* — losing **bikini, Chihuahua, wears, holding** (and weakening "on a boat" → "with
+boat"). Kontext then faithfully rendered the reduced prompt (identity ✓, scene ✗).
+
+**Fix: the user's prompt is the SOURCE OF TRUTH.** The compiler now leads with the full idea
+VERBATIM (with the identity reference woven in by Stage 0) and only **APPENDS** what the user didn't
+specify — genre, camera, composition, perspective, depth of field, lighting, realism, quality —
+de-duplicated so nothing already stated is repeated or weakened. The scene graph still drives
+reasoning (anchor, intent, composition) and the Debug panel, but **may never replace the user's
+words**. Lexicon also expanded (actions incl. wearing/holding/carrying/…; clothing props;
+dog breeds) so the graph reasons richer — though intent now survives regardless of lexicon coverage
+because the base text is preserved.
+
+Reason
+Decision 037 goal ("Scene Graph as the primary compilation source, not the flattened sentence") was
+implemented too literally: compiling *only* from structured data means anything unrecognized is
+dropped — exactly the clothing/props/interactions that make each scene unique. The correct reading,
+which the user confirmed, is **enrich, don't replace**: keep every semantic action/clothing/prop/
+interaction/location, and layer photographic direction on top. This also improved composition (the
+bikini/boat/dog scene is now lifestyle "wide shot", not a tight portrait — which reduces the
+over-emphasised facial detail that made the identity look older).
+
+Alternatives
+Keep compiling from the graph and expand the lexicon to cover everything (rejected — an
+open-vocabulary problem a deterministic lexicon can never fully cover; the verbatim base is the
+only robust guarantee); drop the scene graph (rejected — it's valuable for composition/intent/debug,
+just not as a replacement for the user's words); an LLM to rewrite prompts (out of scope — still
+deterministic).
+
+Status
+Accepted — implemented. Verified: *"She wears a bikini on a boat holding a Chihuahua"* now preserves
+bikini/Chihuahua/holding/boat/wears + identity + lifestyle wide composition; regressions (luxury
+living room, dog on sofa, coffee in Paris, fantasy castle, "woman in a red dress walking through
+Tokyo at night") keep the full user text and enrich correctly. `npm run build` + `tsc --noEmit`
+pass. No schema change. (Part of the "Creative Director needs another pass" track — see
+`CREATIVE_DIRECTOR_FUTURE.md`.)

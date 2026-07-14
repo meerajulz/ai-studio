@@ -7,8 +7,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 17 — Identity Preservation
-> Foundation (Fal Kontext MVP)** (Decision 038): the Identity Visual Package now **reaches the model**.
+> **▶ Resume (2026-07-14, build + tsc green):** **Fixed a Creative Director regression (Decision 039):**
+> the v4 compiler was discarding user intent (bikini/Chihuahua/props/clothing dropped) by rebuilding
+> from graph nodes only — now the user's prompt is the **source of truth** (verbatim lead) and the
+> Director only **enriches** (genre/camera/composition/lighting/realism/quality). Before that, shipped
+> **Milestone 17 — Identity Preservation Foundation (Fal Kontext MVP)** (Decision 038): the Identity
+> Visual Package now **reaches the model**.
 > Researched Fal identity models (`docs/PROVIDER_RESEARCH.md`) → chose **FLUX.1 Kontext** (editing +
 > multi-reference). The **Fal adapter** now picks the model itself: no references → `flux/schnell`
 > (t2i, unchanged); with references → Kontext (`fal-ai/flux-pro/kontext` single, `.../kontext/max/multi`
@@ -450,6 +454,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   runtime connects via a driver adapter.
 
 ### Fixed
+- **Creative Director was discarding user intent** (Decision 039 — regression from Milestone 16's
+  structured compiler). The v4 compiler rebuilt the prompt from *recognized scene-graph nodes only*,
+  so any word the deterministic lexicon didn't know silently vanished: *"She wears a bikini on a
+  boat holding a Chihuahua"* compiled to *"…the woman on the boat, portrait photography…"* — losing
+  **bikini, Chihuahua, wears, holding** and weakening "on a boat" → "with boat" (the identity model
+  then faithfully rendered the reduced scene). Fix: **the user's prompt is the source of truth** —
+  the compiler now leads with the full idea **verbatim** (identity reference included) and only
+  **appends** genre/camera/composition/perspective/DOF/lighting/realism/quality, de-duplicated, so
+  clothing, props, actions, interactions and locations always survive. The scene graph still drives
+  reasoning + Debug but never replaces the user's words. Lexicon expanded (actions incl. wearing/
+  holding/carrying/…, clothing props, dog breeds) so the graph reasons richer. Also improves
+  composition (the bikini/boat/dog scene is now lifestyle *wide shot*, not a tight portrait — which
+  had over-emphasised facial detail). Verified the failing prompt + regressions; `npm run build` +
+  `tsc --noEmit` pass. No schema change.
 - **Generation history synchronization** (Milestone 13.1, Decision 033): the Generate page and the
   Gallery now stay in sync. Deleting a generated image previously left its `Generation` orphaned,
   so the Generate page showed an empty, result-less history card. Fix: a generated image and its
