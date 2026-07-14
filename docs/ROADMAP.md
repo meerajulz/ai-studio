@@ -111,6 +111,10 @@ Gallery ✓ → Identity ✓ → AI Generation ✓ → Creative Director ✓ →
       deleting a generated image deletes its owning `Generation` (Blob + cascade) and refreshes the
       generation-history query, so the Generate page never shows empty result-less cards. Decision
       033 · `GENERATION_RECIPES.md`.
+- [x] **Milestone 13.5 — Creative Director v2.5 (Spatial Understanding)** — new Spatial Analysis
+      stage builds an internal `SceneGraph` (nodes w/ descriptor+position, directed relationships);
+      composition frames whole scenes, compiler preserves relationships (no flattening). Debug shows
+      the graph. Deterministic; no LLM/provider/schema change. Decision 034 · `CREATIVE_DIRECTOR.md`.
 - [ ] **Milestone 14 — Identity-aware Generation (foundation)** ← **next** — optional Identity
       selector on Generate → an **Identity Context** stage in the Creative Director *before* scene
       analysis (name/description/hero/training-media metadata; provider stays identity-unaware).

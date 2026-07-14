@@ -8,6 +8,7 @@
  */
 export { directCreative } from "./director";
 export { analyzeScene } from "./stages/scene";
+export { analyzeSpatial } from "./stages/spatial";
 export { analyzeIntent } from "./stages/intent";
 export { planComposition } from "./stages/composition";
 export {
@@ -26,4 +27,9 @@ export {
   type IntentType,
   type Scene,
   type SceneEntity,
+  type SceneGraph,
+  type SceneNode,
+  type SceneRelationship,
+  type SpatialPosition,
+  type SpatialRelationType,
 } from "./types";

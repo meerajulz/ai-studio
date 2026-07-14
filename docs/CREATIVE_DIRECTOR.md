@@ -18,13 +18,13 @@ words straight through to here.
 
 ## The reasoning pipeline (v2)
 
-v1 was `idea → category → prompt` (one keyword decided everything). v2 is a **deterministic,
-multi-stage reasoning pipeline** — it analyses the *whole scene* instead of stopping at the first
-entity:
+v1 was `idea → category → prompt` (one keyword decided everything). v2+ is a **deterministic,
+multi-stage reasoning pipeline** — it analyses the *whole scene*, then its *spatial structure*,
+instead of stopping at the first entity:
 
 ```
-idea → analyzeScene → analyzeIntent → planComposition → compilePrompt → prompt
-        (Stage 1)      (Stage 2)       (Stage 3)         (Stage 4)
+idea → analyzeScene → analyzeSpatial → analyzeIntent → planComposition → compilePrompt → prompt
+        (Stage 1)      (Stage 1.5)      (Stage 2)       (Stage 3)         (Stage 4)
 ```
 
 Each stage is a **pure function with a single responsibility** that returns structured data and
@@ -33,9 +33,28 @@ knows nothing about a provider. Only the final compiled `prompt` leaves the laye
 | Stage | File | Input → Output |
 | ----- | ---- | -------------- |
 | 1 · Scene Analysis | `stages/scene.ts` | idea → `Scene` (primary/secondary subjects, objects, living beings, environment, setting, location, time, weather, actions, fantasy) |
+| 1.5 · Spatial Analysis | `stages/spatial.ts` | idea + `Scene` → `SceneGraph` (nodes with descriptor + frame position, and directed spatial **relationships** — "dog" —on→ "sofa", "window" —behind→ "sofa") |
 | 2 · Intent Analysis | `stages/intent.ts` | `Scene` → `IntentAnalysis` (portrait / lifestyle / interior-design / automotive / food / product / landscape / wildlife / concept-art / …) |
-| 3 · Composition Planning | `stages/composition.ts` | `Scene` + `IntentAnalysis` (+ style/focus) → `CompositionPlan` (framing, camera distance/angle, composition, perspective, depth of field, lighting, realism, quality floor) |
-| 4 · Prompt Compilation | `stages/compile.ts` | all of the above → the final prompt, assembled **Scene → Intent → Composition → Quality** |
+| 3 · Composition Planning | `stages/composition.ts` | `Scene` + `SceneGraph` + `IntentAnalysis` (+ style/focus) → `CompositionPlan` (framing, camera distance/angle, composition, perspective, depth of field, lighting, realism, quality floor) |
+| 4 · Prompt Compilation | `stages/compile.ts` | all of the above → the final prompt, assembled **Scene → Spatial → Intent → Composition → Quality** |
+
+### Spatial understanding (Stage 1.5)
+
+The `SceneGraph` is a lightweight, **internal-only** representation (never persisted): entities
+become nodes with an optional descriptor ("red" sofa, "wooden" desk, "large" window) and frame
+`position` (center/left/right/…), and prepositions become directed **relationships**
+(`on`, `under`, `behind`, `in front of`, `left/right of`, `next to`, `over`, `holding`, …). It is
+built by scanning the idea for relation/position phrases and linking the nearest entities on
+either side (longest-phrase-wins so "sitting on" beats "on", "in front of" beats "on").
+
+Two ways it makes prompts smarter:
+- **Composition** widens to show the whole arrangement when the scene actually has relationships
+  (a room with subjects), but still *isolates* the subject for product/food/portrait intents — so
+  an animal on a sofa is a lifestyle scene, not a portrait.
+- **Compilation preserves relationships instead of flattening.** The user's own sentence leads the
+  prompt verbatim (so "a dog sitting on a sofa" is kept as-is, never reduced to "dog, sofa"), and
+  the graph only *adds* a spatial phrase when the idea doesn't already express it. Relationships
+  therefore survive all the way into the compiled prompt.
 
 The vocabulary (entity/setting/location/time/weather/action lexicons + the entity finder) lives
 in `lexicon.ts` — the one place raw keyword knowledge sits, and the seam an LLM would replace.
@@ -74,8 +93,9 @@ people mention (*"no person on it"*) is not read as a person subject.
 
 Every generation returns a `debug` trace **only when `NODE_ENV !== "production"`**
 (`GenerationResult.debug`, `undefined` in production). The Generate page renders it with **each
-pipeline stage shown separately**: User prompt · Scene analysis · Intent analysis · Composition
-plan · Creative rules applied · Compiled prompt · Provider · Model · Generation payload. The
+pipeline stage shown separately**: User prompt · Scene analysis · **Spatial analysis (scene graph)**
+· Intent analysis · Composition plan · Creative rules applied · Compiled prompt · Provider · Model
+· Generation payload. The
 payload is a **secret-free echo** the provider adapter builds (`ImageGenerationResult.requestPayload`
 — never contains the token). Nothing debug-related ships to production.
 

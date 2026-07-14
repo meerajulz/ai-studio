@@ -4,6 +4,7 @@ import type {
   CreativeStyle,
   IntentAnalysis,
   Scene,
+  SceneGraph,
 } from "@/lib/creative";
 import type { MediaAsset } from "@/lib/media/types";
 
@@ -27,6 +28,7 @@ export type GenerateImageInput = {
 export type GenerationDebug = {
   idea: string; // what the user typed
   scene: Scene; // Stage 1 — scene analysis
+  graph: SceneGraph; // Stage 1.5 — spatial analysis (scene graph)
   intent: IntentAnalysis; // Stage 2 — intent analysis
   composition: CompositionPlan; // Stage 3 — composition plan
   rulesApplied: string[]; // everything the Director added beyond the user's words

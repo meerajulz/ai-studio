@@ -7,15 +7,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 13.1 — Generation History
-> Synchronization** (Decision 033): deleting a generated image from the Gallery now deletes its
-> owning `Generation` (Blob(s) removed, then the `Generation` — `GeneratedMedia` cascades), and
-> `useDeleteMedia` invalidates the generation history query too, so the Generate page always
-> reflects reality (no empty result-less cards). No schema change; not yet live-verified vs DB/Blob.
-> **Next = Milestone 14 — Identity-aware Generation (foundation):** optional Identity selector on
-> Generate → an Identity Context stage in the Creative Director *before* scene analysis; provider
-> stays identity-unaware. See `docs/CREATIVE_DIRECTOR_FUTURE.md` for later phases. Below: **Creative
-> Director v2 — Scene Understanding** (Milestone 13, Decision 032): `src/lib/creative/` is now a deterministic,
+> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 13.5 — Creative Director v2.5
+> (Spatial Understanding)** (Decision 034): a new **Spatial Analysis** stage builds an internal
+> `SceneGraph` (nodes with descriptor + position, directed relationships like dog —on→ sofa) —
+> `idea → scene → spatial → intent → composition → compile`. Composition now frames the whole
+> arrangement for real scenes (but isolates for product/food/portrait), and the compiler preserves
+> relationships instead of flattening. Debug panel shows the scene graph. Deterministic; no LLM, no
+> provider/schema change (graph is internal-only). Also: 13.1 Gallery↔Generate delete-sync stays in
+> place (Decision 033). **Next = Milestone 14 — Identity-aware Generation (foundation):** optional
+> Identity selector → an Identity Context stage *before* scene analysis; provider stays
+> identity-unaware. See `docs/CREATIVE_DIRECTOR_FUTURE.md`. Below: **Creative Director v2 — Scene
+> Understanding** (Milestone 13, Decision 032): `src/lib/creative/` is now a deterministic,
 > provider-agnostic **reasoning pipeline** — `idea → analyzeScene → analyzeIntent →
 > planComposition → compilePrompt → prompt`. It analyses the *whole scene* (primary/secondary
 > subjects, objects, environment, setting, location, time, weather, actions, fantasy) and infers
@@ -88,6 +90,28 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **Creative Director v2.5 — Spatial Understanding** (Milestone 13.5, Decision 034): a new
+  **Spatial Analysis** stage (`stages/spatial.ts`) between Scene and Intent builds a lightweight,
+  **internal-only `SceneGraph`** — entities become nodes with an optional descriptor ("red" sofa,
+  "wooden" desk, "large" window) and frame `position`, and prepositions become directed
+  **relationships** (`on`/`under`/`behind`/`in front of`/`left|right of`/`next to`/`over`/
+  `holding`/…) linking the nearest entities (longest-phrase-wins, so "sitting on" beats "on").
+  Pipeline is now `idea → scene → spatial → intent → composition → compile → prompt`. **Composition**
+  uses the graph: scenes with real relationships (or ≥3 objects) are framed wide so the whole
+  arrangement is visible, while product/food/portrait intents still isolate the subject — so an
+  animal on a sofa is a lifestyle scene, not a portrait (also fixed: an animal *indoors* is
+  lifestyle, never wildlife). **Compilation preserves relationships instead of flattening** — the
+  user's sentence leads the prompt verbatim ("a dog sitting on a sofa" stays intact), and the graph
+  only adds a spatial phrase when the idea doesn't already express it. Lexicon expanded (relation/
+  position/descriptor vocabularies; objects like cup/umbrella/kitchen-island; landmarks like the
+  Eiffel Tower) and the "living room" inference tightened to living-room-specific furniture. Debug
+  panel extended with a **Spatial analysis (scene graph)** section (nodes + relationships), dev-only.
+  Traced all required prompts (red sofa @center; dog —on→ sofa; cat —under→ table; cup —on→ wooden
+  desk; Ferrari —in front of→ Eiffel Tower; dragon —over→ castle; woman —holding→ umbrella —next to→
+  bicycle; kitchen island @center; bed —under→ large window) — relationships survive into the
+  compiled prompt. Same `directCreative(brief) → directive` contract; `meta.graph` carries the
+  graph. **Deterministic — no LLM, no provider change, no schema change** (the graph is never
+  stored). `npm run build` + `tsc --noEmit` pass. See `docs/CREATIVE_DIRECTOR.md`.
 - **Creative Director v2 — Scene Understanding** (Milestone 13, Decision 032): re-architected
   `src/lib/creative/` from keyword classification into a deterministic, provider-agnostic
   **multi-stage reasoning pipeline** — `idea → analyzeScene → analyzeIntent → planComposition →

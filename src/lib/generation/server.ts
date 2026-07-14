@@ -115,6 +115,7 @@ async function runImageGeneration(
       ? {
           idea: opts.brief.idea,
           scene: directive.meta.scene,
+          graph: directive.meta.graph,
           intent: directive.meta.intent,
           composition: directive.meta.composition,
           rulesApplied: directive.meta.appliedModifiers,

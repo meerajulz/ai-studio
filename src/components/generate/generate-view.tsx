@@ -209,7 +209,11 @@ const entityList = (entities: { token: string; kind: string }[]) =>
  * scene analysis → intent analysis → composition plan → compiled prompt → provider/payload.
  */
 function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
-  const { scene, intent, composition } = debug;
+  const { scene, graph, intent, composition } = debug;
+  const nodeLabel = (id: string) => {
+    const n = graph.nodes.find((node) => node.id === id);
+    return n ? (n.descriptor ? `${n.descriptor} ${n.token}` : n.token) : "?";
+  };
   return (
     <section className="max-w-2xl rounded-lg border border-dashed bg-muted/30 p-4">
       <div className="mb-3 flex items-center gap-2">
@@ -244,6 +248,34 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
           <DebugRow
             label="Fantasy elements"
             value={scene.fantasyElements.length ? scene.fantasyElements.join(", ") : "—"}
+          />
+        </DebugStage>
+
+        <DebugStage title="1.5 · Spatial analysis (scene graph)">
+          <DebugRow
+            label="Nodes"
+            value={
+              graph.nodes.length
+                ? graph.nodes
+                    .map(
+                      (n) =>
+                        `${n.descriptor ? n.descriptor + " " : ""}${n.token} (${n.kind})${
+                          n.position ? " @" + n.position : ""
+                        }`,
+                    )
+                    .join(", ")
+                : "—"
+            }
+          />
+          <DebugRow
+            label="Relationships"
+            value={
+              graph.relationships.length
+                ? graph.relationships
+                    .map((r) => `${nodeLabel(r.from)} → ${r.type} → ${nodeLabel(r.to)}`)
+                    .join("  ·  ")
+                : "—"
+            }
           />
         </DebugStage>
 

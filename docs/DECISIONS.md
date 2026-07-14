@@ -1081,3 +1081,57 @@ Accepted — implemented (`deleteMedia` deletes the owning `Generation` + Blobs;
 invalidates media **and** generation queries). `npm run build` + `tsc --noEmit` pass. **Not
 live-verified against the DB/Blob this session** (needs `DATABASE_URL` + Blob token) — verify a
 real Gallery delete reflects on the Generate page during review. No migration.
+
+---
+
+# Decision 034
+
+Date
+2026-07-14
+
+Decision
+**Creative Director v2.5 — Spatial Understanding: a new Spatial Analysis stage + internal scene
+graph (Milestone 13.5).** Insert a stage between Scene and Intent that turns the flat entity list
+into a lightweight `SceneGraph`:
+
+  `idea → analyzeScene → analyzeSpatial → analyzeIntent → planComposition → compilePrompt → prompt`
+
+1. **Scene graph (internal only, never persisted).** Entities become nodes with an optional
+   descriptor ("red" sofa, "wooden" desk) and frame `position`; prepositions become directed
+   **relationships** (`on`/`under`/`behind`/`in front of`/`left|right of`/`next to`/`over`/
+   `holding`/…) linking the nearest entities on each side (longest-phrase-wins). Deterministic;
+   exists only during generation.
+2. **Composition uses the graph.** A scene with real relationships (or ≥3 objects) is framed wide
+   so the whole arrangement is visible — but product/food/portrait intents still isolate the
+   subject. An animal on a sofa is a lifestyle scene, not a portrait (also fixed: an animal indoors
+   is lifestyle, never wildlife).
+3. **Compilation preserves relationships, never flattens.** The user's sentence leads the prompt
+   verbatim, so "a dog sitting on a sofa" is kept intact; the graph only *adds* a spatial phrase
+   when the idea doesn't already express it. Relationships survive into the compiled prompt.
+4. **Same contract, still deterministic, provider unaware.** `directCreative(brief) → directive`
+   unchanged; `meta.graph` carries the scene graph; Debug shows the spatial stage. No LLM, no
+   provider change, **no schema change** (the graph is never stored).
+
+Reason
+v2 understood *what* is in a scene but not *how it's arranged*, so multi-object prompts ("red sofa
+with a dog and a cat, window behind, plants on each side") lost their spatial structure and could
+be framed as a portrait of whichever entity came first. Modeling positions + relationships lets
+composition frame the whole scene and lets the compiler keep the user's spatial intent — a
+meaningful step up in fidelity while staying deterministic and giving a clean seam for a future
+scene-graph/LLM upgrade.
+
+Alternatives
+Regenerate an English description from the graph and replace the user's wording (rejected — risks
+diverging from user intent and awkward prose; preserving the verbatim sentence is safer and already
+carries the relationships); store the graph in the DB (rejected — it's a transient reasoning
+artifact, adds schema for no consumer); fold spatial detection into scene analysis (rejected —
+separating it keeps each stage single-responsibility and makes the graph an explicit, debuggable
+artifact and a clean future seam).
+
+Status
+Accepted — implemented. Traced all required prompts (red sofa @center; dog —on→ sofa; cat —under→
+table; cup —on→ wooden desk; Ferrari —in front of→ Eiffel Tower; dragon —over→ castle; woman
+—holding→ umbrella —next to→ bicycle; kitchen island @center; bed —under→ large window) — the scene
+graph is built correctly and relationships are preserved into the compiled prompt. Also tightened
+the "living room" inference to living-room-specific furniture. Deterministic + `npm run build` +
+`tsc --noEmit` pass. No migration.

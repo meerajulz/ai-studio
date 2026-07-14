@@ -16,6 +16,7 @@ import type {
   IntentAnalysis,
   RealismLevel,
   Scene,
+  SceneGraph,
 } from "../types";
 
 type BasePlan = Omit<CompositionPlan, "realism" | "qualityFloor">;
@@ -147,19 +148,24 @@ const STYLE_QUALITY: Record<CreativeStyle, string[]> = {
 
 export function planComposition(
   scene: Scene,
+  graph: SceneGraph,
   intent: IntentAnalysis,
   brief: CreativeBrief,
 ): CompositionPlan {
   const base: BasePlan = { ...INTENT_PLANS[intent.type] };
 
-  // Scene-aware adjustments (not keyword-aware): show the whole scene when a room holds subjects.
-  if (
-    intent.type === "lifestyle" &&
-    scene.setting &&
-    scene.entities.some((e) => e.kind === "furniture")
-  ) {
+  // Spatial-aware framing: a scene with actual relationships (or several objects) must be shot
+  // wide enough that the whole arrangement is visible — but NOT for intents whose whole point is
+  // to isolate one subject (product / food / portrait).
+  const composedScene = graph.relationships.length > 0 || graph.nodes.length >= 3;
+  const isolatingIntent =
+    intent.type === "product-photography" ||
+    intent.type === "food-photography" ||
+    intent.type === "portrait";
+  if (composedScene && !isolatingIntent) {
     base.framing = "wide shot showing the full scene";
     base.cameraDistance = "wide";
+    base.composition = "all elements arranged in frame, spatial relationships preserved";
     base.depthOfField = "deep";
   }
   // Outdoor scenes should not use studio lighting.

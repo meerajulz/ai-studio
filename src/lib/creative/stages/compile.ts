@@ -12,6 +12,7 @@ import type {
   IntentAnalysis,
   IntentType,
   Scene,
+  SceneGraph,
 } from "../types";
 
 /** Compiler-facing genre phrase per intent (kept short; the label is for humans/debug). */
@@ -58,13 +59,43 @@ function compose(idea: string, phrases: (string | null)[]): {
   return { prompt: parts.join(", "), applied };
 }
 
+/**
+ * Turn the scene graph into spatial phrases ("red sofa at the center", "window behind the sofa").
+ * These PRESERVE relationships rather than flatten them. A phrase is only emitted when the idea
+ * doesn't already express that relation/position (a full sentence like "a dog sitting on a sofa"
+ * already carries it, so nothing is added — the user's wording is authoritative and untouched).
+ */
+function describeGraph(idea: string, graph: SceneGraph): string[] {
+  const ideaLower = idea.toLowerCase();
+  const label = (id: string): string => {
+    const n = graph.nodes.find((node) => node.id === id);
+    if (!n) return "";
+    return n.descriptor ? `${n.descriptor} ${n.token}` : n.token;
+  };
+
+  const phrases: string[] = [];
+  for (const node of graph.nodes) {
+    if (node.position && !ideaLower.includes(node.position)) {
+      phrases.push(`${label(node.id)} at the ${node.position}`);
+    }
+  }
+  for (const rel of graph.relationships) {
+    if (!ideaLower.includes(rel.type)) {
+      phrases.push(`${label(rel.from)} ${rel.type} ${label(rel.to)}`);
+    }
+  }
+  return phrases;
+}
+
 export function compilePrompt(
   idea: string,
   scene: Scene,
+  graph: SceneGraph,
   intent: IntentAnalysis,
   composition: CompositionPlan,
 ): { prompt: string; appliedModifiers: string[] } {
   const scenePhrases: (string | null)[] = [
+    ...describeGraph(idea, graph),
     scene.setting,
     scene.environment !== "unknown" ? `${scene.environment} scene` : null,
     scene.location,

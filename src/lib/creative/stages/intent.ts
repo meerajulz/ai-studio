@@ -75,6 +75,10 @@ export function analyzeIntent(scene: Scene): IntentAnalysis {
   }
 
   if (primaryKind === "animal") {
+    // Indoors → a pet lifestyle scene, never wildlife (a dog on a sofa isn't a nature shot).
+    if (scene.environment === "indoor") {
+      return result("lifestyle", "an animal indoors within a scene");
+    }
     if (scene.environment === "outdoor" || hasAction) {
       return result("wildlife", "an animal outdoors or in motion");
     }

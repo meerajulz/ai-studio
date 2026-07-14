@@ -7,12 +7,13 @@
  * the app enriches a prompt. The staged design is what an LLM would later slot into — one stage
  * at a time — without changing callers. See docs/CREATIVE_DIRECTOR.md.
  *
- *   idea → analyzeScene → analyzeIntent → planComposition → compilePrompt → prompt
+ *   idea → analyzeScene → analyzeSpatial → analyzeIntent → planComposition → compilePrompt → prompt
  */
 import { compilePrompt } from "./stages/compile";
 import { planComposition } from "./stages/composition";
 import { analyzeIntent } from "./stages/intent";
 import { analyzeScene } from "./stages/scene";
+import { analyzeSpatial } from "./stages/spatial";
 import {
   CREATIVE_DIRECTOR_VERSION,
   DEFAULT_STYLE,
@@ -25,11 +26,12 @@ export function directCreative(brief: CreativeBrief): CreativeDirective {
   const idea = brief.idea.trim();
   const style: CreativeStyle = brief.style ?? DEFAULT_STYLE;
 
-  // Stage 1–4: each consumes only the previous stage's structured output.
+  // Each stage consumes only the previous stages' structured output.
   const scene = analyzeScene(idea);
+  const graph = analyzeSpatial(idea, scene);
   const intent = analyzeIntent(scene);
-  const composition = planComposition(scene, intent, brief);
-  const { prompt, appliedModifiers } = compilePrompt(idea, scene, intent, composition);
+  const composition = planComposition(scene, graph, intent, brief);
+  const { prompt, appliedModifiers } = compilePrompt(idea, scene, graph, intent, composition);
 
   return {
     prompt,
@@ -39,6 +41,7 @@ export function directCreative(brief: CreativeBrief): CreativeDirective {
       idea,
       style,
       scene,
+      graph,
       intent,
       composition,
       appliedModifiers,

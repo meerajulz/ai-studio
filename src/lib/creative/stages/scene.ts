@@ -27,6 +27,14 @@ const SUBJECT_KINDS: ReadonlySet<EntityKind> = new Set<EntityKind>([
 
 const LIVING_KINDS: ReadonlySet<EntityKind> = new Set<EntityKind>(["person", "animal"]);
 
+/** Furniture that specifically implies a living room (so a lone desk/table doesn't infer one). */
+const LIVING_ROOM_FURNITURE: ReadonlySet<string> = new Set([
+  "sofa",
+  "couch",
+  "armchair",
+  "coffee table",
+]);
+
 /** People negation (e.g. "no person on it") so a negated mention never becomes a subject. */
 const PEOPLE_NEGATION =
   /\b(no|without|not|zero)\s+(?:\w+\s+){0,2}(person|people|man|men|woman|women|human|humans|one|figure|subject|character)\b|\bno one\b|\bnobody\b|\bunoccupied\b/i;
@@ -65,14 +73,15 @@ export function analyzeScene(idea: string): Scene {
     .filter((e) => e.kind === "fantasy")
     .map((e) => e.token);
 
-  // If the scene is clearly a furnished indoor space but no room was named, infer "living room"
-  // — but only when there's more than a lone piece of furniture (so bare "sofa" stays a product).
+  // If the scene is clearly a living space but no room was named, infer "living room" — only when
+  // living-room-specific furniture is present (a desk/table alone doesn't imply a living room) and
+  // there's more than a lone item (so bare "sofa" stays a product shot).
   let setting = settingHit?.name ?? null;
   if (
     !setting &&
     environment === "indoor" &&
-    entities.some((e) => e.kind === "furniture") &&
-    entities.length > 1
+    entities.length > 1 &&
+    entities.some((e) => LIVING_ROOM_FURNITURE.has(e.token))
   ) {
     setting = "living room";
   }

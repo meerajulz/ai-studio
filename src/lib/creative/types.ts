@@ -86,6 +86,59 @@ export type RealismLevel =
   | "stylized illustration"
   | "concept art";
 
+/** Where a node sits in the frame. */
+export type SpatialPosition =
+  | "center"
+  | "left"
+  | "right"
+  | "foreground"
+  | "background"
+  | "top"
+  | "bottom";
+
+/** A normalized spatial relationship type between two nodes. */
+export type SpatialRelationType =
+  | "on"
+  | "under"
+  | "in front of"
+  | "behind"
+  | "left of"
+  | "right of"
+  | "next to"
+  | "inside"
+  | "above"
+  | "below"
+  | "over"
+  | "holding"
+  | "looking at"
+  | "riding";
+
+/** One thing in the scene graph — an entity with optional descriptor + frame position. */
+export type SceneNode = {
+  id: string;
+  token: string; // e.g. "sofa"
+  kind: EntityKind;
+  descriptor: string | null; // e.g. "red", "wooden", "tall"
+  position: SpatialPosition | null;
+};
+
+/** A directed spatial edge: `from` <type> `to` (node ids). */
+export type SceneRelationship = {
+  from: string;
+  type: SpatialRelationType;
+  to: string;
+};
+
+/**
+ * Stage 1.5 output — a lightweight, INTERNAL scene graph (nodes + relationships). Exists only
+ * during prompt generation; never stored in the database.
+ */
+export type SceneGraph = {
+  nodes: SceneNode[];
+  relationships: SceneRelationship[];
+  root: string | null; // the anchor/primary node id
+};
+
 /** Stage 3 output — how to shoot the scene. */
 export type CompositionPlan = {
   framing: string;
@@ -124,6 +177,7 @@ export type CreativeDirective = {
     style: CreativeStyle;
     /** The full reasoning trace (also powers the dev Debug panel). */
     scene: Scene;
+    graph: SceneGraph;
     intent: IntentAnalysis;
     composition: CompositionPlan;
     /** Everything the Director added beyond the user's own words. */

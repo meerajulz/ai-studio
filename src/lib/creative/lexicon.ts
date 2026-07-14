@@ -5,7 +5,13 @@
  * they never hard-code word lists. This is the seam an LLM would later replace — everything here
  * is pure string matching, no I/O, no provider concepts.
  */
-import type { EntityKind, Environment, SceneEntity } from "./types";
+import type {
+  EntityKind,
+  Environment,
+  SceneEntity,
+  SpatialPosition,
+  SpatialRelationType,
+} from "./types";
 
 /** Entity vocabulary. Order within a kind is irrelevant; overlaps resolve to the longest match. */
 const ENTITY_LEXICON: ReadonlyArray<readonly [EntityKind, readonly string[]]> = [
@@ -28,9 +34,9 @@ const ENTITY_LEXICON: ReadonlyArray<readonly [EntityKind, readonly string[]]> = 
   [
     "furniture",
     [
-      "sofa", "couch", "armchair", "chair", "table", "desk", "lamp", "shelf",
+      "sofa", "couch", "armchair", "chair", "table", "desk", "shelf",
       "bookshelf", "bed", "cabinet", "wardrobe", "stool", "bench", "dresser",
-      "coffee table",
+      "coffee table", "kitchen island", "island", "nightstand", "counter",
     ],
   ],
   ["plant", ["plants", "plant", "tree", "trees", "flower", "flowers", "fern", "cactus", "bouquet"]],
@@ -55,15 +61,18 @@ const ENTITY_LEXICON: ReadonlyArray<readonly [EntityKind, readonly string[]]> = 
     [
       "bottle", "perfume", "watch", "sneaker", "shoe", "handbag", "bag",
       "phone", "smartphone", "laptop", "camera", "headphones", "jewelry",
-      "cosmetic", "lipstick", "gadget",
+      "cosmetic", "lipstick", "gadget", "cup", "mug", "bowl", "plate", "book",
+      "vase", "candle", "clock", "mirror", "television", "tv", "painting",
+      "rug", "carpet", "pillow", "cushion", "umbrella", "lamp",
     ],
   ],
   [
     "architecture",
     [
+      "eiffel tower", "big ben", "statue of liberty", "colosseum", "taj mahal",
       "skyscraper", "building", "house", "castle", "tower", "bridge",
       "cathedral", "temple", "palace", "cabin", "lighthouse", "windows",
-      "window", "staircase", "archway",
+      "window", "staircase", "archway", "fireplace",
     ],
   ],
   [
@@ -215,3 +224,126 @@ export function findAll(idea: string, terms: readonly string[]): string[] {
 }
 
 export const LEXICONS = { TIMES, WEATHER, ACTIONS } as const;
+
+// ── spatial vocabulary (Milestone 13.5) ─────────────────────────────────────
+
+/** Adjectives that describe an entity (color / size / material / style). */
+const DESCRIPTORS: readonly string[] = [
+  "red", "blue", "green", "yellow", "orange", "purple", "pink", "black",
+  "white", "grey", "gray", "brown", "golden", "silver", "beige", "turquoise",
+  "large", "big", "small", "tall", "short", "tiny", "huge", "giant", "long", "wide",
+  "wooden", "metal", "metallic", "glass", "leather", "marble", "stone", "plastic", "concrete",
+  "modern", "vintage", "rustic", "minimalist", "antique", "futuristic", "cozy",
+  "luxurious", "elegant", "industrial", "indoor", "outdoor",
+];
+
+/**
+ * Relation phrases → normalized type. Ordered longest/most-specific first so "sitting on" wins
+ * over "on" and "in front of" wins over "on". Overlap resolution happens in `findRelations`.
+ */
+const RELATION_PHRASES: ReadonlyArray<{ phrase: string; type: SpatialRelationType }> = [
+  { phrase: "parked in front of", type: "in front of" },
+  { phrase: "standing in front of", type: "in front of" },
+  { phrase: "standing beside", type: "next to" },
+  { phrase: "standing next to", type: "next to" },
+  { phrase: "sitting on", type: "on" },
+  { phrase: "sitting in", type: "on" },
+  { phrase: "lying on", type: "on" },
+  { phrase: "resting on", type: "on" },
+  { phrase: "placed on", type: "on" },
+  { phrase: "on top of", type: "on" },
+  { phrase: "in front of", type: "in front of" },
+  { phrase: "looking at", type: "looking at" },
+  { phrase: "flying over", type: "over" },
+  { phrase: "flying above", type: "over" },
+  { phrase: "hovering over", type: "over" },
+  { phrase: "to the left of", type: "left of" },
+  { phrase: "to the right of", type: "right of" },
+  { phrase: "next to", type: "next to" },
+  { phrase: "left of", type: "left of" },
+  { phrase: "right of", type: "right of" },
+  { phrase: "underneath", type: "under" },
+  { phrase: "beside", type: "next to" },
+  { phrase: "behind", type: "behind" },
+  { phrase: "inside", type: "inside" },
+  { phrase: "holding", type: "holding" },
+  { phrase: "riding", type: "riding" },
+  { phrase: "above", type: "above" },
+  { phrase: "below", type: "below" },
+  { phrase: "under", type: "under" },
+  { phrase: "over", type: "over" },
+  { phrase: "on", type: "on" },
+];
+
+/** Position phrases → normalized position. Longest-first. */
+const POSITION_PHRASES: ReadonlyArray<{ phrase: string; position: SpatialPosition }> = [
+  { phrase: "in the center of", position: "center" },
+  { phrase: "in the centre of", position: "center" },
+  { phrase: "at the center of", position: "center" },
+  { phrase: "in the middle of", position: "center" },
+  { phrase: "in the foreground", position: "foreground" },
+  { phrase: "in the background", position: "background" },
+  { phrase: "in the middle", position: "center" },
+  { phrase: "in the center", position: "center" },
+  { phrase: "in the centre", position: "center" },
+  { phrase: "on the left", position: "left" },
+  { phrase: "on the right", position: "right" },
+  { phrase: "at the top", position: "top" },
+  { phrase: "at the bottom", position: "bottom" },
+];
+
+type Span = { index: number; length: number };
+
+/** Longest-first, non-overlapping matches of `{phrase, ...}` entries against the idea. */
+function matchPhrases<T extends { phrase: string }>(
+  idea: string,
+  entries: readonly T[],
+): (T & Span)[] {
+  const lower = idea.toLowerCase();
+  const hits: (T & Span)[] = [];
+  for (const entry of entries) {
+    const re = new RegExp(`\\b${escapeRegExp(entry.phrase)}\\b`, "g");
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(lower)) !== null) {
+      hits.push({ ...entry, index: m.index, length: entry.phrase.length });
+    }
+  }
+  hits.sort((a, b) => a.index - b.index || b.length - a.length);
+  const accepted: (T & Span)[] = [];
+  for (const h of hits) {
+    if (accepted.some((a) => h.index < a.index + a.length && a.index < h.index + h.length)) {
+      continue;
+    }
+    accepted.push(h);
+  }
+  accepted.sort((a, b) => a.index - b.index);
+  return accepted;
+}
+
+export function findRelations(
+  idea: string,
+): { index: number; length: number; type: SpatialRelationType }[] {
+  return matchPhrases(idea, RELATION_PHRASES).map(({ index, length, type }) => ({
+    index,
+    length,
+    type,
+  }));
+}
+
+export function findPositions(
+  idea: string,
+): { index: number; length: number; position: SpatialPosition }[] {
+  return matchPhrases(idea, POSITION_PHRASES).map(({ index, length, position }) => ({
+    index,
+    length,
+    position,
+  }));
+}
+
+/** The descriptor word (if any) immediately before an entity token at `entityIndex`. */
+export function descriptorBefore(idea: string, entityIndex: number): string | null {
+  const before = idea.slice(0, entityIndex).toLowerCase().trimEnd();
+  const words = before.split(/\s+/);
+  const last = words[words.length - 1] ?? "";
+  return DESCRIPTORS.includes(last) ? last : null;
+}

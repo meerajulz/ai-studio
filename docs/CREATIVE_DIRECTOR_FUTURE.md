@@ -5,13 +5,16 @@
 > state: [CREATIVE_DIRECTOR.md](./CREATIVE_DIRECTOR.md) (v2 — deterministic scene-understanding
 > pipeline). Guardrails that every phase must respect are at the bottom.
 
-## Where we are (v2)
+## Where we are (v2.5)
 
-A deterministic, provider-agnostic reasoning pipeline:
+A deterministic, provider-agnostic reasoning pipeline with spatial understanding:
 
 ```
-idea → analyzeScene → analyzeIntent → planComposition → compilePrompt → prompt
+idea → analyzeScene → analyzeSpatial → analyzeIntent → planComposition → compilePrompt → prompt
 ```
+
+The Spatial stage builds an internal scene graph (nodes + relationships) that informs composition
+and keeps relationships intact in the compiled prompt.
 
 Each stage is a pure function with a single responsibility and a structured hand-off. The next
 milestone (**M14 — Identity-aware Generation, foundation**) inserts an optional **Identity
@@ -38,6 +41,19 @@ stage) behind the unchanged `directCreative(brief) → directive` contract.
   ("dog") gets heavy enrichment; a rich prompt ("golden retriever puppy on a mossy log at dawn,
   85mm, shallow depth of field") gets enriched *less* — the Director should respect a user who
   already knows what they want.
+
+## Phase 2.5 — Creative goals & critic
+
+- **Creative Goals** — a higher-level intent above the per-image intent: *Interior Design ·
+  Advertisement · Storytelling · Movie Still · Furniture Catalog · Book Cover · Fashion Campaign ·
+  Editorial · Product Launch · …*. A goal biases scene/intent/composition defaults toward a genre
+  (e.g. "Furniture Catalog" → clean isolcated product framing; "Movie Still" → cinematic
+  aspect + dramatic lighting). Chosen explicitly by the user or inferred with confidence.
+- **Creative Critic (self-review before generation).** A deterministic (later optional-LLM) pass
+  that reviews the compiled brief *before* it goes to the provider and flags/repairs issues:
+  missing focal subject, conflicting style vs intent (concept-art + "photorealistic"), an empty or
+  contradictory scene, an aspect ratio that fights the composition. Surfaces as non-blocking notes
+  in Debug now; could gate/auto-fix later.
 
 ## Phase 3 — Project & identity awareness
 
