@@ -1255,3 +1255,61 @@ package flows as neutral reference images and is ignored by non-capable models; 
 Identity / Gallery / recipes unchanged. `npm run build` + `tsc --noEmit` pass. **Fal not
 live-verified in this session** (needs `FAL_KEY` + network — the user has added it locally + on
 Vercel). No schema change.
+
+---
+
+# Decision 037
+
+Date
+2026-07-14
+
+Decision
+**Creative Director v4 — true scene graph, anchor, confidence, and a structured compiler
+(Milestone 16).** Improve the deterministic reasoning (no LLM, no provider changes):
+
+1. **True scene graph.** Nodes now carry a `role` (primary/secondary/object); the graph has an
+   **`anchor`** (the central object) instead of a plain `root`. **Anchor detection**: a subject
+   (person/animal/vehicle) anchors when present; otherwise the room's characteristic furniture
+   (living room→sofa, bedroom→bed, kitchen→island/table, office→desk); else the primary. Surrounding
+   objects are positioned relative to the anchor.
+2. **Confidence + no hallucinated relationships.** Every relationship has a `confidence`. Explicit
+   prepositions → high (0.9) with exact wording; co-mentioned objects with **no** preposition →
+   a low (0.4) **neutral** "near-the-anchor" association rendered as "with …" — never a fabricated
+   direction. Supported relations expanded (between, near, around, against the wall, outside, …);
+   unsupported ones are not invented.
+3. **Intent v2.** Anchor-aware; distinguishes **architectural** (a whole structure — skyscraper/
+   castle/bridge — not inside a room) from **interior-design** (a furnished room, no people) and
+   **lifestyle** (a person/animal subject in a scene). Fantasy *adjectives* ("fantasy", "magical",
+   …) now trigger concept-art even without a fantasy creature. Intent drives composition.
+4. **Structured Prompt Compiler.** Compiles from a `CompiledStructure` (subject + explicit
+   relationships + neutral objects + setting/environment/location/time/weather + genre +
+   composition + quality) and **renders** it to plain text — instead of concatenating the raw
+   sentence. The anchor's action + first explicit relationship fold into one clause
+   ("a dog sitting on the sofa"); the identity reference (Stage 0) still leads the subject so the
+   name/description survive. **The provider interface is unchanged — providers still receive plain
+   text.**
+5. **Debug** extended: scene graph with **anchor** + relationship **confidence**, and the
+   **compiled structure** shown before the final prompt.
+
+Reason
+v2.5 understood entities and simple relationships but led compilation with the flattened original
+sentence and had no notion of a scene's center or of confidence. Anchoring + roles + confidence +
+a structured compiler is how a real scene is reasoned about: pick the subject, position the rest
+around it, state only what's supported, and assemble deliberately. It measurably improves multi-
+object prompts while staying deterministic and keeping the provider contract (plain text) intact.
+
+Alternatives
+Keep leading with the verbatim sentence (rejected — the user asked for the scene graph to be the
+primary compilation source); invent directional relationships for co-mentioned objects (rejected —
+explicitly forbidden; low-confidence neutral wording instead); an LLM for scene understanding
+(rejected — out of scope; the deterministic pipeline remains, and stays the clean seam for a
+future optional LLM); store the graph/structure (rejected — transient reasoning artifacts, no
+consumer, no schema).
+
+Status
+Accepted — implemented. Traced the required prompts (luxury living room → anchor sofa, objects
+neutral; bedroom → "bed under the window"; dog on sofa → "dog sitting on the sofa" lifestyle;
+coffee in Paris → food; product → product; fantasy castle → concept-art) plus regressions (Ferrari
+→ automotive, retriever on beach → wildlife, dragon → concept-art) — anchors, intents, and
+relationships are consistent, and identity reasoning (M14) is preserved. Deterministic + `npm run
+build` + `tsc --noEmit` pass. No provider change, no schema change.

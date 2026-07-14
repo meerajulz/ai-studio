@@ -96,7 +96,7 @@ export type SpatialPosition =
   | "top"
   | "bottom";
 
-/** A normalized spatial relationship type between two nodes. */
+/** A normalized spatial relationship type between two nodes. Only SUPPORTED relations exist. */
 export type SpatialRelationType =
   | "on"
   | "under"
@@ -105,7 +105,12 @@ export type SpatialRelationType =
   | "left of"
   | "right of"
   | "next to"
+  | "between"
+  | "near"
+  | "around"
+  | "against the wall"
   | "inside"
+  | "outside"
   | "above"
   | "below"
   | "over"
@@ -113,30 +118,41 @@ export type SpatialRelationType =
   | "looking at"
   | "riding";
 
-/** One thing in the scene graph — an entity with optional descriptor + frame position. */
+/** A node's salience in the scene. */
+export type NodeRole = "primary" | "secondary" | "object";
+
+/** One thing in the scene graph — an entity with descriptor, role, and optional frame position. */
 export type SceneNode = {
   id: string;
   token: string; // e.g. "sofa"
   kind: EntityKind;
+  role: NodeRole;
   descriptor: string | null; // e.g. "red", "wooden", "tall"
   position: SpatialPosition | null;
 };
 
-/** A directed spatial edge: `from` <type> `to` (node ids). */
+/**
+ * A directed spatial edge: `from` <type> `to` (node ids), with a confidence in [0,1]. High
+ * confidence = an explicit preposition in the idea; low confidence = an inferred anchor-proximity
+ * association (rendered with NEUTRAL wording, never a fabricated direction). `to2` supports the
+ * ternary "between A and B".
+ */
 export type SceneRelationship = {
   from: string;
   type: SpatialRelationType;
   to: string;
+  to2?: string | null;
+  confidence: number;
 };
 
 /**
- * Stage 1.5 output — a lightweight, INTERNAL scene graph (nodes + relationships). Exists only
- * during prompt generation; never stored in the database.
+ * Stage 1.5 output — a lightweight, INTERNAL scene graph. `anchor` is the central object every
+ * other object is positioned relative to. Exists only during prompt generation; never persisted.
  */
 export type SceneGraph = {
   nodes: SceneNode[];
   relationships: SceneRelationship[];
-  root: string | null; // the anchor/primary node id
+  anchor: string | null; // the central/anchor node id
 };
 
 /** Stage 3 output — how to shoot the scene. */
@@ -150,6 +166,25 @@ export type CompositionPlan = {
   lighting: string;
   realism: RealismLevel;
   qualityFloor: string[];
+};
+
+/**
+ * Stage 4 intermediate — the STRUCTURED representation the compiler builds from the scene graph
+ * BEFORE rendering the final plain-text prompt. The provider still receives only the rendered
+ * string; this exists for structured reasoning + the Debug panel.
+ */
+export type CompiledStructure = {
+  subject: string; // the anchor/primary subject, described (+ any action)
+  relationships: string[]; // explicit, high-confidence spatial clauses
+  objects: string[]; // surrounding objects (neutral wording for low-confidence associations)
+  setting: string | null;
+  environment: string | null;
+  location: string | null;
+  timeOfDay: string | null;
+  weather: string | null;
+  genre: string; // intent phrase
+  composition: string[];
+  quality: string[];
 };
 
 /**
@@ -212,6 +247,7 @@ export type CreativeDirective = {
     graph: SceneGraph;
     intent: IntentAnalysis;
     composition: CompositionPlan;
+    compiledStructure: CompiledStructure;
     /** Everything the Director added beyond the user's own words. */
     appliedModifiers: string[];
     identityAware: boolean;

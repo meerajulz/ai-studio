@@ -243,7 +243,7 @@ const entityList = (entities: { token: string; kind: string }[]) =>
  * scene analysis → intent analysis → composition plan → compiled prompt → provider/payload.
  */
 function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
-  const { identity, scene, graph, intent, composition } = debug;
+  const { identity, scene, graph, intent, composition, compiledStructure } = debug;
   const nodeLabel = (id: string) => {
     const n = graph.nodes.find((node) => node.id === id);
     return n ? (n.descriptor ? `${n.descriptor} ${n.token}` : n.token) : "?";
@@ -301,6 +301,7 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
         </DebugStage>
 
         <DebugStage title="1.5 · Spatial analysis (scene graph)">
+          <DebugRow label="Anchor" value={graph.anchor ? nodeLabel(graph.anchor) : "—"} />
           <DebugRow
             label="Nodes"
             value={
@@ -308,7 +309,7 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
                 ? graph.nodes
                     .map(
                       (n) =>
-                        `${n.descriptor ? n.descriptor + " " : ""}${n.token} (${n.kind})${
+                        `${n.descriptor ? n.descriptor + " " : ""}${n.token} (${n.kind}, ${n.role})${
                           n.position ? " @" + n.position : ""
                         }`,
                     )
@@ -317,15 +318,37 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
             }
           />
           <DebugRow
-            label="Relationships"
+            label="Relationships (confidence)"
             value={
               graph.relationships.length
                 ? graph.relationships
-                    .map((r) => `${nodeLabel(r.from)} → ${r.type} → ${nodeLabel(r.to)}`)
+                    .map(
+                      (r) =>
+                        `${nodeLabel(r.from)} → ${r.type} → ${nodeLabel(r.to)} (${r.confidence.toFixed(
+                          1,
+                        )})`,
+                    )
                     .join("  ·  ")
                 : "—"
             }
           />
+        </DebugStage>
+
+        <DebugStage title="3.5 · Compiled structure (before final prompt)">
+          <DebugRow label="Subject" value={compiledStructure.subject} />
+          <DebugRow
+            label="Relationships"
+            value={
+              compiledStructure.relationships.length
+                ? compiledStructure.relationships.join(" · ")
+                : "—"
+            }
+          />
+          <DebugRow
+            label="Objects"
+            value={compiledStructure.objects.length ? compiledStructure.objects.join(", ") : "—"}
+          />
+          <DebugRow label="Genre" value={compiledStructure.genre} />
         </DebugStage>
 
         <DebugStage title="2 · Intent analysis">

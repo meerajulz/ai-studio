@@ -146,6 +146,7 @@ async function runImageGeneration(
           graph: directive.meta.graph,
           intent: directive.meta.intent,
           composition: directive.meta.composition,
+          compiledStructure: directive.meta.compiledStructure,
           rulesApplied: directive.meta.appliedModifiers,
           compiledPrompt: directive.prompt,
           provider: result.provider,

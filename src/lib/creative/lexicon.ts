@@ -234,7 +234,8 @@ const DESCRIPTORS: readonly string[] = [
   "large", "big", "small", "tall", "short", "tiny", "huge", "giant", "long", "wide",
   "wooden", "metal", "metallic", "glass", "leather", "marble", "stone", "plastic", "concrete",
   "modern", "vintage", "rustic", "minimalist", "antique", "futuristic", "cozy",
-  "luxurious", "elegant", "industrial", "indoor", "outdoor",
+  "luxurious", "luxury", "elegant", "industrial", "spacious", "bright", "dark",
+  "sleek", "indoor", "outdoor",
 ];
 
 /**
@@ -246,6 +247,7 @@ const RELATION_PHRASES: ReadonlyArray<{ phrase: string; type: SpatialRelationTyp
   { phrase: "standing in front of", type: "in front of" },
   { phrase: "standing beside", type: "next to" },
   { phrase: "standing next to", type: "next to" },
+  { phrase: "against the wall", type: "against the wall" },
   { phrase: "sitting on", type: "on" },
   { phrase: "sitting in", type: "on" },
   { phrase: "lying on", type: "on" },
@@ -264,8 +266,12 @@ const RELATION_PHRASES: ReadonlyArray<{ phrase: string; type: SpatialRelationTyp
   { phrase: "right of", type: "right of" },
   { phrase: "underneath", type: "under" },
   { phrase: "beside", type: "next to" },
+  { phrase: "between", type: "between" },
+  { phrase: "around", type: "around" },
+  { phrase: "near", type: "near" },
   { phrase: "behind", type: "behind" },
   { phrase: "inside", type: "inside" },
+  { phrase: "outside", type: "outside" },
   { phrase: "holding", type: "holding" },
   { phrase: "riding", type: "riding" },
   { phrase: "above", type: "above" },
@@ -273,6 +279,19 @@ const RELATION_PHRASES: ReadonlyArray<{ phrase: string; type: SpatialRelationTyp
   { phrase: "under", type: "under" },
   { phrase: "over", type: "over" },
   { phrase: "on", type: "on" },
+];
+
+/** Adjectives that signal a fantasy/concept-art genre even without a fantasy creature entity. */
+export const FANTASY_ADJECTIVES: readonly string[] = [
+  "fantasy",
+  "magical",
+  "mythical",
+  "mythological",
+  "enchanted",
+  "fairytale",
+  "fairy-tale",
+  "surreal",
+  "otherworldly",
 ];
 
 /** Position phrases → normalized position. Longest-first. */

@@ -1,12 +1,18 @@
 /**
- * Stage 2 — Intent Analysis.
+ * Stage 2 — Intent Analysis (v2).
  *
- * Infers what the user is actually trying to CREATE from the analysed scene — not merely the
- * subject. "woman drinking coffee in Paris" → lifestyle (not "person"); "red Ferrari in Tokyo"
- * → automotive; "living room with sofa" → interior design. Pure + deterministic; consumes only
- * the `Scene`.
+ * Infers what the user is actually trying to CREATE from the analysed scene + graph — not merely
+ * the subject. "woman drinking coffee in Paris" → lifestyle (not "person"); "red Ferrari in Tokyo"
+ * → automotive; "living room with sofa" → interior design; "modern skyscraper" → architectural
+ * (a structure, not a room). Pure + deterministic. Intent drives composition downstream.
  */
-import type { EntityKind, IntentAnalysis, IntentType, Scene } from "../types";
+import type {
+  EntityKind,
+  IntentAnalysis,
+  IntentType,
+  Scene,
+  SceneGraph,
+} from "../types";
 
 const LABELS: Record<IntentType, string> = {
   portrait: "Portrait photography",
@@ -29,8 +35,15 @@ function result(type: IntentType, rationale: string): IntentAnalysis {
 
 const INDOOR_SETTINGS = /living room|dining room|bedroom|bathroom|kitchen|office|hallway|lobby|loft|apartment|restaurant|cafe|studio/;
 
-export function analyzeIntent(scene: Scene): IntentAnalysis {
+/** Architecture tokens that read as a whole STRUCTURE (→ architectural), not a room detail. */
+const STRUCTURE_TOKENS = new Set([
+  "skyscraper", "building", "house", "castle", "tower", "bridge",
+  "cathedral", "temple", "palace", "cabin", "lighthouse",
+]);
+
+export function analyzeIntent(scene: Scene, graph: SceneGraph): IntentAnalysis {
   const primaryKind: EntityKind | null = scene.primarySubject?.kind ?? null;
+  const anchorNode = graph.nodes.find((n) => n.id === graph.anchor) ?? null;
   const hasLivingBeings = scene.livingBeings.length > 0;
   const hasAction = scene.actions.length > 0;
   const isRoom = Boolean(scene.setting && INDOOR_SETTINGS.test(scene.setting));
@@ -50,8 +63,18 @@ export function analyzeIntent(scene: Scene): IntentAnalysis {
     return result("product-photography", "the primary subject is a product");
   }
 
-  // Indoor room, or furniture as the subject → an interior (unless a lone furniture product shot).
-  if (isRoom || primaryKind === "furniture") {
+  // A whole structure (not inside a room) → architectural photography.
+  if (
+    !isRoom &&
+    primaryKind === "architecture" &&
+    scene.primarySubject &&
+    STRUCTURE_TOKENS.has(scene.primarySubject.token)
+  ) {
+    return result("architecture", "the primary subject is a building / structure");
+  }
+
+  // Indoor room, or furniture as the anchor → an interior (unless a lone furniture product shot).
+  if (isRoom || primaryKind === "furniture" || anchorNode?.kind === "furniture") {
     const loneFurniture =
       primaryKind === "furniture" && !isRoom && scene.entities.length <= 1;
     if (loneFurniture) {
@@ -60,11 +83,11 @@ export function analyzeIntent(scene: Scene): IntentAnalysis {
     if (hasLivingBeings) {
       return result("lifestyle", "an interior scene with people or animals in it");
     }
-    return result("interior-design", "an indoor room / furnished space");
+    return result("interior-design", "an indoor / furnished space, no people");
   }
 
   if (primaryKind === "architecture") {
-    return result("architecture", "the primary subject is a building / structure");
+    return result("architecture", "the primary subject is a structure");
   }
 
   if (primaryKind === "person") {

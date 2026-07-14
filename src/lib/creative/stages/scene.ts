@@ -6,6 +6,7 @@
  * fantasy elements. Pure + deterministic. Knows nothing about intent, composition, or providers.
  */
 import {
+  FANTASY_ADJECTIVES,
   findAll,
   findEntities,
   findFirst,
@@ -69,9 +70,10 @@ export function analyzeScene(idea: string): Scene {
   const objects = rest.filter((e) => !SUBJECT_KINDS.has(e.kind));
   const livingBeings = entities.filter((e) => LIVING_KINDS.has(e.kind));
 
-  const fantasyElements = entities
-    .filter((e) => e.kind === "fantasy")
-    .map((e) => e.token);
+  const fantasyElements = [
+    ...entities.filter((e) => e.kind === "fantasy").map((e) => e.token),
+    ...findAll(idea, FANTASY_ADJECTIVES),
+  ];
 
   // If the scene is clearly a living space but no room was named, infer "living room" — only when
   // living-room-specific furniture is present (a desk/table alone doesn't imply a living room) and

@@ -34,10 +34,10 @@ knows nothing about a provider. Only the final compiled `prompt` leaves the laye
 | ----- | ---- | -------------- |
 | 0 · Identity Context | `stages/identity.ts` | idea + optional `IdentityContext` → an `effectiveIdea` (identity woven in as the subject) + `IdentityReasoning`. Passive: the context is loaded upstream by the generation layer; the Director never fetches it. |
 | 1 · Scene Analysis | `stages/scene.ts` | (effective) idea → `Scene` (primary/secondary subjects, objects, living beings, environment, setting, location, time, weather, actions, fantasy) |
-| 1.5 · Spatial Analysis | `stages/spatial.ts` | idea + `Scene` → `SceneGraph` (nodes with descriptor + frame position, and directed spatial **relationships** — "dog" —on→ "sofa", "window" —behind→ "sofa") |
-| 2 · Intent Analysis | `stages/intent.ts` | `Scene` → `IntentAnalysis` (portrait / lifestyle / interior-design / automotive / food / product / landscape / wildlife / concept-art / …) |
+| 1.5 · Spatial Analysis | `stages/spatial.ts` | idea + `Scene` → `SceneGraph` (nodes with `role` + descriptor + position, an **`anchor`**, and confidence-scored **relationships** — "dog" —on(0.9)→ "sofa") |
+| 2 · Intent Analysis | `stages/intent.ts` | `Scene` + `SceneGraph` → `IntentAnalysis` (portrait / lifestyle / interior-design / architectural / automotive / food / product / landscape / wildlife / concept-art / …) |
 | 3 · Composition Planning | `stages/composition.ts` | `Scene` + `SceneGraph` + `IntentAnalysis` (+ style/focus) → `CompositionPlan` (framing, camera distance/angle, composition, perspective, depth of field, lighting, realism, quality floor) |
-| 4 · Prompt Compilation | `stages/compile.ts` | all of the above → the final prompt, assembled **Scene → Spatial → Intent → Composition → Quality** |
+| 4 · Prompt Compilation | `stages/compile.ts` | all of the above → a `CompiledStructure`, **rendered** to the final plain-text prompt (structured, not concatenated) |
 
 ### Identity context (Stage 0)
 
@@ -50,23 +50,28 @@ into the idea so the *whole* downstream pipeline reasons about the identity as t
 knows what an identity is, and the provider still receives only the final compiled prompt. This is
 a *foundation* — name + description only; LoRA/embeddings/training are a later milestone.
 
-### Spatial understanding (Stage 1.5)
+### Spatial understanding & the anchor (Stage 1.5, v4)
 
-The `SceneGraph` is a lightweight, **internal-only** representation (never persisted): entities
-become nodes with an optional descriptor ("red" sofa, "wooden" desk, "large" window) and frame
-`position` (center/left/right/…), and prepositions become directed **relationships**
-(`on`, `under`, `behind`, `in front of`, `left/right of`, `next to`, `over`, `holding`, …). It is
-built by scanning the idea for relation/position phrases and linking the nearest entities on
-either side (longest-phrase-wins so "sitting on" beats "on", "in front of" beats "on").
+The `SceneGraph` is a lightweight, **internal-only** representation (never persisted). Each entity
+is a node with a `role` (primary/secondary/object), an optional descriptor ("red" sofa) and frame
+`position`. The graph has an **`anchor`** — the central object everything else is positioned
+around: a subject (person/animal/vehicle) when present, otherwise the room's characteristic
+furniture (living room→sofa, bedroom→bed, kitchen→island/table, office→desk).
 
-Two ways it makes prompts smarter:
-- **Composition** widens to show the whole arrangement when the scene actually has relationships
-  (a room with subjects), but still *isolates* the subject for product/food/portrait intents — so
-  an animal on a sofa is a lifestyle scene, not a portrait.
-- **Compilation preserves relationships instead of flattening.** The user's own sentence leads the
-  prompt verbatim (so "a dog sitting on a sofa" is kept as-is, never reduced to "dog, sofa"), and
-  the graph only *adds* a spatial phrase when the idea doesn't already express it. Relationships
-  therefore survive all the way into the compiled prompt.
+**Relationships carry confidence.** Explicit prepositions (`on`, `under`, `behind`, `in front of`,
+`left/right of`, `next to`, `between`, `near`, `around`, `against the wall`, `over`, `holding`, …)
+become **high-confidence** edges with exact wording. Co-mentioned objects with **no** preposition
+become a **low-confidence, neutral** "near the anchor" association ("with two plants and a window")
+— the Director never invents a specific direction it wasn't given.
+
+### Structured compilation (Stage 4, v4)
+
+The compiler builds a **`CompiledStructure`** from the graph — subject (the anchor or the identity
+reference), explicit relationships, neutral objects, scene context, genre, composition, quality —
+then **renders** it to plain text (structured, not concatenated). The anchor's action + first
+explicit relationship fold into one clause ("a dog sitting on the sofa"). Intent drives
+composition (interiors go wide; product/food/portrait isolate the subject). **The provider still
+receives only plain text.**
 
 The vocabulary (entity/setting/location/time/weather/action lexicons + the entity finder) lives
 in `lexicon.ts` — the one place raw keyword knowledge sits, and the seam an LLM would replace.
@@ -106,8 +111,9 @@ people mention (*"no person on it"*) is not read as a person subject.
 Every generation returns a `debug` trace **only when `NODE_ENV !== "production"`**
 (`GenerationResult.debug`, `undefined` in production). The Generate page renders it with **each
 pipeline stage shown separately**: User prompt · **Identity context** · Scene analysis · **Spatial
-analysis (scene graph)** · Intent analysis · Composition plan · Creative rules applied · Compiled
-prompt · Provider · Model · Generation payload. The
+analysis (scene graph — anchor + relationship confidence)** · Intent analysis · Composition plan ·
+**Compiled structure** · Creative rules applied · Compiled prompt · Provider · Model · Generation
+payload. The
 payload is a **secret-free echo** the provider adapter builds (`ImageGenerationResult.requestPayload`
 — never contains the token). Nothing debug-related ships to production.
 

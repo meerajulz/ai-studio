@@ -1,5 +1,6 @@
 import type { ProviderCapability, RoutingDecision } from "@/lib/ai";
 import type {
+  CompiledStructure,
   CompositionPlan,
   CreativeFocus,
   CreativeStyle,
@@ -43,6 +44,7 @@ export type GenerationDebug = {
   graph: SceneGraph; // Stage 1.5 — spatial analysis (scene graph)
   intent: IntentAnalysis; // Stage 2 — intent analysis
   composition: CompositionPlan; // Stage 3 — composition plan
+  compiledStructure: CompiledStructure; // Stage 4 — structured representation before rendering
   rulesApplied: string[]; // everything the Director added beyond the user's words
   compiledPrompt: string; // Stage 4 — the prompt sent to the provider
   provider: string; // chosen provider id

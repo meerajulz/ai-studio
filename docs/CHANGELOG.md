@@ -7,9 +7,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 15 — Premium Provider Foundation
-> (Fal + Capability System)** (Decision 036): providers now advertise **capabilities** and the app
-> routes on those, **never on provider names**. Added **Fal.ai** (`providers/fal.ts`, `fetch`-based,
+> **▶ Resume (2026-07-14, build + tsc green):** Shipped **Milestone 16 — Creative Director v4 (Scene
+> Graph & Spatial Reasoning)** (Decision 037): a true scene graph with an **anchor** (central object),
+> node **roles**, **confidence-scored** relationships (explicit → high/exact; co-mentioned → low/
+> neutral, no fabricated directions), **intent v2** (architectural vs interior vs lifestyle; fantasy
+> adjectives), and a **structured compiler** (`CompiledStructure` → rendered plain text, not
+> concatenation) — pipeline `idea → identity → scene → spatial → intent → composition → compile`.
+> Debug shows anchor + confidence + compiled structure. Deterministic; **no LLM, no provider change,
+> no schema change.** Below: **Milestone 15 — Premium Provider Foundation (Fal + Capability System)**
+> (Decision 036): providers now advertise **capabilities** and the app routes on those, **never on
+> provider names**. Added **Fal.ai** (`providers/fal.ts`, `fetch`-based,
 > `FAL_KEY`, default `fal-ai/flux/schnell`), a **Provider Router** (`ai/router.ts`, premium-first,
 > capability-aware, `IMAGE_PROVIDER` override), and an **Identity Visual Package**
 > (`getIdentityVisualPackage`) that flows *around* the Creative Director to the provider as neutral
@@ -93,6 +100,25 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   only). No implementation, migration, UI, routes, or database changes.
 
 ### Added
+- **Creative Director v4 — Scene Graph & Spatial Reasoning** (Milestone 16, Decision 037): a true
+  scene graph now drives compilation. Nodes carry a **`role`** (primary/secondary/object); the graph
+  has an **`anchor`** — the central object others are positioned around (subject when present, else
+  the room's characteristic furniture: living room→sofa, bedroom→bed, kitchen→island/table,
+  office→desk). **Relationships carry confidence**: explicit prepositions → high (exact wording,
+  richer set incl. between/near/around/against-the-wall/outside), co-mentioned objects with no
+  preposition → low, **neutral** "near the anchor" ("with …") — **no fabricated directions**.
+  **Intent v2** (`stages/intent.ts`) is anchor-aware and distinguishes **architectural** (a whole
+  structure) from **interior-design** (a furnished room, no people) and **lifestyle** (a subject in
+  a scene); fantasy *adjectives* now trigger concept-art. **Structured compiler** (`stages/compile.ts`)
+  builds a **`CompiledStructure`** (subject + relationships + neutral objects + scene context +
+  genre + composition + quality) and **renders** it to plain text instead of concatenating the raw
+  sentence; the anchor's action + first explicit relationship fold into one clause ("a dog sitting
+  on the sofa"), and the identity reference (M14) still leads the subject. **The provider interface
+  is unchanged — providers still receive plain text.** Debug panel gained **anchor**, relationship
+  **confidence**, and a **Compiled structure** section (dev-only). Traced the required prompts
+  (luxury living room, bedroom, dog on sofa, coffee in Paris, product photography, fantasy castle)
+  plus regressions — anchors/intents/relationships consistent, identity preserved. **Deterministic —
+  no LLM, no provider change, no schema change.** `npm run build` + `tsc --noEmit` pass.
 - **Premium Provider Foundation — Fal + Capability System** (Milestone 15, Decision 036): the
   production provider architecture. **Provider Capability System** (`ai/capabilities.ts`):
   providers advertise `capabilities` (imageGeneration, imageEditing, referenceImages,

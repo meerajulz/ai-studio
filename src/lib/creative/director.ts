@@ -35,14 +35,15 @@ export function directCreative(brief: CreativeBrief): CreativeDirective {
   // Each stage consumes only the previous stages' structured output.
   const scene = analyzeScene(effectiveIdea);
   const graph = analyzeSpatial(effectiveIdea, scene);
-  const intent = analyzeIntent(scene);
+  const intent = analyzeIntent(scene, graph);
   const composition = planComposition(scene, graph, intent, brief);
-  const { prompt, appliedModifiers } = compilePrompt(
+  const { prompt, appliedModifiers, structure } = compilePrompt(
     effectiveIdea,
     scene,
     graph,
     intent,
     composition,
+    identity,
   );
 
   return {
@@ -57,6 +58,7 @@ export function directCreative(brief: CreativeBrief): CreativeDirective {
       graph,
       intent,
       composition,
+      compiledStructure: structure,
       appliedModifiers,
       identityAware: identity.present,
     },
