@@ -54,6 +54,18 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 > `HF_TOKEN` / `HUGGINGFACE_API_KEY` (+ optional `HF_IMAGE_MODEL`).
 
 ### Design (no code)
+- **Research 02 — Vision & Image Understanding** (research only): new
+  **`docs/research/RESEARCH_02_VISION.md`** — the definitive, provider-neutral reference for how
+  AI Studio will *understand* images before generation. Covers vision foundation models (Gemini/
+  OpenAI vision, Qwen2.5-VL, Florence-2, InternVL, Pixtral, Molmo, LLaVA, CLIP), captioning,
+  object detection (YOLO/Grounding DINO/OWLv2/Florence), segmentation (SAM2/Grounded SAM), pose
+  (MediaPipe/ViTPose; avoid OpenPose licensing), identity attributes, image-quality analysis,
+  similarity/embeddings (SigLIP/DINOv2/face embeddings), scene/landmark recognition, and automatic
+  metadata extraction — with comparison tables, an AI-Studio applications matrix (why/complexity/
+  dependencies/MVP-v2-LT), a **`VisionProvider`** capability-router architecture mirroring the image
+  provider design, implementation priorities, and licensing/privacy gates. Recommends a hybrid,
+  provider-neutral Vision layer (VLM structured extraction + embeddings + classical quality, growing
+  to consistency scoring + SAM2 editing). No code, no schema, no providers integrated.
 - **Knowledge capture after the first identity-preserving generations** (docs only): new
   **`LESSONS_LEARNED.md`** (what the first Fal Kontext tests proved — identity architecture works,
   Kontext ≫ Schnell for identity, quality now hinges on reference selection, and the preserve-intent

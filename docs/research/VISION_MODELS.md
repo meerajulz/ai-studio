@@ -2,6 +2,11 @@
 
 > **Status: research-only.** Feeds "Image Understanding" (identity photos → knowledge) and, later,
 > output evaluation. No implementation.
+>
+> **▶ Deep research completed:** see **[RESEARCH_02_VISION.md](./RESEARCH_02_VISION.md)** — the
+> definitive Vision & Image Understanding reference (VLMs, captioning, detection, segmentation, pose,
+> identity attributes, quality, embeddings, scene recognition, metadata, `VisionProvider`
+> architecture, priorities). This file remains the short pointer/backlog entry.
 
 ## Question
 
