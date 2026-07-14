@@ -7,6 +7,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+> **▶ Resume (paused 2026-07-14, clean tree at `3a078fe`, build + tsc green):** Shipped through
+> **Milestone 12 — Prompt Builder DESIGN** (docs only). **Next = Prompt Builder implementation**
+> (before Templates): lock the open decisions in `PROMPT_BUILDER.md`, then build the creative-brief
+> UI + a pure provider-agnostic `buildPrompt` in `src/lib/prompt/` → the existing `generateImage`,
+> store the brief in the recipe, add "Open in Builder" (remix) from the Gallery. Templates come
+> after (= saved briefs). First run: `nvm use` (Node 24); restart `npm run dev` only after a prisma
+> migrate. Env for AI: `HF_TOKEN` / `HUGGINGFACE_API_KEY` (+ optional `HF_IMAGE_MODEL`).
+
 ### Design (no code)
 - **Prompt Builder design** (Milestone 12 — design only): new **`PROMPT_BUILDER.md`** and
   **`CREATIVE_WORKFLOW.md`** — the intent-driven experience where the user *describes what they
