@@ -519,6 +519,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   runtime connects via a driver adapter.
 
 ### Fixed
+- **Scene Understanding — an incidental noun hijacked the subject/genre** (Decision 042). *"add
+  Julieta at the beach look left to the camera in bikini and smiling"* (with an identity) parsed
+  **primary subject = camera (product)** → **product photography**, so the identity model was asked
+  for a product shot instead of a lifestyle portrait. Two deterministic fixes: (1) **"camera" is no
+  longer an entity** — "look at the camera" is a photographic gaze cue, not a subject; (2) **when an
+  identity is selected, intent is person-centric** (`lifestyle` with any scene context, else
+  `portrait`) — an identity IS the subject, so a stray "bikini"/"camera" can't turn it into a
+  product/food/interior shot. Now the prompt reads **lifestyle** and preserves the full scene.
+  Regressions hold (real "camera on a desk"/"perfume bottle" → product; living room → interior; dog
+  → lifestyle; fantasy castle → concept-art). `npm run build` + `tsc --noEmit` pass. No schema change.
 - **Creative Director was discarding user intent** (Decision 039 — regression from Milestone 16's
   structured compiler). The v4 compiler rebuilt the prompt from *recognized scene-graph nodes only*,
   so any word the deterministic lexicon didn't know silently vanished: *"She wears a bikini on a

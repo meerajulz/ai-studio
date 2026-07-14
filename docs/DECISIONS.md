@@ -1524,3 +1524,45 @@ Accepted — implemented. Verified (`scripts/verify-coverage.ts`): a mocked iden
 ★★★★☆, Left profile ★★☆☆☆, Right profile/Back/Back-tattoo ☆ (missing), Full body/Hair covered, with
 prioritized suggestions; 8/8 deterministic checks pass. `npm run build` + `tsc --noEmit` pass. No
 schema change. Docs: `IDENTITY_INTELLIGENCE.md`.
+
+---
+
+# Decision 042
+
+Date
+2026-07-14
+
+Decision
+**Scene Understanding fix — an incidental noun must not hijack the subject/genre (bug fix).**
+Two deterministic fixes to the Creative Director:
+1. **"camera" is no longer an entity.** "look at/to/into the camera" is a photographic *gaze* cue,
+   not a subject. Detecting `camera` as a product made it the primary subject → genre
+   `product-photography`, which poisoned the whole prompt.
+2. **When an identity is selected, intent is person-centric.** An identity IS the subject (a
+   person/character), so intent is forced to **lifestyle** (with any scene context) or **portrait**
+   — never product/food/interior/etc. just because an incidental noun ("bikini", "camera") was
+   detected as the primary entity. `analyzeIntent` gained a `hasIdentity` flag (from Stage 0).
+
+Reason
+Real bug: *"add Julieta at the beach look left to the camera in bikini and smiling"* (with the
+Julieta identity) parsed **primary = camera (product)** → **product photography**, so Kontext was
+asked for a product shot instead of a lifestyle portrait of Julieta. The subject was already correct
+in the compiled prompt (identity reference leads — Decision 039), but the *genre/composition* were
+wrong. Forcing person-centric intent when an identity is present, plus removing the photography-
+context noun, fixes it; the prompt now reads lifestyle and preserves the full scene (bikini, beach,
+"look left to the camera", smiling).
+
+Alternatives
+Keep "camera" but suppress it only in gaze phrases (rejected — more fragile than just removing a
+rarely-a-subject noun; verbatim preservation keeps the user's "camera" words anyway); demote all
+clothing/props so they never anchor (deferred — a broader scene-understanding refinement; the
+identity-forcing fix covers the reported case); infer subject via an LLM (out of scope — stays
+deterministic).
+
+Status
+Accepted — implemented. Verified: the failing prompt now → **lifestyle** with full intent preserved;
+regressions (real "camera on a desk"/"perfume bottle" → product; living room → interior; dog → lifestyle;
+fantasy castle → concept-art; identity with no scene → portrait) hold. `npm run build` + `tsc --noEmit`
+pass. No schema change. (Bugs #2–#6 — coverage-aware/request-aware reference selection, Vision
+metadata, richer identity description — are tracked for the Vision-provider milestone; see
+`FUTURE_RESEARCH.md` / `IDENTITY_INTELLIGENCE.md`.)

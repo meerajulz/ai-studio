@@ -41,12 +41,30 @@ const STRUCTURE_TOKENS = new Set([
   "cathedral", "temple", "palace", "cabin", "lighthouse",
 ]);
 
-export function analyzeIntent(scene: Scene, graph: SceneGraph): IntentAnalysis {
+export function analyzeIntent(
+  scene: Scene,
+  graph: SceneGraph,
+  hasIdentity: boolean = false,
+): IntentAnalysis {
   const primaryKind: EntityKind | null = scene.primarySubject?.kind ?? null;
   const anchorNode = graph.nodes.find((n) => n.id === graph.anchor) ?? null;
   const hasLivingBeings = scene.livingBeings.length > 0;
   const hasAction = scene.actions.length > 0;
   const isRoom = Boolean(scene.setting && INDOOR_SETTINGS.test(scene.setting));
+
+  // An identity IS the subject — a person/character. It must never be read as a product/food/
+  // interior/etc. just because an incidental noun ("bikini", "camera") was detected. Person-centric:
+  // lifestyle when there's a scene, portrait otherwise.
+  if (hasIdentity) {
+    const hasScene =
+      Boolean(scene.location || scene.setting) ||
+      hasAction ||
+      scene.secondarySubjects.length > 0 ||
+      scene.objects.length > 0;
+    return hasScene
+      ? result("lifestyle", "identity subject within a scene")
+      : result("portrait", "identity subject, no wider scene");
+  }
 
   // Fantasy anywhere in the scene dominates — it defines the creative genre.
   if (scene.fantasyElements.length > 0 || primaryKind === "fantasy") {

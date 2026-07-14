@@ -61,8 +61,10 @@ const ENTITY_LEXICON: ReadonlyArray<readonly [EntityKind, readonly string[]]> = 
   [
     "product",
     [
+      // NOTE: "camera" is deliberately NOT an entity — "look at the camera" / "to the camera"
+      // is a photographic gaze cue, not a subject. Treating it as a product poisoned intent.
       "bottle", "perfume", "watch", "sneaker", "shoe", "handbag", "bag",
-      "phone", "smartphone", "laptop", "camera", "headphones", "jewelry",
+      "phone", "smartphone", "laptop", "headphones", "jewelry",
       "cosmetic", "lipstick", "gadget", "cup", "mug", "bowl", "plate", "book",
       "vase", "candle", "clock", "mirror", "television", "tv", "painting",
       "rug", "carpet", "pillow", "cushion", "umbrella", "lamp",
