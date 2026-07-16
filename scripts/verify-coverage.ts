@@ -12,6 +12,7 @@ import {
   analyzeIdentityCoverage,
   normalizeToIdentityMetadata,
   renderStars,
+  toTattooRegion,
   type VisionObservation,
 } from "../src/lib/vision";
 
@@ -31,7 +32,12 @@ const observations: VisionObservation[] = [
       hairColor: "pink", hairLength: "long", hairVisible: true,
       faceVisible: true, faceOrientation: "front", faceConfidence: 0.98,
       framing: "full-body", bodyVisibility: "full",
-      tattoos: [{ location: "chest" }, { location: "left arm" }, { location: "left leg" }],
+      tattoos: [
+        { location: "chest" },
+        { location: "left arm" },
+        { location: "left thigh" },
+        { location: "abdomen" },
+      ],
       lightingSetting: "outdoor",
     },
     HQ,
@@ -77,13 +83,21 @@ for (const s of report.suggestions) console.log(`  [${s.severity}] ${s.message}`
 // Assertions — deterministic expectations.
 const by = (id: string) => report.dimensions.find((d) => d.id === id)!;
 const checks: [string, boolean][] = [
-  ["front face covered", by("face-front").status === "covered"],
+  // 19A rescoring: a clearly-visible, high-quality aspect should read a FULL 5 stars (not 3).
+  ["front face = 5 stars (clearly frontal)", by("face-front").stars === 5],
+  ["hair = 5 stars (clearly visible)", by("hair").stars === 5],
+  ["chest tattoos = 5 stars (clearly visible)", by("tattoo-chest").stars === 5],
   ["full body covered", by("body-full").status === "covered"],
-  ["hair covered", by("hair").status === "covered"],
   ["right profile missing", by("face-right-profile").status === "missing"],
   ["back view missing", by("face-back").status === "missing"],
   ["back tattoo missing (identity has tattoos)", by("tattoo-back").status === "missing"],
   ["left-arm tattoo covered", by("tattoo-left-arm").stars >= 3],
+  // 19A taxonomy: thigh + abdomen no longer fall through to nothing.
+  ["leg tattoo covered (left thigh → leg dim)", by("tattoo-leg").status === "covered"],
+  ["abdomen tattoo covered (new dimension)", by("tattoo-abdomen").status === "covered"],
+  ["region mapping: 'left thigh' → left-thigh", toTattooRegion("left thigh") === "left-thigh"],
+  ["region mapping: 'left arm' → left-upper-arm", toTattooRegion("left arm") === "left-upper-arm"],
+  ["region mapping: 'abdomen' → abdomen", toTattooRegion("abdomen") === "abdomen"],
   ["suggests right profile + back", report.missing.some((m) => /right profile/i.test(m)) && report.missing.some((m) => /back view/i.test(m))],
 ];
 console.log("\nChecks:");

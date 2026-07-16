@@ -29,21 +29,38 @@ Do NOT identify the person. Analyse ONLY what is visible in this photo and retur
 (no prose) with these keys:
 {
   "hairColor": string|null, "hairLength": "short"|"medium"|"long"|null, "hairVisible": boolean,
+  "hairTexture": "straight"|"wavy"|"curly"|null, "hairParting": "center"|"side"|"none"|null,
+  "hairUpdo": "loose"|"tied-back"|"ponytail"|"bun"|null,
+  "hairBangs": boolean, "hairWet": boolean, "hairWindBlown": boolean,
   "faceVisible": boolean, "faceOrientation": "front"|"three-quarter"|"left-profile"|"right-profile"|"back"|null,
   "faceConfidence": number(0-1), "faceYaw": number(deg), "facePitch": number(deg), "faceRoll": number(deg),
   "smiling": boolean, "eyesVisible": boolean,
+  "faceExpression": { "smiling": boolean, "teethVisible": boolean, "laughing": boolean,
+                      "mouthOpen": boolean, "eyesClosed": boolean, "lookingAtCamera": boolean,
+                      "lookingAway": boolean, "squinting": boolean, "serious": boolean },
+  "faceLighting": number(0-1), "faceOcclusion": number(0-1), "faceSymmetry": number(0-1),
   "framing": "headshot"|"half-body"|"full-body"|null, "bodyVisibility": "face"|"upper"|"full"|null,
-  "tattoos": [{"location": string, "description": string|null, "confidence": number(0-1)}],
+  "visibleRegions": [ "head"|"neck"|"shoulders"|"torso"|"waist"|"hips"|"arms"|"hands"|"legs"|"feet" ],
+  "bodyVisiblePercent": number(0-100),
+  "tattoos": [{"location": string, "region": <one canonical region below>, "description": string|null, "confidence": number(0-1)}],
   "accessories": [string], "facialHair": string|null, "ageRange": string|null, "expression": string|null,
   "clothing": [string], "lightingSetting": "indoor"|"outdoor"|"studio"|null,
   "lightingQuality": "soft"|"harsh"|"backlit"|"even"|null, "environment": string|null,
   "dominantColors": [string], "objects": [string],
   "sharpness": number(0-1), "exposure": number(0-1), "occluded": boolean, "cropped": boolean,
+  "referenceSuitability": { "hero": number(0-1), "faceReference": number(0-1), "bodyReference": number(0-1),
+                            "tattooReference": number(0-1), "hairstyleReference": number(0-1),
+                            "expressionReference": number(0-1), "reason": string|null },
   "confidence": { "hairColor": number(0-1), "faceOrientation": number(0-1), "framing": number(0-1),
                   "bodyVisibility": number(0-1), "expression": number(0-1), "lightingSetting": number(0-1) }
 }
-Only list tattoos that are actually visible; give each a confidence. The "confidence" object holds
-how sure you are of each scalar attribute (0-1). yaw≈0 means facing the camera.`;
+Only list tattoos that are actually visible; give each a confidence. For each tattoo, set "region" to
+the SINGLE closest canonical value from: left-shoulder, left-upper-arm, left-forearm, left-hand,
+right-shoulder, right-upper-arm, right-forearm, right-hand, chest-left, chest-right, chest, abdomen,
+hip, upper-back, lower-back, back, neck, left-thigh, right-thigh, left-calf, right-calf, feet, other.
+"referenceSuitability" rates (0-1) how good THIS image is as each kind of training reference, with a
+short "reason". "faceExpression" captures the expression/gaze; "confidence" holds how sure you are of
+each scalar attribute (0-1). yaw≈0 means facing the camera.`;
 
 function getKey(): string | undefined {
   const v = process.env.GEMINI_API_KEY;
