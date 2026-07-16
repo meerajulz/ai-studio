@@ -7,6 +7,40 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+> **▶ Resume (2026-07-16, build + tsc green):** **Milestone 19C — Vision Intelligence Polish**
+> (Decision 046). Final correctness/clarity pass; **no new providers/routing/schema/generation**.
+> **Unknown vs zero:** `FaceKnowledge.quality` is now `FaceQuality | null` — a back view reports
+> face quality **Unavailable** (`null`), not a misleading bag of 0%s; `image-score` treats absent
+> face quality as 0 only for *ranking*; `/debug/vision` shows "—" / "Unavailable (face not visible)".
+> **Explainable suitability:** `referenceSuitability.reason` is now a synthesized multi-clause
+> sentence ("Excellent tattoo reference. Not suitable as a face reference — face not visible.
+> Supporting reference only — not a Hero."). Documented: single-image observations may disagree (→
+> identity-level aggregation resolves them, `TODO` in `coverage.ts`), coverage measures
+> *representation* not *image quality*, and future finer tattoo regions. **`im-2` FROZEN** as the
+> provider-neutral contract (future providers normalize INTO it; real changes = versioned `im-3`).
+> `verify-scoring` now asserts face-quality null-vs-object; both verifiers pass. **Next = 19B (face
+> embeddings)** then M20. Before that:
+>
+> **▶ Resume (2026-07-16, build + tsc green):** **Milestone 19A — Enrich Identity Intelligence
+> Metadata** (Decision 045). **No routing, no schema change** — this strengthens the *knowledge* so
+> every future decision has richer information. **Coverage rescored** (`coverage-engine.ts`, engine
+> `cov-2`): the old `best×0.6 + breadth×0.4` penalized single strong images (breadth capped a lone
+> image at 0.33, so a perfect frontal portrait maxed at ~★★★☆☆). New model =
+> `presence(matchStrength × visibilityConfidence) × qualityFactor(quality/70 ramp)` with breadth as a
+> **bonus** → a clearly-visible frontal portrait now reads **★★★★★** on front face / hair / chest
+> tattoos. Also fixed `toQuality` (a null `aesthetic` no longer caps a good photo at 90). New
+> metadata: normalized **tattoo-region taxonomy** (`TattooRegion` + `toTattooRegion`; coverage now
+> matches on region and gained **abdomen/hip** + **neck** dims — thighs/abdomen no longer fall
+> through), structured **body visibility** (`visibleRegions`/`visiblePercent`), structured **face
+> expression** + per-component **face quality** (image scoring derives its face score from these),
+> richer **hair** (texture/parting/updo/bangs/wet/wind-blown), and per-facet **reference suitability**
+> (metadata only — M20 consumes it later). `/debug/vision` shows the new panels. Versions bumped
+> `im-2`/`score-2`/`cov-2`. Verified offline (`verify-coverage` now asserts 5★ + region mapping;
+> `verify-scoring`). New docs: **`AI_ARCHITECTURE.md`** (the whole intelligence stack) +
+> **`research/RESEARCH_03_FACE_EMBEDDINGS.md`** (InsightFace recommended). Roadmap resequenced:
+> **19A → 19B face embeddings → 20 smart reference selection**. **Next = 19B (face embeddings).**
+> Before that:
+>
 > **▶ Resume (2026-07-15, build + tsc green):** Added a **`/debug/vision` live-verification tool** +
 > **per-attribute confidence** (Decision 044). Upload one image → full pipeline (Gemini → raw JSON →
 > normalize → IdentityMetadata → ImageScore → coverage) with duration/token-usage/warnings; NO

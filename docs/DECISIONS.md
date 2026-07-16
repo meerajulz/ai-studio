@@ -1659,3 +1659,120 @@ Status
 Accepted — implemented. `npm run build` + `tsc --noEmit` pass; offline scoring/coverage verifiers
 still pass. **The `/debug/vision` page + the live Gemini call are for the user to exercise** (needs
 `GEMINI_API_KEY`) — this is the intended first live test. No persistence, no schema change.
+
+---
+
+# Decision 045
+
+Date
+2026-07-16
+
+Decision
+**Enrich Identity Intelligence metadata + rescore coverage (Milestone 19A).** The first real Gemini
+run (Decision 044) surfaced two problems: coverage was far too conservative, and the metadata model
+was too coarse for good future routing. 19A strengthens the **knowledge** — deliberately **no
+routing/selection logic and no Prisma/schema change** (`analyzeIdentity` stays debug/in-memory).
+
+1. **Coverage rescoring** (`coverage-engine.ts`, engine `cov-2`). The old formula
+   `best × 0.6 + breadth × 0.4` capped a single image's breadth at `0.33`, so a *perfect* frontal
+   portrait maxed at ~3★. New per-dimension model: `presence = matchStrength × visibilityConfidence`
+   (face confidence / the matched tattoo's confidence / attribute confidence), `qualityFactor =
+   clamp(quality.overall/70,0,1)` (a ramp, not a hard multiplier), `best = max(presence ×
+   qualityFactor)`, and `score = best + (1−best) × breadthBonus` — **breadth is now a bonus, never a
+   penalty**. A clearly-visible frontal portrait now reads ★★★★★ on front face / hair / chest tattoos.
+   Also fixed `toQuality`: a null `aesthetic` no longer caps a good photo at 90 (normalize over
+   present weights).
+2. **Normalized tattoo taxonomy.** `TattooKnowledge.region: TattooRegion` (~20 canonical regions);
+   raw `location` kept for provenance; `toTattooRegion()` maps free text → region. Coverage now
+   matches on region and gained **abdomen/hip** and **neck** dimensions (thighs/abdomen no longer
+   "fall through" — the gap noted after the first real run).
+3. **Richer metadata.** Structured body visibility (`visibleRegions`/`visiblePercent`); structured
+   `FaceExpression`; per-component `FaceQuality` with a **derived** overall (image scoring now derives
+   its face score from these — one source of truth); richer hair (texture/parting/updo/bangs/wet/
+   wind-blown).
+4. **Reference suitability (metadata, NOT routing).** `IdentityMetadata.referenceSuitability` rates
+   the image (0–1) as hero/face/body/tattoo/hairstyle/expression reference + reason. Provider-supplied
+   when available, else derived from knowledge. Smart Reference Selection (M20) consumes it later.
+5. **Docs/research.** New `docs/AI_ARCHITECTURE.md` (the whole intelligence stack) + `docs/research/
+   RESEARCH_03_FACE_EMBEDDINGS.md` (InsightFace recommended). Roadmap resequenced: **19A → 19B face
+   embeddings → 20 smart reference selection** (embeddings before selection).
+
+`IDENTITY_METADATA_VERSION` → `im-2`, `IMAGE_SCORE_VERSION` → `score-2`, `COVERAGE_ENGINE_VERSION` →
+`cov-2`.
+
+Reason
+The metadata model should settle *before* the first schema change persists it — reprocessing stored
+knowledge later is expensive. Richer, provider-neutral signals (derived when a provider omits them)
+make future routing far stronger without committing to it now. The coverage bug was a genuine scoring
+error (breadth penalized single strong images), not a threshold tweak. Doing embeddings before
+selection means the selector has both metadata and measurable facial similarity from day one.
+
+Alternatives
+Jump straight to persistence + request-aware selection (rejected — the plan; premature before the
+metadata model is rich and coverage is honest); make each attribute `{value, confidence}` (rejected —
+bloats consumers; the existing `attributeConfidence` map suffices); keep tattoo locations as free text
+(rejected — coverage/selection need a normalized taxonomy); ask Gemini for suitability only, no derived
+fallback (rejected — fields must always be populated + provider-neutral); do face embeddings after
+selection (rejected — the selector is stronger with similarity available from the start).
+
+Status
+Accepted — implemented. `npm run build` + `tsc --noEmit` pass; `scripts/verify-coverage.ts`
+(now asserts 5★ + region mapping) and `scripts/verify-scoring.ts` pass offline. **No schema change,
+no persistence, no routing.** The enriched Gemini prompt is for the user to exercise via
+`/debug/vision` (needs `GEMINI_API_KEY`).
+
+---
+
+# Decision 046
+
+Date
+2026-07-16
+
+Decision
+**Vision Intelligence Polish + freeze `im-2` (Milestone 19C).** A final correctness/clarity pass on
+the knowledge the Vision layer produces, then **stop expanding the metadata** and move to using it.
+**No new providers, no routing, no schema redesign, no generation changes.**
+
+1. **Unknown vs zero.** `FaceKnowledge.quality` is now `FaceQuality | null`; `deriveFaceQuality`
+   returns **`null` (unavailable)** when the face isn't visible instead of a bag of zeros. A back view
+   has *no* face quality, not 0%. `image-score.ts` treats absent face quality as 0 for *ranking*
+   (worst face reference) while the *knowledge* stays "unavailable"; `/debug/vision` renders
+   "Unavailable — face not visible" and "—".
+2. **Explainable reference suitability.** `referenceSuitability.reason` is now a **synthesized,
+   multi-clause** sentence built deterministically from the resolved scores + visibility
+   ("Excellent tattoo reference. Not suitable as a face reference — face not visible. Supporting
+   reference only — not a Hero."). Provider scores still win over derived fallbacks; a provider's own
+   freeform reason is kept only as a parenthetical suffix.
+3. **Single-image disagreement = an aggregation concern.** Documented that per-image observations may
+   conflict (one photo "brown", most "pink") and that identity-level aggregation (confidence-weighted
+   majority, later) resolves it — **not** the per-image normalizer. `TODO(19C → aggregation)` in
+   `coverage.ts`.
+4. **Coverage ≠ image quality.** Documented that coverage measures *how well an identity dimension is
+   represented*, not photo quality (those are `ImageQuality` / `image-score.ts`).
+5. **Tattoo taxonomy stays coarse.** Current regions are sufficient; finer anatomy (shoulder/elbow/
+   forearm/hand, calf/ankle) is documented as future, not implemented.
+6. **`im-2` FROZEN.** `IDENTITY_METADATA_VERSION = "im-2"` is the stable provider-neutral contract;
+   future providers normalize INTO it. Real changes are a deliberate versioned `im-3` bump, not
+   drive-by field additions.
+
+Reason
+"Unknown vs zero" is a correctness bug — zeros for an absent face are misleading knowledge and would
+poison any downstream selection ("this image has 0% lighting" is false; it has *no measurable* face
+lighting). Explainable reasons make the whole layer debuggable. Freezing the schema now — while it is
+rich but before it is persisted — prevents unbounded field sprawl and gives future providers a fixed
+target; the interesting work shifts from *collecting* information to *using* it (M20). The metadata
+model is complete enough; more fields would be a trap.
+
+Alternatives
+Per-field `number | null` on `FaceQuality` (rejected — a whole-object `null` is simpler and matches
+"face quality unavailable"; components aren't individually meaningful without a face); keep zeros and
+fix only the UI (rejected — the knowledge itself must be accurate, not just its display); solve hair
+disagreement per-image now (rejected — it's inherently an identity-level aggregation problem, premature
+before persistence); expand tattoo regions now (rejected — no consumer needs the finer anatomy yet);
+leave the schema open (rejected — that is exactly the 300-unused-fields trap this milestone avoids).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-scoring.ts` (now
+asserts face quality is `null` for a back view, non-null for a front view) and
+`scripts/verify-coverage.ts` pass offline. **No schema/persistence/routing/generation change.** The
+suitability reason + "unavailable" states are for the user to see via `/debug/vision`.

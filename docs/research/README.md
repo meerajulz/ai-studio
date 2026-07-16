@@ -19,6 +19,7 @@ Before each major milestone:
 | --- | ------ |
 | [../PROVIDER_RESEARCH.md](../PROVIDER_RESEARCH.md) | **Research 01** — image generation providers (→ FLUX.1 Kontext) |
 | [RESEARCH_02_VISION.md](./RESEARCH_02_VISION.md) | **Research 02** — Vision & Image Understanding (VLMs, detection, segmentation, pose, quality, embeddings, `VisionProvider` architecture) |
+| [RESEARCH_03_FACE_EMBEDDINGS.md](./RESEARCH_03_FACE_EMBEDDINGS.md) | **Research 03** — Face embeddings (InsightFace/ArcFace/AdaFace/MagFace/…) → InsightFace for identity similarity; feeds Milestone 19B |
 
 ## Areas (backlog)
 

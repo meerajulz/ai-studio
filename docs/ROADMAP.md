@@ -161,10 +161,33 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       (`image-score.ts`) distinct from identity-level coverage (self-curating libraries via
       `rankIdentityImages`); rich metadata (facial pose/smiling). Gemini isolated + swappable;
       deterministic scoring verified offline; **Gemini API not yet live-verified**. Decision 043.
-- [ ] **Wire Vision into the app** ← **next** — run `analyzeIdentity` on training-media upload,
-      **persist** `IdentityMetadata` + `IdentityImageScore` (needs schema), then **request-aware
-      reference selection** (choose the best refs for the requested scene via coverage + scores) and
-      identity-description synthesis. Addresses the remaining Kontext identity bugs (#2–#6).
+- [x] **Milestone 19A — Enrich Identity Intelligence Metadata** (no routing, no schema) — richer
+      **knowledge** so every future decision has more to work with. **Coverage rescored** (engine
+      `cov-2`): presence × visibility-confidence × quality-ramp + breadth-as-**bonus** — a clearly
+      visible frontal portrait now reads ★★★★★ (was ★★★☆☆). New metadata: normalized **tattoo-region
+      taxonomy** (`TattooRegion`), structured **body visibility** (`visibleRegions`/`visiblePercent`),
+      richer **face expression** + per-component **face quality**, richer **hair** (texture/parting/
+      updo/bangs/wet/wind-blown), and **reference suitability** (per-facet, metadata only). Verified
+      offline (`verify-coverage`/`verify-scoring`). Decision 045 · `IDENTITY_INTELLIGENCE.md` ·
+      new `AI_ARCHITECTURE.md`.
+- [x] **Milestone 19C — Vision Intelligence Polish** (docs + correctness, no new providers/routing/
+      schema) — final pass before Smart Reference Selection. **Unknown vs zero:** `face.quality` is
+      now `null` (*unavailable*) when the face isn't visible, never a bag of zeros (UI shows "—").
+      **Explainable suitability:** `referenceSuitability.reason` is a synthesized multi-clause
+      sentence. Documented that single-image observations may disagree (→ identity-level aggregation
+      resolves them; `TODO` in `coverage.ts`), that coverage measures *representation* not *image
+      quality*, and future finer tattoo regions. **`im-2` FROZEN** as the provider-neutral contract.
+      Decision 046.
+- [ ] **Milestone 19B — Face Embeddings** ← **next** — add an identity-embedding signal
+      (**InsightFace** recommended — [research/RESEARCH_03_FACE_EMBEDDINGS.md](./research/RESEARCH_03_FACE_EMBEDDINGS.md))
+      behind a provider-neutral `FaceEmbeddingProvider`: best-hero selection, dedup, and later
+      identity-drift scoring. Embeddings land **before** selection so the selector has metadata *and*
+      facial similarity.
+- [ ] **Milestone 20 — Smart Reference Selection** — the first consumer of `referenceSuitability` +
+      coverage + embeddings: run `analyzeIdentity` on training-media upload, **persist**
+      `IdentityMetadata` + `IdentityImageScore` (the first schema change), then choose the best refs
+      **for the requested scene**. Followed by **21** identity-description synthesis. Addresses the
+      remaining Kontext identity bugs (#2–#6). See [AI_ARCHITECTURE.md](./AI_ARCHITECTURE.md).
 
 ### Future — documented, NOT scheduled (research first)
 
