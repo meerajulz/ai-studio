@@ -8,6 +8,7 @@
  * reuse it and tag lineage in `params`. See docs/GENERATION_PIPELINE.md, GENERATION_RECIPES.md.
  */
 import {
+  chooseModel,
   isProviderError,
   routeImageProvider,
   type ProviderCapability,
@@ -29,6 +30,7 @@ import {
   buildReferencePackage,
   filterCandidatesByExposure,
   pickIdentityAnchor,
+  rankIdentityAnchors,
   type SelectedReference,
   type SelectionCandidate,
 } from "@/lib/selection";
@@ -86,6 +88,14 @@ async function runImageGeneration(
     candidates?: SelectionCandidate[];
     /** The identity's static Visual Package — FALLBACK when no analyzed candidates exist. */
     visualPackage?: IdentityVisualPackage | null;
+    /** DEV identity-benchmark cap on references sent (anchor kept first). */
+    maxReferences?: number;
+    /** DEV manual override: send exactly these media ids in this order (bypasses selector/anchor). */
+    manualReferenceMediaIds?: string[];
+    /** DEV manual model id (identity benchmark) — used when modelMode="manual". */
+    modelOverride?: string;
+    /** Model selection mode (Milestone 21): auto = capability router; manual = the id above. */
+    modelMode?: "auto" | "manual";
     /** Lineage tags (regenerate/variation) merged alongside the creative record. */
     lineage?: Record<string, unknown>;
   },
@@ -97,15 +107,28 @@ async function runImageGeneration(
   // static Visual Package. Either way the provider just receives ordered, provider-neutral references
   // and never knows how they were chosen. The Creative Director never sees these — text only.
   const candidates = opts.candidates ?? [];
+  const manualIds = opts.manualReferenceMediaIds?.filter(Boolean) ?? [];
   let referenceImages: ReferenceImage[];
   let referenceSelectionReason: string;
   let selectionDebug: ReferenceSelectionDebug | null = null;
+  let manualMode = false;
   // Reference Safety filter (Milestone 20): drop nude/lingerie references for non-explicit prompts so
   // we don't trip Kontext's NSFW moderation (which returns a black image). Applied to BOTH the scene
   // selection AND the Identity Anchor below — a nude image is never sent, even for its face.
   let safeCandidates = candidates;
 
-  if (candidates.length) {
+  if (manualIds.length && candidates.length) {
+    // DEV manual override: send EXACTLY these images in THIS order — no selector, no anchor, no
+    // safety filter. For isolating which reference helps/hurts identity preservation.
+    manualMode = true;
+    const byId = new Map(candidates.map((c) => [c.mediaId, c] as const));
+    referenceImages = manualIds
+      .map((id) => byId.get(id))
+      .filter((c): c is SelectionCandidate => c != null)
+      .map((c) => ({ url: c.url, role: "reference" as const }));
+    referenceSelectionReason = `MANUAL reference selection (dev): ${referenceImages.length} image(s), exact order`;
+    safeCandidates = []; // no auto-anchor in manual mode
+  } else if (candidates.length) {
     const exposure = filterCandidatesByExposure(directive, candidates);
     safeCandidates = exposure.safe;
     const selection = buildReferencePackage(directive, exposure.safe);
@@ -132,7 +155,7 @@ async function runImageGeneration(
   // Identity Anchor (Milestone 20 invariant) — chosen INDEPENDENTLY of the scene selector; it answers
   // "who is this person?" (strongest frontal face). The provider prepends it before sending. Only when
   // we have analyzed candidates (it needs face knowledge); it never enters the selector's reasoning.
-  const anchorCandidate = safeCandidates.length ? pickIdentityAnchor(safeCandidates) : null;
+  const anchorCandidate = !manualMode && safeCandidates.length ? pickIdentityAnchor(safeCandidates) : null;
   const identityAnchor: ReferenceImage | undefined = anchorCandidate
     ? { url: anchorCandidate.url, role: "anchor" }
     : undefined;
@@ -145,6 +168,23 @@ async function runImageGeneration(
     : [];
   const { provider, decision } = routeImageProvider({ needs });
 
+  // Capability MODEL routing (Milestone 21): the provider executes; the registry picks WHICH model by
+  // capability (Auto), or the user's manual pick (benchmark). Only when we have references (the
+  // identity/editing path); a no-reference generation falls through to the adapter's text-to-image.
+  const totalRefs = referenceImages.length + (identityAnchor ? 1 : 0);
+  const modelNeeds: ProviderCapability[] =
+    totalRefs > 1
+      ? ["imageEditing", "referenceImages", "identityPreservation", "multipleReferenceImages"]
+      : ["imageEditing", "referenceImages", "identityPreservation"];
+  const routedModel = hasReferences
+    ? chooseModel({
+        provider: provider.id,
+        needs: modelNeeds,
+        mode: opts.modelMode ?? "auto",
+        manualModelId: opts.modelOverride,
+      })
+    : null;
+
   const params: Prisma.InputJsonValue = {
     ...(opts.lineage ?? {}),
     creative: {
@@ -153,6 +193,12 @@ async function runImageGeneration(
       focus: opts.brief.focus ?? null,
       intent: directive.meta.intent.type,
       compiledPrompt: directive.prompt,
+    },
+    // Identity-benchmark provenance: which reference cap + whether an anchor was used, per result.
+    references: {
+      maxReferences: opts.maxReferences ?? null,
+      offered: referenceImages.length,
+      anchorIncluded: identityAnchor != null,
     },
   };
 
@@ -176,6 +222,8 @@ async function runImageGeneration(
       prompt: directive.prompt,
       referenceImages: referenceImages.length ? referenceImages : undefined,
       identityAnchor,
+      maxReferences: opts.maxReferences,
+      model: routedModel?.model.id,
     });
 
     const media = await createGeneratedMedia(userId, {
@@ -217,10 +265,15 @@ async function runImageGeneration(
             offeredRoles: referenceImages.map((r) => r.role),
             sent: readNumber(result.requestPayload, "usedReferenceImages"),
             sentRoles: readStringArray(result.requestPayload, "referenceRoles"),
+            sentImages: readRefImages(result.requestPayload),
             selectionReason: referenceSelectionReason,
             identityAnchor: identityAnchor != null,
+            manual: manualMode,
           },
           referenceSelection: selectionDebug,
+          // Identity-anchor diagnostic: the top face candidates + why the winner won (dev evidence).
+          anchorRanking: rankIdentityAnchors(candidates).slice(0, 5),
+          modelRouting: routedModel?.decision ?? null,
           responseMetadata: result.metadata ?? null,
           payload: result.requestPayload ?? { prompt: directive.prompt },
         }
@@ -284,6 +337,17 @@ function readStringArray(obj: Record<string, unknown> | undefined, key: string):
   const v = obj?.[key];
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
+/** Read the actual ordered `{url, role}` reference images a provider reported sending (dev debug). */
+function readRefImages(obj: Record<string, unknown> | undefined): { url: string; role: string }[] {
+  const v = obj?.referenceImages;
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((r) => {
+    if (!r || typeof r !== "object") return [];
+    const url = (r as Record<string, unknown>).url;
+    const role = (r as Record<string, unknown>).role;
+    return typeof url === "string" ? [{ url, role: typeof role === "string" ? role : "reference" }] : [];
+  });
+}
 
 /** Debug-safe summary of the Visual Package (booleans + counts, never signed URLs). */
 function summarizeVisualPackage(
@@ -321,6 +385,10 @@ export async function generateImage(
     identityId,
     candidates: inputs.candidates,
     visualPackage: inputs.visualPackage,
+    maxReferences: input.maxReferences,
+    manualReferenceMediaIds: input.manualReferenceMediaIds,
+    modelOverride: input.modelOverride,
+    modelMode: input.modelMode,
   });
 }
 

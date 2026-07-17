@@ -18,6 +18,7 @@ export type MediaKnowledgeSummary = {
   covered: string[]; // dimension labels covered by THIS image (e.g. "Front face", "Leg tattoos")
   hair: string | null; // "Pink · long · wavy"
   environment: string | null; // "Indoor"
+  smiling: boolean; // for a quick "Smile" badge in the manual reference picker
   exposure: ExposureLevel; // Reference Safety class (clothed/swimwear/lingerie/nude)
   provider: string;
   model: string;
@@ -67,6 +68,7 @@ export function summarizeMediaKnowledge(
     covered,
     hair: hairWords.length ? hairWords.map(cap).join(" · ") : null,
     environment,
+    smiling: metadata.face.expression.smiling,
     exposure: classifyExposure(metadata),
     provider: source.provider,
     model: source.model,

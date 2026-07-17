@@ -1,4 +1,5 @@
-import type { ProviderCapability, RoutingDecision } from "@/lib/ai";
+import type { ModelRoutingDecision, ProviderCapability, RoutingDecision } from "@/lib/ai";
+import type { AnchorScore } from "@/lib/selection";
 import type {
   CompiledStructure,
   CompositionPlan,
@@ -29,6 +30,25 @@ export type GenerateImageInput = {
   style?: CreativeStyle;
   /** Optional emphasis ("What matters most?"). Defaults to auto-detect in the Director. */
   focus?: CreativeFocus;
+  /**
+   * DEV-only identity benchmark control: cap how many reference images are sent to the provider
+   * (1–4). The Identity Anchor is always kept first, so `1` = anchor only. Lets us A/B identity
+   * preservation with 1→4 references WITHOUT code changes. Ignored in production. Milestone 20.
+   */
+  maxReferences?: number;
+  /**
+   * DEV-only MANUAL reference override: send EXACTLY these training-media ids, in THIS order, to the
+   * provider — bypassing the selector, the Identity Anchor, and the safety filter. For benchmarking
+   * "does image A alone preserve identity? does A+B beat A+C?". Ignored in production. Milestone 20.
+   */
+  manualReferenceMediaIds?: string[];
+  /**
+   * DEV-only manual model id (identity benchmark — compare models with everything else identical).
+   * Used only when `modelMode === "manual"`. Ignored in production. Milestone 20/21.
+   */
+  modelOverride?: string;
+  /** Model selection mode (Milestone 21): "auto" = capability router picks; "manual" = the id above. */
+  modelMode?: "auto" | "manual";
 };
 
 /**
@@ -54,6 +74,8 @@ export type GenerationDebug = {
   visualPackage: VisualPackageSummary | null; // identity reference images (Milestone 15)
   referenceImages: ReferenceImageDebug; // what was offered/sent to the provider (Milestone 17)
   referenceSelection: ReferenceSelectionDebug | null; // Smart Reference Selection trace (Milestone 20)
+  anchorRanking: AnchorScore[]; // top identity-anchor candidates + face scoring breakdown (Milestone 20)
+  modelRouting: ModelRoutingDecision | null; // capability model routing: chosen model + why (Milestone 21)
   responseMetadata: Record<string, unknown> | null; // provider response metadata (seed/timings/…)
   payload: Record<string, unknown>; // secret-free echo of the provider request
 };
@@ -74,8 +96,10 @@ export type ReferenceImageDebug = {
   offeredRoles: string[];
   sent: number; // what the provider/model actually used
   sentRoles: string[];
+  sentImages: { url: string; role: string }[]; // the ACTUAL ordered images sent (dev thumbnails, M20)
   selectionReason: string;
   identityAnchor: boolean; // whether an Identity Anchor was prepended (Milestone 20)
+  manual: boolean; // dev manual reference override was used (Milestone 20)
 };
 
 export type GenerationResult = {

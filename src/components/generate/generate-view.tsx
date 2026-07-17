@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Bug, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 
@@ -8,7 +8,11 @@ import {
   useGenerateImage,
   useProjectGenerations,
 } from "@/hooks/use-generation";
-import { useIdentities, defaultIdentityFilters } from "@/hooks/use-identities";
+import {
+  useIdentities,
+  useIdentity,
+  defaultIdentityFilters,
+} from "@/hooks/use-identities";
 import {
   CREATIVE_STYLE_OPTIONS,
   DEFAULT_STYLE,
@@ -24,8 +28,23 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MediaViewer } from "@/components/media/media-viewer";
 import { GenerationHistory } from "./generation-history";
+import { ManualReferencePicker, type PickerImage } from "./manual-reference-picker";
+import type { MediaKnowledgeSummary } from "@/lib/vision";
+import { MODEL_REGISTRY } from "@/lib/ai/model-registry";
 
 const MAX_PROMPT = 1000;
+
+/** Compact badges for the manual reference picker, derived from the persisted knowledge summary. */
+function badgesFor(k: MediaKnowledgeSummary, isAnchor: boolean): string[] {
+  const b: string[] = [];
+  if (isAnchor) b.push("Anchor");
+  if (k.covered.some((c) => /face|profile/i.test(c))) b.push("Face");
+  if (k.covered.some((c) => /body/i.test(c))) b.push("Body");
+  if (k.covered.some((c) => /tattoo/i.test(c))) b.push("Tattoos");
+  if (k.covered.some((c) => /hair/i.test(c))) b.push("Hair");
+  if (k.smiling) b.push("Smile");
+  return b;
+}
 
 type GenerateViewProps = {
   projectId: string;
@@ -44,10 +63,52 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   const [identityId, setIdentityId] = useState<string>("");
   const [viewing, setViewing] = useState<MediaAsset | null>(null);
   const [debug, setDebug] = useState<GenerationDebug | null>(null);
+  // DEV identity-benchmark controls (not shown in prod).
+  const [maxReferences, setMaxReferences] = useState<number | undefined>(undefined);
+  const [refMode, setRefMode] = useState<"auto" | "manual">("auto");
+  const [manualSelected, setManualSelected] = useState<string[]>([]);
+  // DEV model selection: Auto (capability router) · Manual (pick one) · Developer (Manual + metadata).
+  const [modelMode, setModelMode] = useState<"auto" | "manual" | "developer">("auto");
+  const [modelId, setModelId] = useState<string | undefined>(undefined);
   const generateMut = useGenerateImage(projectId);
+  const isDev = process.env.NODE_ENV !== "production";
+  // Selected identity's analyzed images (for the manual reference picker). Fetch only in dev.
+  const { data: identityDetail } = useIdentity(isDev && identityId ? identityId : "");
   const { data: history, isLoading: historyLoading } =
     useProjectGenerations(projectId);
   const { data: identities } = useIdentities(projectId, defaultIdentityFilters);
+
+  const pickerImages = useMemo<PickerImage[]>(() => {
+    const items = identityDetail?.trainingMedia ?? [];
+    // Anchor badge = the analyzed image with the strongest visible front face.
+    let anchorId: string | null = null;
+    let bestFace = -1;
+    for (const t of items) {
+      const k = t.knowledge;
+      if (k && k.covered.some((c) => /front face/i.test(c)) && k.suitability.face > bestFace) {
+        bestFace = k.suitability.face;
+        anchorId = t.media.id;
+      }
+    }
+    return items
+      .filter((t) => t.media.type === "IMAGE")
+      .map((t) => ({
+        mediaId: t.media.id,
+        url: t.media.url,
+        analyzed: t.knowledge != null,
+        badges: t.knowledge ? badgesFor(t.knowledge, t.media.id === anchorId) : [],
+      }));
+  }, [identityDetail]);
+
+  // Registry models grouped by vendor for the Manual/Developer selector (config-driven; t2i hidden).
+  const modelsByVendor = useMemo(() => {
+    const groups = new Map<string, typeof MODEL_REGISTRY>();
+    for (const m of MODEL_REGISTRY) {
+      if (m.payloadKind === "t2i") continue;
+      groups.set(m.vendor, [...(groups.get(m.vendor) ?? []), m]);
+    }
+    return [...groups.entries()];
+  }, []);
 
   const isPending = generateMut.isPending;
   const trimmed = prompt.trim();
@@ -61,6 +122,11 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
         prompt: trimmed,
         style,
         identityId: identityId || undefined,
+        maxReferences: isDev && refMode === "auto" ? maxReferences : undefined,
+        manualReferenceMediaIds:
+          isDev && refMode === "manual" && manualSelected.length ? manualSelected : undefined,
+        modelMode: isDev && modelMode === "auto" ? "auto" : isDev ? "manual" : undefined,
+        modelOverride: isDev && modelMode !== "auto" ? modelId : undefined,
       });
       setViewing(res.media);
       setDebug(res.debug ?? null); // dev-only; undefined in production
@@ -143,6 +209,142 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
             </Button>
           ))}
         </div>
+        {isDev && identityId ? (
+          <div className="grid gap-2 rounded-md border border-dashed p-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground mr-1 text-sm">
+                References <span className="text-[10px] uppercase">dev</span>
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant={refMode === "auto" ? "default" : "outline"}
+                disabled={isPending}
+                onClick={() => setRefMode("auto")}
+              >
+                Auto (selector)
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={refMode === "manual" ? "default" : "outline"}
+                disabled={isPending}
+                onClick={() => setRefMode("manual")}
+              >
+                Manual
+              </Button>
+            </div>
+
+            <div className="grid gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted-foreground mr-1 text-sm">Model</span>
+                {(
+                  [
+                    ["auto", "Auto (Recommended)"],
+                    ["manual", "Manual"],
+                    ["developer", "Developer"],
+                  ] as const
+                ).map(([m, label]) => (
+                  <Button
+                    key={m}
+                    type="button"
+                    size="sm"
+                    variant={modelMode === m ? "default" : "outline"}
+                    disabled={isPending}
+                    onClick={() => setModelMode(m)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+
+              {modelMode === "auto" ? (
+                <p className="text-muted-foreground text-xs">
+                  AI Studio routes to the best model by capability — see the Debug panel for the chosen
+                  model + reason.
+                </p>
+              ) : (
+                <div className="grid gap-2">
+                  {modelsByVendor.map(([vendor, models]) => (
+                    <div key={vendor} className="grid gap-1">
+                      <span className="text-muted-foreground text-[11px] font-medium uppercase">
+                        {vendor}
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {models.map((mdl) => (
+                          <Button
+                            key={mdl.id}
+                            type="button"
+                            size="sm"
+                            variant={modelId === mdl.id ? "default" : "outline"}
+                            disabled={isPending || !mdl.enabled}
+                            onClick={() => setModelId(mdl.id)}
+                            title={mdl.note ? `${mdl.id} — ${mdl.note}` : mdl.id}
+                          >
+                            {mdl.label}
+                          </Button>
+                        ))}
+                      </div>
+                      {modelMode === "developer" ? (
+                        <div className="text-muted-foreground grid gap-0.5 text-[10px]">
+                          {models.map((mdl) => (
+                            <div key={mdl.id}>
+                              <span className="font-mono">{mdl.label}</span> · p{mdl.priority} · refs≤
+                              {mdl.maxReferences} · {mdl.capabilities.join(", ")}
+                              {mdl.note ? ` · ⚠ ${mdl.note}` : ""}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                  {!modelId ? (
+                    <p className="text-muted-foreground text-xs">Pick a model for this generation.</p>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            {refMode === "auto" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {[1, 2, 3, 4].map((n) => (
+                  <Button
+                    key={n}
+                    type="button"
+                    size="sm"
+                    variant={maxReferences === n ? "default" : "outline"}
+                    disabled={isPending}
+                    onClick={() => setMaxReferences(n)}
+                  >
+                    {n}
+                  </Button>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={maxReferences === undefined ? "default" : "outline"}
+                  disabled={isPending}
+                  onClick={() => setMaxReferences(undefined)}
+                >
+                  Auto
+                </Button>
+                <span className="text-muted-foreground text-xs">anchor stays first; 1 = anchor only</span>
+              </div>
+            ) : pickerImages.length ? (
+              <ManualReferencePicker
+                images={pickerImages}
+                selected={manualSelected}
+                onChange={setManualSelected}
+                max={4}
+                disabled={isPending}
+              />
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                No analyzed images for this identity yet — run <strong>Analyze library</strong> first.
+              </p>
+            )}
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span
             className={cn(
@@ -380,6 +582,40 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
         <DebugStage title="Provider & routing">
           <DebugRow label="Chosen provider" value={debug.provider} />
           <DebugRow label="Chosen model" value={debug.model} />
+          {debug.modelRouting ? (
+            <>
+              <DebugRow
+                label="Model routing"
+                value={`${debug.modelRouting.mode} → ${debug.modelRouting.label} (${debug.modelRouting.vendor}) — ${debug.modelRouting.reason}`}
+              />
+              <DebugRow
+                label="Models considered"
+                value={
+                  <div className="grid gap-0.5 font-mono text-[11px]">
+                    {debug.modelRouting.considered
+                      .slice()
+                      .sort((a, b) => b.priority - a.priority)
+                      .map((m) => (
+                        <div
+                          key={m.id}
+                          className={
+                            m.id === debug.modelRouting?.chosen
+                              ? "text-foreground font-semibold"
+                              : m.enabled
+                                ? "text-muted-foreground"
+                                : "text-muted-foreground/50"
+                          }
+                        >
+                          {m.id === debug.modelRouting?.chosen ? "★ " : ""}
+                          {m.label} · {m.vendor} · p{m.priority}
+                          {m.enabled ? "" : " · disabled"}
+                        </div>
+                      ))}
+                  </div>
+                }
+              />
+            </>
+          ) : null}
           <DebugRow
             label="Provider capabilities"
             value={
@@ -410,6 +646,16 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
             label="Supports reference images"
             value={debug.referenceImages.supportsReferenceImages ? "yes" : "no"}
           />
+          {debug.referenceImages.manual ? (
+            <DebugRow
+              label="Selection mode"
+              value={
+                <span className="font-medium text-amber-600 dark:text-amber-400">
+                  Manual reference selection (dev) — exact chosen images/order
+                </span>
+              }
+            />
+          ) : null}
           <DebugRow
             label="Reference images sent"
             value={`${debug.referenceImages.sent} of ${debug.referenceImages.offered} offered${
@@ -418,7 +664,81 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
                 : ""
             }`}
           />
+          {debug.referenceImages.sentImages.length ? (
+            <DebugRow
+              label="Images sent (in order)"
+              value={
+                <div className="flex flex-wrap gap-2">
+                  {debug.referenceImages.sentImages.map((img, i) => (
+                    <div key={`${img.url}-${i}`} className="grid gap-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={img.url}
+                        alt={img.role}
+                        className={cn(
+                          "size-20 rounded border object-cover",
+                          i === 0 && img.role === "anchor" ? "ring-primary ring-2" : "",
+                        )}
+                      />
+                      <span className="text-center text-[10px]">
+                        {i + 1}. {i === 0 && img.role === "anchor" ? "★ anchor" : img.role}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              }
+            />
+          ) : null}
           <DebugRow label="Why these images" value={debug.referenceImages.selectionReason} />
+          {debug.anchorRanking.length ? (
+            <DebugRow
+              label="Identity anchor ranking (FACE only)"
+              value={
+                <div className="overflow-x-auto">
+                  <table className="text-[11px]">
+                    <thead>
+                      <tr className="text-muted-foreground text-left">
+                        {["#", "img", "orient", "faceQ", "frontal", "eyes", "light", "res", "prom", "conf", "score"].map(
+                          (h) => (
+                            <th key={h} className="px-1 pb-1 font-normal">
+                              {h}
+                            </th>
+                          ),
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="font-mono">
+                      {debug.anchorRanking.map((a, i) => (
+                        <tr
+                          key={a.mediaId}
+                          className={i === 0 ? "text-foreground font-semibold" : "text-muted-foreground"}
+                        >
+                          <td className="px-1">{i === 0 ? "★" : i + 1}</td>
+                          <td className="px-1">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={a.url} alt="" className="size-10 rounded object-cover" />
+                          </td>
+                          <td className="px-1">{a.orientation}</td>
+                          <td className="px-1 text-center">{Math.round(a.faceQuality * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.frontalness * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.eyeVisibility * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.lighting * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.resolution * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.prominence * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.confidence * 100)}</td>
+                          <td className="px-1 text-center">{a.score.toFixed(3)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="text-muted-foreground mt-1">
+                    ★ = chosen anchor. score = frontal × faceQ × conf × prominence. `res`/`prom` reflect
+                    face size (headshot ≈ 100, full-body ≈ 35) — a close-up should beat a full-body.
+                  </p>
+                </div>
+              }
+            />
+          ) : null}
           <DebugRow
             label="Provider response metadata"
             value={

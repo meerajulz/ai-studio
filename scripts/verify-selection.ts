@@ -13,6 +13,7 @@ import {
   buildReferencePackage,
   filterCandidatesByExposure,
   pickIdentityAnchor,
+  rankIdentityAnchors,
   type SelectionCandidate,
 } from "../src/lib/selection";
 import {
@@ -170,6 +171,20 @@ console.log(`\n▶ Identity anchor: ${anchor?.mediaId ?? "none"}`);
 checks.push(["anchor: picks the strongest frontal face (the clean headshot)", anchor?.mediaId === "face"]);
 checks.push(["anchor: none when every image is a back view", pickIdentityAnchor([BACK]) === null]);
 checks.push(["anchor: is a real front-face candidate", anchor?.metadata.face.orientation === "front"]);
+
+// Prominence: a close-up headshot must beat a full-body face even at HIGHER face confidence — the
+// full-body's small face (low resolution) is penalized. (This is the "why did the full-body win" fix.)
+const HEADSHOT = candidate("headshot", {
+  hairColor: "pink", faceVisible: true, faceOrientation: "front", faceConfidence: 0.9,
+  framing: "headshot", bodyVisibility: "face", lightingSetting: "studio", lightingQuality: "even",
+});
+const FULLBODYFACE = candidate("fullbodyface", {
+  hairColor: "pink", faceVisible: true, faceOrientation: "front", faceConfidence: 0.95,
+  framing: "full-body", bodyVisibility: "full", lightingSetting: "studio", lightingQuality: "even",
+});
+const promRank = rankIdentityAnchors([FULLBODYFACE, HEADSHOT]);
+console.log(`\n▶ Anchor prominence: ${promRank.map((a) => `${a.mediaId} score=${a.score.toFixed(3)} (res ${Math.round(a.resolution * 100)}, prom ${Math.round(a.prominence * 100)})`).join(" | ")}`);
+checks.push(["anchor: close-up beats a higher-confidence full-body (face prominence)", pickIdentityAnchor([FULLBODYFACE, HEADSHOT])?.mediaId === "headshot"]);
 
 console.log("\nChecks:");
 let ok = true;
