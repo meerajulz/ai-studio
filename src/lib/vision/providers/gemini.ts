@@ -60,7 +60,9 @@ right-shoulder, right-upper-arm, right-forearm, right-hand, chest-left, chest-ri
 hip, upper-back, lower-back, back, neck, left-thigh, right-thigh, left-calf, right-calf, feet, other.
 "referenceSuitability" rates (0-1) how good THIS image is as each kind of training reference, with a
 short "reason". "faceExpression" captures the expression/gaze; "confidence" holds how sure you are of
-each scalar attribute (0-1). yaw≈0 means facing the camera.`;
+each scalar attribute (0-1). yaw≈0 means facing the camera. In "clothing", ALWAYS state the exposure
+level with an explicit term when applicable: "nude"/"topless", "lingerie"/"underwear", or
+"bikini"/"swimwear" (this is used only for safe reference selection, never to generate such content).`;
 
 function getKey(): string | undefined {
   const v = process.env.GEMINI_API_KEY;

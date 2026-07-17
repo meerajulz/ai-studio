@@ -53,8 +53,18 @@ export type GenerationDebug = {
   routing: RoutingDecision; // how the provider was chosen
   visualPackage: VisualPackageSummary | null; // identity reference images (Milestone 15)
   referenceImages: ReferenceImageDebug; // what was offered/sent to the provider (Milestone 17)
+  referenceSelection: ReferenceSelectionDebug | null; // Smart Reference Selection trace (Milestone 20)
   responseMetadata: Record<string, unknown> | null; // provider response metadata (seed/timings/…)
   payload: Record<string, unknown>; // secret-free echo of the provider request
+};
+
+/** Why the Smart Reference Selector chose this package (Milestone 20). `null` = static fallback used. */
+export type ReferenceSelectionDebug = {
+  requirements: string[]; // active prompt-requirement labels
+  selected: { role: string; reason: string; satisfies: string[] }[];
+  warnings: string[]; // hard requirements with no suitable reference
+  allowedExposure: string; // max reference exposure the prompt permits (Reference Safety filter)
+  excludedForSafety: number; // candidates dropped because they exceeded the allowed exposure
 };
 
 /** Which reference images were selected + sent to the provider, and why (Milestone 17). */
@@ -65,6 +75,7 @@ export type ReferenceImageDebug = {
   sent: number; // what the provider/model actually used
   sentRoles: string[];
   selectionReason: string;
+  identityAnchor: boolean; // whether an Identity Anchor was prepended (Milestone 20)
 };
 
 export type GenerationResult = {

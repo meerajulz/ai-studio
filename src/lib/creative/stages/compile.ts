@@ -80,14 +80,16 @@ export function compilePrompt(
   graph: SceneGraph,
   intent: IntentAnalysis,
   composition: CompositionPlan,
-  _identity: IdentityReasoning,
+  identity: IdentityReasoning,
 ): { prompt: string; appliedModifiers: string[]; structure: CompiledStructure } {
   // The idea already includes the identity reference (Stage 0). It is the SOURCE OF TRUTH.
   const base = idea.trim();
 
-  // Enrichment the Director adds ON TOP — scene context the user may have omitted, then the
-  // photographic direction. Deduped against the user's words so intent is never weakened.
+  // Enrichment the Director adds ON TOP — the synthesized identity appearance FIRST (Milestone 21:
+  // hair/piercings/tattoo layout the model needs to preserve identity), then scene context the user
+  // may have omitted, then photographic direction. Deduped against the user's words.
   const enrichmentPhrases: (string | null)[] = [
+    identity.appearance,
     scene.timeOfDay,
     scene.weather,
     scene.location,

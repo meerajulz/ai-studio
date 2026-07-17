@@ -23,6 +23,13 @@ import type {
   TrainingMediaRoleValue,
 } from "@/lib/identity/types";
 import { identityInputSchema } from "@/lib/validations/identity";
+import {
+  analyzeAndPersistMedia,
+  analyzeIdentityLibrary,
+  getPersistedKnowledge,
+  type AnalyzeLibrarySummary,
+} from "@/lib/vision/persist";
+import { buildMediaKnowledgeDetail, type MediaKnowledgeDetail } from "@/lib/vision";
 
 /**
  * Owner-scoped Server Actions for identities + their training media. Each resolves the
@@ -134,4 +141,44 @@ export async function setHeroImageAction(
 ): Promise<IdentityDetail> {
   const userId = await requireUserId();
   return setHeroImage(userId, identityId, mediaId);
+}
+
+/**
+ * Analyze + persist Vision knowledge for a whole identity library (Milestone 20). Runs the Vision
+ * provider once per un-analyzed training image and stores the frozen `im-2` knowledge, which Smart
+ * Reference Selection then consumes at generation time. Slow (Gemini is ~seconds/image) — the async
+ * Job queue will parallelize this later; for now it's user-initiated.
+ */
+export async function analyzeIdentityLibraryAction(
+  identityId: string,
+  opts: { force?: boolean } = {},
+): Promise<AnalyzeLibrarySummary> {
+  const userId = await requireUserId();
+  return analyzeIdentityLibrary(userId, identityId, opts);
+}
+
+/** Re-analyze + persist Vision knowledge for a single training image (Milestone 20). */
+export async function reanalyzeMediaAction(mediaId: string): Promise<{ overallScore: number }> {
+  const userId = await requireUserId();
+  const knowledge = await analyzeAndPersistMedia(userId, mediaId);
+  return { overallScore: knowledge.overallScore };
+}
+
+/**
+ * Read the FULL persisted Vision knowledge for one image (Milestone 20 — the Training Media expand
+ * panel). Reads `MediaVisionKnowledge` only; NEVER calls Gemini. Owner-scoped. `null` if unanalyzed.
+ */
+export async function getMediaVisionKnowledgeAction(
+  mediaId: string,
+): Promise<MediaKnowledgeDetail | null> {
+  const userId = await requireUserId();
+  const map = await getPersistedKnowledge(userId, [mediaId]);
+  const k = map.get(mediaId);
+  if (!k) return null;
+  return buildMediaKnowledgeDetail(k.metadata, k.score, {
+    provider: k.provider,
+    model: k.model,
+    version: k.version,
+    analyzedAt: k.analyzedAt,
+  });
 }

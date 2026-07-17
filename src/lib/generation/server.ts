@@ -21,15 +21,25 @@ import {
 import { GenerationStatus, MediaType, Prisma, prisma } from "@/lib/db";
 import {
   getIdentityContext,
+  getIdentitySelectionCandidates,
   getIdentityVisualPackage,
 } from "@/lib/identity/server";
 import type { IdentityVisualPackage } from "@/lib/identity/types";
+import {
+  buildReferencePackage,
+  filterCandidatesByExposure,
+  pickIdentityAnchor,
+  type SelectedReference,
+  type SelectionCandidate,
+} from "@/lib/selection";
+import { synthesizeIdentityAppearance } from "@/lib/vision";
 import { createGeneratedMedia, getGeneratedMediaByIds } from "@/lib/media/server";
 import type {
   GenerateImageInput,
   GenerationDebug,
   GenerationHistoryItem,
   GenerationResult,
+  ReferenceSelectionDebug,
 } from "./types";
 
 const HISTORY_LIMIT = 12;
@@ -72,7 +82,9 @@ async function runImageGeneration(
   opts: {
     brief: CreativeBrief;
     identityId: string | null;
-    /** The identity's Visual Package (reference images) — used only by capable providers. */
+    /** Smart Reference Selection candidates (Milestone 20) — analyzed training images. Preferred. */
+    candidates?: SelectionCandidate[];
+    /** The identity's static Visual Package — FALLBACK when no analyzed candidates exist. */
     visualPackage?: IdentityVisualPackage | null;
     /** Lineage tags (regenerate/variation) merged alongside the creative record. */
     lineage?: Record<string, unknown>;
@@ -80,18 +92,55 @@ async function runImageGeneration(
 ): Promise<GenerationResult> {
   const directive = directCreative(opts.brief);
 
-  // Reference images from the Identity Visual Package (provider-neutral, best-first). Capable
-  // adapters use them; others ignore them. The Creative Director never sees these — text only.
-  const referenceImages = toReferenceImages(opts.visualPackage);
-  const referenceSelectionReason = referenceImages.length
-    ? `curated from the identity visual package, best-first: ${referenceImages
-        .map((r) => r.role)
-        .join(", ")}`
-    : "no reference images available";
+  // Smart Reference Selection (Milestone 20): when the identity has PERSISTED Vision knowledge, build
+  // the best package FOR THIS request (diverse/complementary, explained). Otherwise fall back to the
+  // static Visual Package. Either way the provider just receives ordered, provider-neutral references
+  // and never knows how they were chosen. The Creative Director never sees these — text only.
+  const candidates = opts.candidates ?? [];
+  let referenceImages: ReferenceImage[];
+  let referenceSelectionReason: string;
+  let selectionDebug: ReferenceSelectionDebug | null = null;
+  // Reference Safety filter (Milestone 20): drop nude/lingerie references for non-explicit prompts so
+  // we don't trip Kontext's NSFW moderation (which returns a black image). Applied to BOTH the scene
+  // selection AND the Identity Anchor below — a nude image is never sent, even for its face.
+  let safeCandidates = candidates;
 
-  // Route by capability, never by name. When we actually have reference images we require a
-  // provider that can preserve identity (falls back to the first configured provider otherwise).
-  const needs: ProviderCapability[] = referenceImages.length
+  if (candidates.length) {
+    const exposure = filterCandidatesByExposure(directive, candidates);
+    safeCandidates = exposure.safe;
+    const selection = buildReferencePackage(directive, exposure.safe);
+    referenceImages = selection.package.map((p) => ({ url: p.url, role: toReferenceRole(p.role) }));
+    referenceSelectionReason = referenceImages.length
+      ? `smart selection: ${selection.package.map((p) => `${p.role} — ${p.reason}`).join("; ")}`
+      : "no suitable references selected";
+    selectionDebug = {
+      requirements: selection.requirements.active.map((r) => r.label),
+      selected: selection.package.map((p) => ({ role: p.role, reason: p.reason, satisfies: p.satisfies })),
+      warnings: selection.warnings,
+      allowedExposure: exposure.allowed,
+      excludedForSafety: exposure.excluded.length,
+    };
+  } else {
+    referenceImages = toReferenceImages(opts.visualPackage);
+    referenceSelectionReason = referenceImages.length
+      ? `curated from the identity visual package, best-first: ${referenceImages
+          .map((r) => r.role)
+          .join(", ")}`
+      : "no reference images available";
+  }
+
+  // Identity Anchor (Milestone 20 invariant) — chosen INDEPENDENTLY of the scene selector; it answers
+  // "who is this person?" (strongest frontal face). The provider prepends it before sending. Only when
+  // we have analyzed candidates (it needs face knowledge); it never enters the selector's reasoning.
+  const anchorCandidate = safeCandidates.length ? pickIdentityAnchor(safeCandidates) : null;
+  const identityAnchor: ReferenceImage | undefined = anchorCandidate
+    ? { url: anchorCandidate.url, role: "anchor" }
+    : undefined;
+
+  // Route by capability, never by name. When we actually have reference images (scene refs OR an
+  // identity anchor) we require a provider that can preserve identity (else the first configured one).
+  const hasReferences = referenceImages.length > 0 || identityAnchor != null;
+  const needs: ProviderCapability[] = hasReferences
     ? ["identityPreservation", "referenceImages"]
     : [];
   const { provider, decision } = routeImageProvider({ needs });
@@ -126,6 +175,7 @@ async function runImageGeneration(
     const result = await provider.generateImage({
       prompt: directive.prompt,
       referenceImages: referenceImages.length ? referenceImages : undefined,
+      identityAnchor,
     });
 
     const media = await createGeneratedMedia(userId, {
@@ -168,7 +218,9 @@ async function runImageGeneration(
             sent: readNumber(result.requestPayload, "usedReferenceImages"),
             sentRoles: readStringArray(result.requestPayload, "referenceRoles"),
             selectionReason: referenceSelectionReason,
+            identityAnchor: identityAnchor != null,
           },
+          referenceSelection: selectionDebug,
           responseMetadata: result.metadata ?? null,
           payload: result.requestPayload ?? { prompt: directive.prompt },
         }
@@ -183,6 +235,20 @@ async function runImageGeneration(
       })
       .catch(() => {});
     throw toFriendlyError(error);
+  }
+}
+
+/** Map a Smart Reference Selection role onto the provider-neutral `ReferenceImage` role vocabulary. */
+function toReferenceRole(role: SelectedReference["role"]): ReferenceImage["role"] {
+  switch (role) {
+    case "hero":
+      return "hero";
+    case "face":
+      return "portrait";
+    case "body":
+      return "fullBody";
+    default:
+      return "reference";
   }
 }
 
@@ -248,37 +314,50 @@ export async function generateImage(
   if (identityId) {
     await assertIdentityInProject(userId, projectId, identityId);
   }
-  const identity = await loadIdentityContext(userId, identityId);
-  const visualPackage = identityId
-    ? await getIdentityVisualPackage(userId, identityId)
-    : null;
+  const inputs = await loadIdentityInputs(userId, identityId);
 
   return runImageGeneration(userId, projectId, {
-    brief: { idea, style: input.style, focus: input.focus, identityId, identity },
+    brief: { idea, style: input.style, focus: input.focus, identityId, identity: inputs.identity },
     identityId,
-    visualPackage,
+    candidates: inputs.candidates,
+    visualPackage: inputs.visualPackage,
   });
 }
 
 /**
- * Load an identity into a passive `IdentityContext` for the Creative Director (Milestone 14).
- * Owner-scoped via the identity layer; returns `null` when no identity is attached. The provider
- * never sees any of this — the Director reasons over it and emits only a prompt.
+ * Load ALL of an identity's inputs for one generation (owner-scoped, provider-neutral):
+ *  - the passive `IdentityContext` for the Creative Director (Milestone 14), now enriched with a
+ *    **synthesized appearance** paragraph (Milestone 21) built from the analyzed images;
+ *  - the Smart Reference Selection `candidates` (analyzed training images, Milestone 20);
+ *  - the static Visual Package as a FALLBACK when nothing is analyzed yet.
+ * The provider never sees any of this — the Director reasons over it and emits only a prompt.
  */
-async function loadIdentityContext(
+async function loadIdentityInputs(
   userId: string,
   identityId: string | null,
-): Promise<IdentityContext | null> {
-  if (!identityId) return null;
-  const info = await getIdentityContext(userId, identityId);
-  if (!info) return null;
-  return {
-    id: info.id,
-    name: info.name,
-    description: info.description,
-    hasHeroImage: info.hasHeroImage,
-    trainingMediaCount: info.trainingMediaCount,
-  };
+): Promise<{
+  identity: IdentityContext | null;
+  candidates: SelectionCandidate[];
+  visualPackage: IdentityVisualPackage | null;
+}> {
+  if (!identityId) return { identity: null, candidates: [], visualPackage: null };
+  const [info, candidates, visualPackage] = await Promise.all([
+    getIdentityContext(userId, identityId),
+    getIdentitySelectionCandidates(userId, identityId),
+    getIdentityVisualPackage(userId, identityId),
+  ]);
+  const identity: IdentityContext | null = info
+    ? {
+        id: info.id,
+        name: info.name,
+        description: info.description,
+        // Prefer a rich, synthesized appearance from analyzed images; null → static description.
+        appearance: synthesizeIdentityAppearance(candidates.map((c) => c.metadata)),
+        hasHeroImage: info.hasHeroImage,
+        trainingMediaCount: info.trainingMediaCount,
+      }
+    : null;
+  return { identity, candidates, visualPackage };
 }
 
 /** Re-run a generation's recipe unchanged (a new generation, lineage tagged in `params`). */
@@ -289,14 +368,13 @@ export async function regenerateGeneration(
 ): Promise<GenerationResult> {
   const source = await loadOwnedGeneration(userId, projectId, generationId);
   const brief = briefFromGeneration(source);
-  brief.identity = await loadIdentityContext(userId, source.identityId);
-  const visualPackage = source.identityId
-    ? await getIdentityVisualPackage(userId, source.identityId)
-    : null;
+  const inputs = await loadIdentityInputs(userId, source.identityId);
+  brief.identity = inputs.identity;
   return runImageGeneration(userId, projectId, {
     brief,
     identityId: source.identityId,
-    visualPackage,
+    candidates: inputs.candidates,
+    visualPackage: inputs.visualPackage,
     lineage: { source: "regenerate", fromGenerationId: generationId },
   });
 }
@@ -309,14 +387,13 @@ export async function generateVariation(
 ): Promise<GenerationResult> {
   const source = await loadOwnedGeneration(userId, projectId, generationId);
   const brief = briefFromGeneration(source);
-  brief.identity = await loadIdentityContext(userId, source.identityId);
-  const visualPackage = source.identityId
-    ? await getIdentityVisualPackage(userId, source.identityId)
-    : null;
+  const inputs = await loadIdentityInputs(userId, source.identityId);
+  brief.identity = inputs.identity;
   return runImageGeneration(userId, projectId, {
     brief,
     identityId: source.identityId,
-    visualPackage,
+    candidates: inputs.candidates,
+    visualPackage: inputs.visualPackage,
     lineage: { source: "variation", fromGenerationId: generationId },
   });
 }
@@ -449,6 +526,8 @@ function toFriendlyError(error: unknown): Error {
         return new Error("The model is warming up or busy — try again in a moment.");
       case "TIMEOUT":
         return new Error("Generation timed out — please try again.");
+      case "CONTENT_MODERATED":
+        return new Error(error.message); // already user-facing + specific (safety filter / blank image)
       default:
         return new Error("Generation failed — try a different prompt or try again.");
     }

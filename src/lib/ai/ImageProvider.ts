@@ -11,17 +11,24 @@ import type { ProviderCapabilities } from "./capabilities";
 /** A provider-neutral reference image (from an Identity Visual Package). */
 export type ReferenceImage = {
   url: string;
-  role: "hero" | "portrait" | "fullBody" | "reference";
+  role: "anchor" | "hero" | "portrait" | "fullBody" | "reference";
 };
 
 export type ImageGenerationRequest = {
   prompt: string;
   /**
    * Reference images for identity preservation, provider-neutral. Adapters use them ONLY if the
-   * chosen model is capable; otherwise they gracefully ignore them (Milestone 15). The Creative
-   * Director does not produce these — they come from the Identity Visual Package.
+   * chosen model is capable; otherwise they gracefully ignore them (Milestone 15). These describe
+   * the REQUEST (body pose, tattoos, scene) — chosen by the Smart Reference Selector.
    */
   referenceImages?: ReferenceImage[];
+  /**
+   * The **Identity Anchor** — the single strongest frontal-face reference whose only job is to tell
+   * the model WHO this person is (separate architectural concern from the scene selector). A capable
+   * adapter **prepends** it to the reference list immediately before sending (deduped) so identity is
+   * anchored regardless of the scene-driven selection. Non-capable adapters ignore it.
+   */
+  identityAnchor?: ReferenceImage;
   // Reserved (NOT implemented): width/height/seed/negativePrompt.
 };
 
@@ -54,6 +61,7 @@ export type ProviderErrorCode =
   | "MISSING_TOKEN"
   | "PROVIDER_UNAVAILABLE"
   | "GENERATION_FAILED"
+  | "CONTENT_MODERATED" // the model's safety filter blocked it (often a black/blank placeholder image)
   | "TIMEOUT";
 
 /** Provider-neutral error. Providers map their SDK failures to these codes. */

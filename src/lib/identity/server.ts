@@ -10,6 +10,9 @@
  */
 import { IdentityStatus, Prisma, prisma, TrainingMediaRole } from "@/lib/db";
 import { getMediaByIds } from "@/lib/media/server";
+import { getPersistedKnowledge } from "@/lib/vision/persist";
+import { summarizeMediaKnowledge } from "@/lib/vision";
+import type { SelectionCandidate } from "@/lib/selection";
 import type {
   CreateIdentityInput,
   IdentityContextInfo,
@@ -189,19 +192,31 @@ export async function getIdentity(
   if (!identity) throw new Error("Identity not found");
 
   const mediaIds = identity.trainingMedia.map((t) => t.mediaId);
-  const assets = await getMediaByIds(userId, mediaIds);
+  const [assets, knowledge] = await Promise.all([
+    getMediaByIds(userId, mediaIds),
+    getPersistedKnowledge(userId, mediaIds),
+  ]);
   const assetById = new Map(assets.map((a) => [a.id, a]));
 
   const trainingMedia: TrainingMediaItem[] = identity.trainingMedia
     .map((t) => {
       const media = assetById.get(t.mediaId);
       if (!media) return null;
+      const k = knowledge.get(t.mediaId);
       return {
         linkId: t.id,
         media,
         position: t.position,
         isFavorite: t.isFavorite,
         role: t.role,
+        knowledge: k
+          ? summarizeMediaKnowledge(k.metadata, k.score, {
+              provider: k.provider,
+              model: k.model,
+              version: k.version,
+              analyzedAt: k.analyzedAt,
+            })
+          : null,
       } satisfies TrainingMediaItem;
     })
     .filter((x): x is TrainingMediaItem => x !== null);
@@ -302,6 +317,46 @@ export async function getIdentityVisualPackage(
     referenceImageUrls,
     metadata: { totalMedia: identity.trainingMedia.length },
   };
+}
+
+/**
+ * Build Smart Reference Selection candidates (Milestone 20): each training image that has PERSISTED
+ * Vision knowledge, paired with its signed URL. Only analyzed images become candidates — the selector
+ * reasons purely over knowledge and generation NEVER analyzes. Owner-scoped; reuses the media layer
+ * for signing. Empty when nothing is analyzed yet (callers fall back to the static Visual Package).
+ */
+export async function getIdentitySelectionCandidates(
+  userId: string,
+  identityId: string,
+): Promise<SelectionCandidate[]> {
+  const identity = await prisma.identity.findFirst({
+    where: { id: identityId, userId },
+    select: {
+      trainingMedia: {
+        orderBy: [{ isFavorite: "desc" }, { position: "asc" }],
+        select: { mediaId: true },
+      },
+    },
+  });
+  if (!identity) return [];
+
+  const mediaIds = identity.trainingMedia.map((t) => t.mediaId);
+  if (mediaIds.length === 0) return [];
+
+  const [assets, knowledge] = await Promise.all([
+    getMediaByIds(userId, mediaIds),
+    getPersistedKnowledge(userId, mediaIds),
+  ]);
+  const urlById = new Map(assets.map((a) => [a.id, a.url]));
+
+  const candidates: SelectionCandidate[] = [];
+  for (const mediaId of mediaIds) {
+    const k = knowledge.get(mediaId);
+    const url = urlById.get(mediaId);
+    if (!k || !url) continue; // only analyzed images with a signed URL are candidates
+    candidates.push({ mediaId, url, metadata: k.metadata, score: k.score });
+  }
+  return candidates;
 }
 
 // ── identity CRUD ──────────────────────────────────────────────────────────

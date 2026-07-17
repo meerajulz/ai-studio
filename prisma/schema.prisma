@@ -228,8 +228,32 @@ model UploadedMedia {
   trainingLinks     IdentityMedia[]
   heroForIdentities Identity[]      @relation("IdentityHeroImage")
 
+  // Persisted Vision knowledge for this image (Milestone 20) — analyzed once, reused everywhere.
+  visionKnowledge MediaVisionKnowledge?
+
   @@index([userId])
   @@index([projectId])
+}
+
+/**
+ * Persisted, PROVIDER-NEUTRAL Vision knowledge for one image (Milestone 20). Analyzed once (on demand
+ * / manual reanalyze), never at generation time. Stores only the frozen `im-2` knowledge — NEVER raw
+ * Gemini responses, provider-specific JSON, or transient debug values. 1:1 with UploadedMedia.
+ */
+model MediaVisionKnowledge {
+  id           String   @id @default(cuid())
+  version      String // IDENTITY_METADATA_VERSION at analysis (e.g. "im-2")
+  provider     String // e.g. "gemini"
+  model        String // e.g. "gemini-flash-latest"
+  overallScore Int // denormalized IdentityImageScore.overall — fast ranking/sort
+  metadata     Json // frozen im-2 IdentityMetadata (includes quality + referenceSuitability)
+  score        Json // IdentityImageScore
+  analyzedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  mediaId String        @unique
+  media   UploadedMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
 }
 
 model Generation {

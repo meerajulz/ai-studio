@@ -71,7 +71,13 @@ function planRequest(request: ImageGenerationRequest): {
   supportsReferenceImages: boolean;
 } {
   const m = models();
-  const refs = (request.referenceImages ?? []).slice(0, MAX_REFERENCES);
+  // Identity Anchor invariant: prepend the anchor (the "who is this person" reference) ahead of the
+  // scene-driven references, deduped by URL, immediately before sending. If the selector already led
+  // with that image, the dedupe makes this a no-op.
+  const scene = request.referenceImages ?? [];
+  const anchor = request.identityAnchor;
+  const merged = anchor ? [anchor, ...scene.filter((r) => r.url !== anchor.url)] : scene;
+  const refs = merged.slice(0, MAX_REFERENCES);
 
   if (refs.length === 0) {
     return {
@@ -144,6 +150,18 @@ export const falProvider: ImageProvider = {
     }
 
     const json = (await response.json()) as FalResponse;
+
+    // NSFW moderation: Kontext/Flux still returns HTTP 200 with a BLACK PLACEHOLDER image and
+    // `has_nsfw_concepts: [true]`. Detect it and fail with a clear message instead of silently
+    // saving a black image (Milestone 20 fix).
+    if (json.has_nsfw_concepts?.some(Boolean)) {
+      throw new ProviderError(
+        "CONTENT_MODERATED",
+        "The model's safety filter blocked this generation and returned a blank image. " +
+          "Try rephrasing the prompt or using different reference images.",
+      );
+    }
+
     const image = json.images?.[0];
     if (!image?.url) {
       throw new ProviderError("GENERATION_FAILED", "Fal returned no image.");
