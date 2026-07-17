@@ -11,6 +11,8 @@ export type ProviderCapability =
   | "referenceImages"
   | "multipleReferenceImages"
   | "identityPreservation"
+  | "realism" // photorealistic output quality
+  | "typography" // legible text / typography in images
   | "inpainting"
   | "outpainting"
   | "video"

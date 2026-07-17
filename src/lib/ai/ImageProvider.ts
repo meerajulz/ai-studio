@@ -29,6 +29,14 @@ export type ImageGenerationRequest = {
    * anchored regardless of the scene-driven selection. Non-capable adapters ignore it.
    */
   identityAnchor?: ReferenceImage;
+  /** DEV cap on how many references to send (anchor kept first). Undefined = the adapter's max. */
+  maxReferences?: number;
+  /**
+   * The RESOLVED model id to run (Milestone 21 — chosen by the capability model router, or a manual
+   * benchmark pick). The adapter looks it up in the Model Registry for the request-shape (`payloadKind`)
+   * and max references — no per-model branching. When absent, the adapter uses its own default.
+   */
+  model?: string;
   // Reserved (NOT implemented): width/height/seed/negativePrompt.
 };
 

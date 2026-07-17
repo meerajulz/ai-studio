@@ -13,6 +13,7 @@
  * and provider-neutral reference images.
  */
 import { capabilities } from "../capabilities";
+import { getModel } from "../model-registry";
 import {
   ProviderError,
   type ImageGenerationRequest,
@@ -23,8 +24,7 @@ import {
 
 const FAL_ENDPOINT = "https://fal.run";
 const DEFAULT_T2I_MODEL = "fal-ai/flux/schnell";
-const DEFAULT_IDENTITY_MODEL = "fal-ai/flux-pro/kontext"; // single reference
-const DEFAULT_IDENTITY_MULTI_MODEL = "fal-ai/flux-pro/kontext/max/multi"; // multiple references
+const DEFAULT_IDENTITY_MULTI_MODEL = "fal-ai/flux-pro/kontext/max/multi"; // default when no model resolved
 const MAX_REFERENCES = 4;
 
 function getKey(): string | undefined {
@@ -34,14 +34,6 @@ function getKey(): string | undefined {
 
 export function isFalConfigured(): boolean {
   return Boolean(getKey());
-}
-
-function models() {
-  return {
-    t2i: process.env.FAL_IMAGE_MODEL?.trim() || DEFAULT_T2I_MODEL,
-    identity: process.env.FAL_IDENTITY_MODEL?.trim() || DEFAULT_IDENTITY_MODEL,
-    identityMulti: process.env.FAL_IDENTITY_MULTI_MODEL?.trim() || DEFAULT_IDENTITY_MULTI_MODEL,
-  };
 }
 
 function mapError(status: number, message: string): ProviderError {
@@ -63,34 +55,46 @@ type FalResponse = {
   has_nsfw_concepts?: boolean[];
 };
 
-/** Decide the Fal model + request body from the provider-neutral request. */
+/**
+ * Decide the Fal model + request body — driven by the RESOLVED model's registry spec (Milestone 21),
+ * NOT by FLUX-specific branching. The capability model router already chose `request.model`; here we
+ * only map its `payloadKind` to a body. Unknown/absent model → sensible Fal defaults.
+ */
 function planRequest(request: ImageGenerationRequest): {
   model: string;
   body: Record<string, unknown>;
   usedRefs: ReferenceImage[];
   supportsReferenceImages: boolean;
 } {
-  const m = models();
   // Identity Anchor invariant: prepend the anchor (the "who is this person" reference) ahead of the
-  // scene-driven references, deduped by URL, immediately before sending. If the selector already led
-  // with that image, the dedupe makes this a no-op.
+  // scene-driven references, deduped by URL, immediately before sending.
   const scene = request.referenceImages ?? [];
   const anchor = request.identityAnchor;
   const merged = anchor ? [anchor, ...scene.filter((r) => r.url !== anchor.url)] : scene;
-  const refs = merged.slice(0, MAX_REFERENCES);
 
+  const spec = request.model ? getModel(request.model) : undefined;
+  const maxRefs = spec?.maxReferences || MAX_REFERENCES;
+  // DEV benchmark cap (anchor stays first) ∩ the model's own max.
+  const cap = Math.max(1, Math.min(maxRefs, request.maxReferences ?? maxRefs));
+  const refs = merged.slice(0, cap);
+
+  // No references → text-to-image (use a t2i model regardless of a stray edit-model id).
   if (refs.length === 0) {
     return {
-      model: m.t2i,
+      model: spec?.payloadKind === "t2i" ? spec.id : DEFAULT_T2I_MODEL,
       body: { prompt: request.prompt, image_size: "square_hd", num_images: 1 },
       usedRefs: [],
       supportsReferenceImages: false,
     };
   }
 
-  if (refs.length === 1) {
+  const model = spec?.id ?? DEFAULT_IDENTITY_MULTI_MODEL;
+  const kind = spec?.payloadKind ?? "image_urls";
+
+  // Single-reference models take `image_url`; every multi/edit model takes `image_urls` (verified).
+  if (kind === "image_url") {
     return {
-      model: m.identity,
+      model,
       body: { prompt: request.prompt, image_url: refs[0].url, num_images: 1 },
       usedRefs: refs,
       supportsReferenceImages: true,
@@ -98,7 +102,7 @@ function planRequest(request: ImageGenerationRequest): {
   }
 
   return {
-    model: m.identityMulti,
+    model,
     body: { prompt: request.prompt, image_urls: refs.map((r) => r.url), num_images: 1 },
     usedRefs: refs,
     supportsReferenceImages: true,
@@ -189,6 +193,8 @@ export const falProvider: ImageProvider = {
         supportsReferenceImages,
         usedReferenceImages: usedRefs.length,
         referenceRoles: usedRefs.map((r) => r.role),
+        // The ACTUAL ordered images sent (signed URLs; dev Debug thumbnails). Never a secret.
+        referenceImages: usedRefs.map((r) => ({ url: r.url, role: r.role })),
       },
       metadata: {
         seed: json.seed ?? null,
