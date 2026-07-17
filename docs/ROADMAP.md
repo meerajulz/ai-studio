@@ -178,16 +178,37 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       resolves them; `TODO` in `coverage.ts`), that coverage measures *representation* not *image
       quality*, and future finer tattoo regions. **`im-2` FROZEN** as the provider-neutral contract.
       Decision 046.
-- [ ] **Milestone 19B — Face Embeddings** ← **next** — add an identity-embedding signal
-      (**InsightFace** recommended — [research/RESEARCH_03_FACE_EMBEDDINGS.md](./research/RESEARCH_03_FACE_EMBEDDINGS.md))
-      behind a provider-neutral `FaceEmbeddingProvider`: best-hero selection, dedup, and later
-      identity-drift scoring. Embeddings land **before** selection so the selector has metadata *and*
-      facial similarity.
-- [ ] **Milestone 20 — Smart Reference Selection** — the first consumer of `referenceSuitability` +
-      coverage + embeddings: run `analyzeIdentity` on training-media upload, **persist**
-      `IdentityMetadata` + `IdentityImageScore` (the first schema change), then choose the best refs
-      **for the requested scene**. Followed by **21** identity-description synthesis. Addresses the
-      remaining Kontext identity bugs (#2–#6). See [AI_ARCHITECTURE.md](./AI_ARCHITECTURE.md).
+- [x] **Milestone 20 — Smart Reference Selection** — Identity Intelligence in action. **First schema
+      change:** `MediaVisionKnowledge` persists per-image `im-2` knowledge + score (analyzed once via
+      an **"Analyze library"** action; generation NEVER re-analyzes). New provider-neutral
+      **`src/lib/selection/`**: prompt requirements (from the Director) → per-image match → **package
+      optimization** (greedy marginal-gain / diversity, not top-N) → reasons + coverage warnings.
+      **Replaces** the static Identity Visual Package in `runImageGeneration` (graceful fallback when
+      unanalyzed); providers unchanged. `/debug/selection` + `verify-selection.ts`. `signals` hook
+      future-proofs for embeddings/favorites/LoRA. Decision 047 ·
+      [SMART_REFERENCE_SELECTION.md](./SMART_REFERENCE_SELECTION.md). Addresses Kontext identity bugs
+      (#2–#6).
+- [x] **Milestone 20 hardening + Milestone 21 (Identity Description Synthesis)** — from real drift
+      testing (Decision 048): (1) **scene-aware selection** — body/clothing prompts boost body-family
+      references above the face (a bikini beach shot now leads with full-body/leg-tattoo, not a bare
+      face); (2) **synthesized identity description** — `synthesizeIdentityAppearance` builds a
+      majority-voted, region-based appearance paragraph (hair/piercings/tattoo layout) from analyzed
+      images, appended verbatim to every prompt (replaces the sparse static description); (3)
+      **visible knowledge** — training-media cards show a compact analysis summary + a full side-panel
+      (reads persisted knowledge, Re-analyze, no Gemini). The identity page is now the canonical
+      inspector; `/debug/vision` stays a dev playground.
+- [x] **Milestone 20 completion** (Decision 049) — from generation testing: (1) **Identity Anchor**
+      invariant — every identity generation always includes the strongest frontal face as a distinct
+      "who is this person?" reference (`selection/anchor.ts`), prepended by the Fal adapter (deduped),
+      separate from the selector's "what describes this request?"; (2) **NSFW/black-image** detection
+      (`CONTENT_MODERATED` — fail cleanly, never save a black square); (3) synthesis polish (no age,
+      deduped, richer region tattoos). Verified selector→Fal order/format integrity. **M20 complete.**
+- [ ] **Milestone 19B — Face Embeddings** ← **next (identity-preservation milestone)** — the remaining
+      face drift is now assessed as a Kontext/reference-guided limitation; strengthen identity
+      preservation directly: **InsightFace** ([research/RESEARCH_03_FACE_EMBEDDINGS.md](./research/RESEARCH_03_FACE_EMBEDDINGS.md))
+      behind a provider-neutral `FaceEmbeddingProvider`, fed to the selector/anchor via
+      `SelectionCandidate.signals` → identity similarity, drift scoring, generation evaluation, LoRA
+      benchmarking.
 
 ### Future — documented, NOT scheduled (research first)
 

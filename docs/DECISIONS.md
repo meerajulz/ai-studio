@@ -1776,3 +1776,206 @@ Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify
 asserts face quality is `null` for a back view, non-null for a front view) and
 `scripts/verify-coverage.ts` pass offline. **No schema/persistence/routing/generation change.** The
 suitability reason + "unavailable" states are for the user to see via `/debug/vision`.
+
+---
+
+# Decision 047
+
+Date
+2026-07-17
+
+Decision
+**Smart Reference Selection + persist Vision knowledge (Milestone 20).** Turn the frozen Identity
+Intelligence knowledge into a permanent knowledge system and USE it to pick references per request.
+The "no schema" constraint was **intentionally lifted** by the user (the `im-2` contract is frozen, so
+persisting it is safe).
+
+1. **Persist per-image knowledge.** New additive table **`MediaVisionKnowledge`** (1:1 with
+   `UploadedMedia`): `version`/`provider`/`model`/`overallScore` + `metadata` (frozen `im-2`
+   `IdentityMetadata`, includes quality + reference suitability) + `score` (`IdentityImageScore`) +
+   `analyzedAt`. **Only provider-neutral knowledge** — never raw Gemini responses or debug values.
+   Single-image coverage is NOT persisted (it's an aggregate, recomputed from `metadata`).
+2. **Analyze once, never at generation.** `src/lib/vision/persist.ts`
+   (`analyzeAndPersistMedia`/`analyzeIdentityLibrary`/`getPersistedKnowledge`). Trigger = an
+   **"Analyze library"** action on the Training Media tab (user-initiated; the async Job queue will
+   automate on-upload later — Gemini is ~seconds/image and there's no queue yet). Generation reads
+   persisted knowledge only.
+3. **The selector** — new provider-neutral `src/lib/selection/`: `extractPromptRequirements(directive)`
+   (deterministic, from the Director's trace; HARD vs SOFT requirements), `matchImage` (per-requirement
+   0..100 from knowledge), `selectReferencePackage` (**greedy marginal-gain / set-cover** for diversity,
+   per-pick reasons, coverage warnings, never blocks). `SelectionCandidate.signals` future-proofs for
+   embeddings/favorites/LoRA.
+4. **Wire into generation, replace the static package.** `runImageGeneration` now builds the package
+   from persisted candidates and maps it to the existing provider-neutral `ReferenceImage[]`; falls
+   back to `getIdentityVisualPackage` when nothing is analyzed. **Providers unchanged** — Fal receives
+   ordered refs and never knows how they were chosen. Debug panel gains requirements + reasons +
+   warnings; new `/debug/selection` tool.
+
+Reason
+This is the payoff of 18–19 and the expected biggest generation-quality jump before LoRA: the app now
+sends the *best complementary references for the actual prompt* instead of the same static Hero +
+Portrait. Persisting the frozen contract is safe and necessary (re-analyzing at generation time would
+add ~40s/image); analysis is one-time and reused. Greedy set-cover (not top-N) is what prevents four
+near-identical faces. Keeping the provider contract untouched means zero risk to existing generation.
+
+Alternatives
+Analyze on every generation (rejected — far too slow; the whole point is analyze-once); store raw
+provider JSON (rejected — violates "provider-neutral knowledge"; bloats rows, couples to Gemini);
+pick top-N by overall score (rejected — yields redundant near-duplicate faces; coverage > duplication);
+block generation when a hard requirement is unmet (rejected — never block; warn instead); build only
+the engine without wiring (rejected — the user explicitly chose full production via Option 2);
+auto-analyze on upload synchronously (rejected for now — ~seconds/image with no Job queue;
+user-initiated + a future queue milestone instead).
+
+Status
+Accepted — implemented. Migration `add_media_vision_knowledge` applied; `tsc --noEmit` + `npm run
+build` pass; `scripts/verify-selection.ts` (yacht/office/back-view success criteria: diversity,
+coverage, reasons, warnings) + existing coverage/scoring verifiers pass offline. **Live path
+(analyze a real library → generation uses the selected package) is for the user to exercise** (needs
+`GEMINI_API_KEY` + `FAL_KEY`).
+
+---
+
+# Decision 048
+
+Date
+2026-07-17
+
+Decision
+**M20 hardening — scene-aware selection, synthesized identity description (M21), visible knowledge.**
+Real drift testing on M20 showed selection was working (picking from persisted knowledge) but three
+gaps still limited quality/confidence. All three fixed here; providers untouched.
+
+1. **Scene-aware, body-boosted selection.** Requirement weights are now **context-aware**
+   (`requirements.ts`): a `bodyDependent` prompt (swimwear/full-body/elegant/business/action/fashion)
+   boosts body-family requirements above the face and softens the face (still always present +
+   covered). `select.ts` orders best-first by **weighted value** (top requirement weight × match), so
+   a bikini beach shot leads with a full-body / leg-tattoo reference while a business portrait still
+   leads with the face.
+2. **Synthesized identity description (Milestone 21, folded in).** New pure
+   `synthesizeIdentityAppearance(metadatas)` (`vision/synthesize.ts`) aggregates analyzed images into
+   ONE **majority-voted** appearance paragraph — hair/accessories/**tattoo layout by region** (never
+   imagery, so scene analysis can't hallucinate a "snake") + age. Threaded via new
+   `IdentityContext.appearance` → `IdentityReasoning.appearance` → `compile.ts` appends it verbatim as
+   the first enrichment clause (the previously-unused `_identity` seam). `effectiveIdea` stays clean
+   for scene/intent analysis. Replaces the sparse static description in every prompt.
+3. **Visible knowledge on Training Media.** `getIdentity` attaches a `MediaKnowledgeSummary`
+   (`vision/summary.ts`) per image; the card shows a compact summary (stars/score/covered/hair/env);
+   a `Sheet` panel (`training-media-knowledge-panel.tsx`) shows the full analysis + Re-analyze via
+   `getMediaVisionKnowledgeAction`. Reads persisted `MediaVisionKnowledge` — **never Gemini**. The
+   identity page is now the canonical inspector.
+
+Reason
+These three stages are exactly where drift was localized. Scene-aware weighting fixes "great face,
+wrong body/scene" outputs. Synthesized description gives the model the identity's actual traits in
+text (hair/piercings/tattoo layout) instead of "long hair, tattoos". Region-based (not imagery)
+synthesis is the safe way to enrich the prompt without polluting scene/intent detection. Surfacing
+knowledge turns a silent toast into visible confidence and makes selector decisions explainable.
+
+Alternatives
+Static weights (rejected — the reported problem); feed the synthesized paragraph through scene
+analysis (rejected — tattoo imagery would inject stray scene nouns; append it post-analysis instead);
+describe tattoo imagery in the prompt (rejected — pollutes scene; region layout is what preserves
+identity anyway); re-analyze at display time (rejected — display reads persisted knowledge only);
+build a separate inspector page (rejected — knowledge should live WITH the image on the identity page).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-selection.ts`
+(now asserts the beach/bikini package is scene-led + a synthesized region-based appearance) +
+coverage/scoring verifiers pass offline. **Live path (Analyze library → cards show summaries → panel →
+scene-led generation with the synthesized appearance in the prompt) is for the user to exercise.**
+
+---
+
+# Decision 049
+
+Date
+2026-07-17
+
+Decision
+**M20 completion — Identity Anchor invariant, NSFW/black-image handling, synthesis polish.** Found
+from real generation testing; makes M20 complete before the identity-preservation milestone.
+
+1. **Identity Anchor (architectural invariant).** Separate the two questions: the **Reference
+   Selector** answers "what images describe this request?"; the **Identity Anchor** answers "who is
+   this person?". Every identity generation includes exactly ONE anchor — the strongest frontal face
+   (face quality × identity confidence, never cropped), chosen independently of the scene selector
+   (`selection/anchor.ts` `pickIdentityAnchor`). It rides as `ImageGenerationRequest.identityAnchor`;
+   the **provider adapter prepends it** to the reference list before sending, **deduped** (never
+   duplicates a selected image; no-op if the selector already led with it). It does NOT enter the
+   selector's reasoning/Debug. Fixes face drift when the scene package leads with a body reference.
+2. **NSFW / black images.** Kontext's safety filter returns HTTP 200 + a **black placeholder** +
+   `has_nsfw_concepts:[true]`. `fal.ts` now detects it and throws a new `CONTENT_MODERATED`
+   ProviderError BEFORE downloading/saving — the generation fails with a clear message instead of
+   silently storing a black square.
+3. **Synthesis polish.** `synthesizeIdentityAppearance`: removed **inferred age** (not stable visual
+   identity); **deduplicated** traits (no "ear gauges" + "ear gauge"); **richer region-based tattoo
+   descriptions** with size/style from the provider description (arm sub-regions collapse to
+   "{style} sleeve", "large floral chest piece") — still never artwork-specific.
+
+Verified (#6): the selector's package is sent to Fal in exact order/format (1 ref → `image_url`,
+2–4 → `image_urls` in order); nothing rebuilds the package. Remaining face drift is now assessed as a
+model limitation of reference-guided Kontext (no LoRA/embedding), to be addressed by the
+identity-preservation milestone.
+
+Reason
+Guaranteeing a clean face anchor is the cheap, high-value lever that survives scene-aware selection —
+and framing it as an invariant (not a Kontext hack) keeps the architecture clean: two questions, two
+mechanisms. Failing loudly on moderation beats a silent black image. Age is inferred and unstable;
+duplicated/sparse tattoo text weakened the prompt.
+
+Alternatives
+Put the anchor in the selector / make it a selected reference (rejected — it must NOT affect scene
+reasoning/Debug; it's a different question); reorder inside the scene selector (rejected — couples
+concerns; the anchor is provider-request assembly, prepended by the adapter); keep saving the black
+image + a flag (rejected — the user wants a real failure, not a silent black square); keep age
+(rejected — not stable visual identity).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-selection.ts` (now
+also asserts the Identity Anchor picks the clean frontal face + is null for back-only, and the polished
+synthesis: no age, deduped, rich descriptors) + coverage/scoring verifiers pass offline. **Live path
+(a real generation now sends `[anchor, …scene]` to Kontext; moderated prompts fail cleanly) is for the
+user to exercise.**
+
+---
+
+# Decision 050
+
+Date
+2026-07-17
+
+Decision
+**Reference Safety / exposure filtering (Milestone 20).** Root cause of the black images (reproduced
+in Fal Playground, so it's provider moderation, not our serialization): nude/lingerie reference images
+sent for normal prompts trip Kontext's NSFW filter. Add exposure as a first-class selection constraint.
+
+1. **Classify** (`vision/exposure.ts` `classifyExposure`): each analyzed image → `clothed · swimwear ·
+   lingerie · nude`, DERIVED from `clothing` terms (no schema change, works on persisted `im-2`).
+   **Positive-signal only** — missing `clothing` defaults to `clothed` (inferring nude from absent
+   clothing caused false positives that excluded good references). The Gemini prompt now explicitly
+   asks for "nude/lingerie/bikini" in `clothing` so true positives are captured.
+2. **Constrain** (`selection/exposure.ts`): `allowedExposureForPrompt(directive)` (business/portrait →
+   clothed; beach/pool → swimwear; explicit request → lingerie/nude) + `filterCandidatesByExposure`
+   drops candidates above the allowed level. Applied in `runImageGeneration` to BOTH the scene
+   selection AND the Identity Anchor — a nude image is never sent, even for its face.
+3. **Surface**: exposure shows on each training-media card; the Debug panel reports the allowed level +
+   number excluded.
+
+Reason
+This is the genuine fix for the moderation hits and a real product feature (content-aware selection),
+not a workaround. Deriving from `clothing` avoids an `im-3` bump / re-analysis; positive-signal-only
+avoids throwing away legitimate clothed references (the user explicitly wants to keep the best identity
+refs). It stacks cleanly with the `CONTENT_MODERATED` backstop (Decision 049).
+
+Alternatives
+Add a persisted `exposureLevel` field (im-3 + re-analysis) — deferred; derivation is enough now and
+the Gemini prompt improvement upgrades reliability without a schema break. Infer nude from body
+exposure when clothing is empty — rejected (false positives). Only fix at the provider (moderation
+backstop) — insufficient; it still wastes a generation and shows a failure.
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-selection.ts` (business
+excludes nude, beach allows swimwear but excludes nude, explicit-nude includes it, anchor never nude
+for a safe prompt) + coverage/scoring verifiers pass offline. **Live path (moderation hits should drop
+sharply once libraries are re-analyzed with the exposure-aware prompt) is for the user to exercise.**

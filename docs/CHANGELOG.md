@@ -7,6 +7,64 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+> **▶ Resume (2026-07-17, build + tsc + verifiers green):** **Reference Safety / exposure filtering**
+> (Decision 050) — the real cause of the black images (reproduced in Fal Playground → provider NSFW
+> moderation from nude/lingerie *reference* images sent for normal prompts). New selector dimension:
+> `classifyExposure` (`vision/exposure.ts`) tags each analyzed image `clothed · swimwear · lingerie ·
+> nude` from its `clothing` terms (positive-signal only — missing clothing ≠ nude, so no false
+> positives); `filterCandidatesByExposure` (`selection/exposure.ts`) drops references above what the
+> prompt allows (business/portrait → clothed; beach → swimwear; explicit → nude), applied to BOTH the
+> scene selection AND the Identity Anchor. Gemini prompt now reports exposure terms; exposure shows on
+> training-media cards; Debug shows allowed level + #excluded. Stacks with the `CONTENT_MODERATED`
+> backstop. **Next = identity-preservation milestone (face embeddings).** Before that:
+>
+> **▶ Resume (2026-07-17, build + tsc + verifiers green):** **M20 completion** (Decision 049) — from
+> real generation testing. (1) **Identity Anchor** — a formal architectural invariant separate from the
+> selector: every identity generation always includes ONE anchor (the strongest frontal face, never
+> cropped, chosen independently in `selection/anchor.ts`), carried as
+> `ImageGenerationRequest.identityAnchor` and **prepended by the Fal adapter** (deduped) before
+> sending → `[anchor, …scene refs]`. Answers "who is this person?" vs the selector's "what describes
+> this request?"; does NOT touch selector reasoning/Debug. Fixes face drift when the scene package
+> leads with a body reference. (2) **NSFW/black images** — Kontext returns HTTP 200 + a black
+> placeholder + `has_nsfw_concepts:[true]`; `fal.ts` now detects it and fails with `CONTENT_MODERATED`
+> **before** saving, instead of silently storing a black square. (3) **Synthesis polish** — removed
+> inferred **age**, **deduped** traits ("ear gauges"/"ear gauge"), **richer** region tattoos
+> ("colorful left sleeve, large floral chest piece"). Verified the selector's package reaches Fal in
+> exact order/format (nothing rebuilds it). **M20 complete; next = identity-preservation milestone
+> (face embeddings → similarity/drift scoring → evaluation → LoRA).** Before that:
+>
+> **▶ Resume (2026-07-17, build + tsc + verifiers green):** **M20 hardening + M21 Identity Description
+> Synthesis** (Decision 048) — from real drift testing. (1) **Scene-aware selection:** requirement
+> weights are context-aware — body/clothing prompts (bikini/beach/full-body/business/action) boost
+> body-family references above the face and order best-first by weighted value, so a bikini beach shot
+> now **leads with full-body/leg-tattoo**, not a bare face (business portrait still leads with the
+> face). (2) **Synthesized identity description:** new `synthesizeIdentityAppearance` builds a
+> majority-voted, **region-based** appearance paragraph (hair/piercings/tattoo layout — never imagery)
+> from analyzed images, threaded via `IdentityContext.appearance` → `compile.ts` (appended verbatim,
+> keeping scene analysis clean) — replaces the sparse static "long hair, tattoos" description in every
+> prompt. (3) **Visible knowledge:** training-media cards now show a compact analysis summary
+> (stars/score/✓covered/hair/env) + a side `Sheet` panel with the full breakdown (suitability,
+> coverage, face quality, regions, JSON dev toggle, **Re-analyze**) — reads persisted
+> `MediaVisionKnowledge`, **never Gemini**; the identity page is now the canonical inspector.
+> `verify-selection.ts` extended (scene-led + synthesis). **Next = 19B face embeddings.** Before that:
+>
+> **▶ Resume (2026-07-17, build + tsc + verifiers green):** **Milestone 20 — Smart Reference
+> Selection** (Decision 047) — Identity Intelligence **in action**; the transition from an analysis
+> pipeline to a **knowledge system**. **First schema change:** new **`MediaVisionKnowledge`** table
+> persists per-image frozen `im-2` knowledge + score (provider-neutral only — no raw Gemini JSON).
+> Analyze once via the **"Analyze library"** button on an identity's Training Media tab
+> (`analyzeIdentityLibraryAction` → `vision/persist.ts`); **generation NEVER re-analyzes**. New
+> provider-neutral **`src/lib/selection/`**: `extractPromptRequirements(directive)` (deterministic,
+> HARD vs SOFT reqs) → `matchImage` (per-requirement 0–100 from knowledge) → `selectReferencePackage`
+> (**greedy marginal-gain / diversity — not top-N**, so you don't get four near-identical faces) with
+> per-pick reasons + coverage warnings; never blocks. `runImageGeneration` now builds the package from
+> persisted candidates and **replaces** the static Identity Visual Package (graceful fallback when
+> unanalyzed) — **providers (Fal) unchanged**, they just receive ordered refs. `SelectionCandidate.
+> signals` future-proofs for embeddings/favorites/LoRA (M19B feeds it). New `/debug/selection` tool +
+> `scripts/verify-selection.ts` (yacht/office/back-view). Docs: new `SMART_REFERENCE_SELECTION.md`,
+> updated AI_ARCHITECTURE/IDENTITY_INTELLIGENCE/DATABASE/ROADMAP. **Next = 19B face embeddings** (its
+> strongest new signal). Before that:
+>
 > **▶ Resume (2026-07-16, build + tsc green):** **Milestone 19C — Vision Intelligence Polish**
 > (Decision 046). Final correctness/clarity pass; **no new providers/routing/schema/generation**.
 > **Unknown vs zero:** `FaceKnowledge.quality` is now `FaceQuality | null` — a back view reports

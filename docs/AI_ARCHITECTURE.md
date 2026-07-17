@@ -77,9 +77,9 @@ enrich, and faithfully realize that intention — never to replace it.
    └───────────────────────────┬───────────────────────────┘
                                │
    ┌───────────────────────────▼───────────────────────────┐
-   │ REFERENCE SELECTOR          (M20 — not built yet)      │
-   │ hero · portrait · full body · tattoos · hair ·         │
-   │ scene matching  → pick the best refs FOR THIS request  │  ← the decision layer
+   │ REFERENCE SELECTOR          src/lib/selection/         │
+   │ prompt requirements → match → package optimization →   │
+   │ reasons + coverage warnings → best refs FOR THIS req   │  ← the decision layer
    └───────────────────────────┬───────────────────────────┘
                                │
    ┌───────────────────────────▼───────────────────────────┐
@@ -119,8 +119,8 @@ into knowledge the next one consumes.
 | Layer | What it really is | Where | Status |
 | ----- | ----------------- | ----- | ------ |
 | **Creative Director** | The creative reasoning engine — understands the user's *intention* before generation (intent, scene graph, composition), with the user's words as the source of truth | `src/lib/creative/` | ✅ v4 |
-| **Identity Intelligence** | The perception layer — turns identity images into structured **knowledge** (metadata, coverage, image scores, reference suitability; soon face embeddings) | `src/lib/vision/` | ✅ 19 · 19A · (19B next) |
-| **Reference Selector** | The decision layer — chooses the *right* knowledge for *this* specific request | (M20) | ⏳ |
+| **Identity Intelligence** | The perception layer — turns identity images into structured **knowledge** (metadata, coverage, image scores, reference suitability; soon face embeddings), **persisted** per image | `src/lib/vision/` | ✅ 19 · 19A · 19C · (19B next) |
+| **Reference Selector** | The decision layer — prompt requirements → match → package optimization; chooses the *right* refs for *this* request, with reasons + warnings | `src/lib/selection/` | ✅ M20 |
 | **Prompt Builder** | The translation layer — turns intent + identity into a provider-optimized request | `src/lib/prompt/` | ◑ partial |
 | **Image Provider** | The final renderer — the *only* layer that produces pixels, chosen by **capability**, never by name | `src/lib/ai/` | ✅ Fal + HF |
 | **Generation Intelligence** | The feedback layer — measures, critiques, ranks, and learns from results (identity similarity, drift, quality, retry suggestions) | (M22+) | ⏳ |
@@ -147,6 +147,24 @@ This is **not** model training and **not** fine-tuning. It is *accumulated creat
 system getting better because it learns from its own history, while the underlying models stay
 replaceable. Clearly a **future** layer; noted here so the destination is visible.
 
+## Identity Anchor — a separate question from selection
+
+Two different questions, deliberately kept apart:
+
+| Concept | Question it answers | Where |
+| ------- | ------------------- | ----- |
+| **Reference Selector** | *What images best DESCRIBE this request?* (body, tattoos, smile, scene) | `src/lib/selection/select.ts` |
+| **Identity Anchor** | *WHO is this person?* | `src/lib/selection/anchor.ts` |
+
+Every identity generation includes **exactly one Identity Anchor**: the strongest frontal face —
+highest face quality, highest identity confidence, never cropped, **never replaced by scene logic**.
+Its sole job is to tell the model who the subject is. It is chosen *independently* of the scene
+selector, does **not** appear in the selector's reasoning/Debug, and the **provider adapter prepends
+it** (deduped) to the reference list immediately before sending. If the selector already led with that
+face, the dedupe makes it a no-op. This is an architectural invariant, not a provider-specific hack —
+it just happens to also make reference-guided models (Kontext) preserve identity far better. Carried
+as `ImageGenerationRequest.identityAnchor`; see [SMART_REFERENCE_SELECTION.md](./SMART_REFERENCE_SELECTION.md).
+
 ## The invariant that keeps this sane
 
 Every boundary is a **provider-neutral contract**, and every layer has exactly one responsibility:
@@ -158,8 +176,13 @@ Every boundary is a **provider-neutral contract**, and every layer has exactly o
 
 ## Milestone map
 
+**M20 marks the transition from an AI analysis *pipeline* to an AI *knowledge system*:** from here on,
+uploaded identity images become **permanent structured knowledge** (`MediaVisionKnowledge`) that powers
+every future generation — analyzed once, never at generation time. See
+[SMART_REFERENCE_SELECTION.md](./SMART_REFERENCE_SELECTION.md).
+
 `18 Identity Intelligence` → `19 Vision Intelligence` *(→ 19A rich metadata → 19B face embeddings)*
-→ `20 Smart Reference Selection` → `21 Identity Description Synthesis` → `22 Generation Intelligence`
+→ `20 Smart Reference Selection` ✅ → `21 Identity Description Synthesis` → `22 Generation Intelligence`
 → `23 Learning Loop` → `24 LoRA Benchmark` → `25 Dedicated Identity Models` → *(later)* Creative
 Memory. See [ROADMAP.md](./ROADMAP.md).
 

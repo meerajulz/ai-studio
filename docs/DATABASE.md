@@ -45,7 +45,8 @@ DATABASE_URL="postgresql://USER:PASSWORD@ep-xxxx.REGION.aws.neon.tech/DBNAME?ssl
 | `Project` | Workspace grouping (e.g. "Summer Campaign") | User; has Identities/Uploads/Generations |
 | `Identity` | A reusable, project-scoped subject (person/character/pet/product/…) | User + Project (required); `IdentityMedia`; Hero Image → `UploadedMedia`; Generations |
 | `IdentityMedia` | Join: training media for an identity (position/favorite/role) | Identity + UploadedMedia (both cascade) |
-| `UploadedMedia` | User-uploaded inputs / references (Vercel Blob) | User; Project (optional); training links |
+| `UploadedMedia` | User-uploaded inputs / references (Vercel Blob) | User; Project (optional); training links; Vision knowledge |
+| `MediaVisionKnowledge` | Persisted, provider-neutral Vision knowledge for one image (Milestone 20) — frozen `im-2` `metadata` + `score` + provider/model/version; NEVER raw provider JSON. Analyzed once; Smart Reference Selection consumes it | UploadedMedia (1:1, cascade) |
 | `Generation` | A generation request (image or video) | User; Project/Identity/Template (optional) |
 | `GeneratedMedia` | Output files from a Generation (Vercel Blob) | Generation (cascade) |
 | `Job` | Async execution / queue state for a Generation | Generation (1:1) |
