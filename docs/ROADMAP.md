@@ -203,6 +203,13 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       separate from the selector's "what describes this request?"; (2) **NSFW/black-image** detection
       (`CONTENT_MODERATED` — fail cleanly, never save a black square); (3) synthesis polish (no age,
       deduped, richer region tattoos). Verified selector→Fal order/format integrity. **M20 complete.**
+- [x] **Milestone 21 — Model Registry (capability-routed orchestration)** (Decision 054) — AI Studio
+      is no longer "a FLUX app": a **`src/lib/ai/model-registry.ts`** + **`model-router.ts`** choose the
+      best MODEL by capability (Auto), a manual pick (benchmark), or Developer (metadata). Registered
+      FLUX Kontext Max/Pro Multi + FLUX.2 Pro Edit + Nano Banana Pro + Gemini Image + GPT Image 2 +
+      Seedream V5 Pro (all verified `{prompt,image_urls}` from Fal docs; adding a model = one config
+      entry). Fal adapter is now payload-kind driven (no FLUX branching). Auto stays on the proven
+      Kontext Max Multi. `verify-model-routing.ts`. [MODEL_REGISTRY.md](./MODEL_REGISTRY.md).
 - [ ] **Milestone 19B — Face Embeddings** ← **next (identity-preservation milestone)** — the remaining
       face drift is now assessed as a Kontext/reference-guided limitation; strengthen identity
       preservation directly: **InsightFace** ([research/RESEARCH_03_FACE_EMBEDDINGS.md](./research/RESEARCH_03_FACE_EMBEDDINGS.md))

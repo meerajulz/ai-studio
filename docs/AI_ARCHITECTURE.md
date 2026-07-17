@@ -122,7 +122,7 @@ into knowledge the next one consumes.
 | **Identity Intelligence** | The perception layer — turns identity images into structured **knowledge** (metadata, coverage, image scores, reference suitability; soon face embeddings), **persisted** per image | `src/lib/vision/` | ✅ 19 · 19A · 19C · (19B next) |
 | **Reference Selector** | The decision layer — prompt requirements → match → package optimization; chooses the *right* refs for *this* request, with reasons + warnings | `src/lib/selection/` | ✅ M20 |
 | **Prompt Builder** | The translation layer — turns intent + identity into a provider-optimized request | `src/lib/prompt/` | ◑ partial |
-| **Image Provider** | The final renderer — the *only* layer that produces pixels, chosen by **capability**, never by name | `src/lib/ai/` | ✅ Fal + HF |
+| **Image Provider** | The final renderer — the *only* layer that produces pixels, chosen by **capability**, never by name. A **Model Registry** routes to the best MODEL by capability (Auto/Manual/Dev); adding a model is config | `src/lib/ai/` | ✅ Fal + HF · model registry |
 | **Generation Intelligence** | The feedback layer — measures, critiques, ranks, and learns from results (identity similarity, drift, quality, retry suggestions) | (M22+) | ⏳ |
 | **Creative Memory** | The long-term memory — accumulated creative knowledge about what works, per identity/scene/reference | (future) | ⏳ |
 

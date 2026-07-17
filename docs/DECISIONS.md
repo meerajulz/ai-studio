@@ -1979,3 +1979,175 @@ Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify
 excludes nude, beach allows swimwear but excludes nude, explicit-nude includes it, anchor never nude
 for a safe prompt) + coverage/scoring verifiers pass offline. **Live path (moderation hits should drop
 sharply once libraries are re-analyzed with the exposure-aware prompt) is for the user to exercise.**
+
+---
+
+# Decision 051
+
+Date
+2026-07-17
+
+Decision
+**Identity benchmark tooling — evidence before more heuristics.** The selector demonstrably sends the
+right images, yet faces still drift. Rather than add more selection heuristics, build dev-only
+observability to isolate *where* drift comes from (our selection vs. the provider).
+
+1. **Show the actual images sent** in the Generate Debug panel — thumbnails of the exact ordered
+   references (`ReferenceImageDebug.sentImages`, from a secret-free `referenceImages` echo in the Fal
+   `requestPayload`), not just roles. The first is ringed + labelled ★ anchor.
+2. **Dev reference-count control** (1·2·3·4·Auto) on the Generate page → `GenerateImageInput.
+   maxReferences` → `ImageGenerationRequest.maxReferences` → the Fal adapter caps the merged
+   `[anchor, …scene]` list (anchor kept first; 1 = anchor only). Dev-only (`NODE_ENV`), no code changes
+   to A/B 1→4 references.
+3. **Traceable results** — each generation records `params.references` ({maxReferences, offered,
+   anchorIncluded}).
+4. **Manual reference picker** (dev-only): toggle References → Manual on the Generate page to pin the
+   exact images + order sent (`GenerateImageInput.manualReferenceMediaIds` → `runImageGeneration`
+   bypasses selector/anchor/safety, sends them verbatim). Click to include/exclude, drag to reorder,
+   badges (Anchor/Face/Body/Tattoos/Hair/Smile); Debug shows "Manual reference selection". Answers
+   *which* image helps/hurts, not just how many.
+5. **Protocol + conclusion scaffold** in `docs/IDENTITY_BENCHMARK.md`.
+
+Reason
+"I don't want more heuristics until we have evidence about where the failure occurs" — so make the
+pipeline observable and A/B-able instead of guessing. If the anchor is image #1 and identity still
+drifts (especially at a single clean anchor), the bottleneck is the provider's identity preservation,
+not selection → the signal to move to the identity-preservation milestone.
+
+Alternatives
+An env var for reference count (rejected — needs a restart per change; a UI toggle is faster for 1→4
+A/B); a scripted batch benchmark (rejected — real generations need `FAL_KEY` + visual inspection; a UI
+control + Gallery comparison is the pragmatic path); exposing URLs in production debug (rejected — the
+Debug panel is dev-only already, `NODE_ENV !== production`).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass. **The benchmark itself is for the user
+to run** (needs `FAL_KEY` + an analyzed identity): generate the same prompt at 1→4 references, confirm
+the anchor is image #1, compare identity fidelity, and record the conclusion in IDENTITY_BENCHMARK.md.
+
+---
+
+# Decision 052
+
+Date
+2026-07-17
+
+Decision
+**Identity Anchor prominence fix + scoring diagnostic.** Testing showed the anchor was always the
+full-body studio photo (small face). Investigation confirmed the anchor is scored on FACE only
+(frontalness × faceQuality × confidence) — NOT body coverage or overall utility — but face
+**resolution** (size in frame) weighed only 0.05 in `faceQuality.overall`, so a sharp full-body face
+could beat a close-up.
+
+1. **Fix** (`selection/anchor.ts`): add an explicit **prominence** factor `0.4 + 0.6 × faceResolution`
+   to the anchor score (headshot ×1.0, half-body ×0.76, full-body ×0.61). A clear close-up now beats a
+   higher-confidence full-body. Verified: headshot 0.877 vs full-body 0.546 (was 0.877 vs 0.895 → the
+   bug).
+2. **Diagnostic**: `rankIdentityAnchors`/`scoreAnchor` return the full breakdown (faceQuality,
+   frontalness, eyeVisibility, lighting, resolution, prominence, confidence, score); the Generate Debug
+   panel renders the top-5 with thumbnails so the anchor decision is auditable on real data.
+
+Reason
+The anchor's whole job is "who is this person?" — face SIZE/clarity is central to that, and it was
+nearly ignored. This is a verified logic flaw, not a heuristic guess. The breakdown makes the decision
+inspectable: if the full-body genuinely has the best/most-prominent face, the choice is correct and
+drift is the model's — the exact evidence the user asked for.
+
+Alternatives
+Reweight `faceQuality.overall`'s resolution term globally (rejected — that would change coverage/image
+scoring too; prominence should be an ANCHOR-specific concern); rank by raw face bbox area (rejected — we
+don't persist a bbox; framing-derived resolution is the available proxy); leave as-is and call it model
+limitation (rejected — the anchor was demonstrably picking a smaller face than available).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-selection.ts` asserts a
+close-up beats a higher-confidence full-body. **User verifies on a real library via the Debug anchor
+ranking table.**
+
+---
+
+# Decision 053
+
+Date
+2026-07-17
+
+Decision
+**DEV model selector — benchmark Fal Kontext multi models.** The pipeline is verified sound; the
+remaining weakness is facial identity preservation. Before LoRA research, compare the two closest Fal
+multi-reference models with everything else held constant, changing ONLY the model id.
+
+1. **Config-driven model list** (`src/lib/ai/benchmark-models.ts`, client-safe): `Kontext Max Multi`
+   (current) + `Kontext Pro Multi`. Adding a model is a config edit here — no business-logic change
+   (the provider-abstraction requirement).
+2. **Override plumbing**: `GenerateImageInput.modelOverride` → `runImageGeneration` →
+   `ImageGenerationRequest.modelOverride` → `fal.ts` uses it on the reference path (forcing the multi
+   request shape, since the options are multi models). Everything else (prompt/refs/order/anchor/
+   safety/identity package) is unchanged.
+3. **Metadata**: `Generation.model` already records the exact model used per result (= the override
+   when set); the Debug panel shows "Chosen model" — so runs are comparable after the fact.
+4. **UI**: a dev-only **Model** selector (Auto · Max Multi · Pro Multi) next to the benchmark controls.
+   Default `Auto` (undefined) preserves normal behavior.
+
+Reason
+A small change with a potentially useful result: if `kontext/multi` preserves faces better, we learn it
+today; if not, we move to LoRA with confidence that the two closest Fal models were already compared.
+Config-driven models keep future comparisons cheap and provider-neutral.
+
+Alternatives
+Env var per benchmark run (rejected — needs a restart; a UI toggle is faster for A/B); hardcode the
+model choice in fal.ts (rejected — the explicit "configurable not hardcoded" requirement); send a fixed
+seed too (deferred — noted as a follow-up; not required for the model comparison).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` + verifiers pass. **The benchmark is for the
+user to run** (needs `FAL_KEY`): same prompt + manual references, generate once per model, compare
+facial identity / tattoos / hair / prompt adherence / realism. If essentially identical → next
+investigation is identity LoRA / stronger conditioning, not the selector.
+
+---
+
+# Decision 054
+
+Date
+2026-07-17
+
+Decision
+**Model Registry — capability-routed image orchestration (Milestone 21).** Kontext Max↔Pro Multi
+didn't move identity, and AI Studio shouldn't be "a FLUX app". Evolve the Image Provider layer into a
+provider/model-agnostic orchestrator: request CAPABILITIES, route to the best MODEL.
+
+1. **Registry** (`src/lib/ai/model-registry.ts`, client-safe config): each `ModelSpec` declares
+   capabilities, `maxReferences`, `payloadKind`, `priority`, `enabled`, `note`, `vendor`. **Research
+   (Fal docs 2026-07): every target editing model takes `{ prompt, image_urls }`** → almost the whole
+   registry is `payloadKind: "image_urls"` over ONE adapter builder. Registered: FLUX Kontext Max/Pro
+   Multi, FLUX.2 Pro Edit (surfaced by research), Nano Banana Pro, Gemini Image, GPT Image 2 Edit
+   (BYOK note), Seedream V5 Pro (refs ≤ 10) + single/t2i fallbacks.
+2. **Router** (`model-router.ts`): `chooseModel({provider, needs, mode, manualModelId})` — Auto (best
+   capability match by priority), Manual (explicit id), fallback-safe. Routed only when references
+   exist; no-ref → adapter t2i.
+3. **Adapter refactor** (`fal.ts`): removed all FLUX-specific model/branching; the request now carries
+   the RESOLVED `model`, and the adapter builds the body from its `payloadKind`. Identity Anchor,
+   reference cap, and NSFW handling unchanged.
+4. **Three modes** (Generate, dev-only): Auto (Recommended) · Manual · Developer (metadata). Debug
+   shows chosen model + reason + models considered. `Generation.model` records the exact model used.
+5. **Auto stays the proven Kontext Max Multi** (priority 95) — adding models never silently changes the
+   default; retune priorities after benchmarking.
+
+Reason
+Adding a state-of-the-art model should be *registering capabilities*, not rewriting the pipeline. A
+capability router keeps feature code free of model names and lets the app pick the right tool per
+request (identity edit vs typography vs background replace). The uniform `image_urls` payload made this
+cheap and low-risk.
+
+Alternatives
+Hardcode each model in fal.ts (rejected — the exact anti-pattern; not config-driven); one payload
+per model (rejected — research shows they share `image_urls`; a `payloadKind` enum + one builder
+suffices); let Auto pick the highest-capability model regardless (rejected — would switch the proven
+default to an unbenchmarked model; priority keeps Kontext Max Multi until evidence); per-request env
+vars (rejected — a UI mode toggle is faster and visible).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-model-routing.ts` (Auto
+picks the best capable enabled model + stays Kontext Max Multi; Manual honored; disabled never
+auto-chosen) + selection/coverage/scoring verifiers pass offline. **Live model comparison is the user's
+benchmark** (needs `FAL_KEY`; GPT Image may need BYOK). Providers otherwise unchanged; HF still works.

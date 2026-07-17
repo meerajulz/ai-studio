@@ -7,6 +7,50 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+> **▶ Resume (2026-07-17, build + tsc + verifiers green):** **Milestone 21 — Model Registry**
+> (Decision 054). AI Studio is no longer "a FLUX app": a config-driven **model registry**
+> (`ai/model-registry.ts`) + **capability router** (`ai/model-router.ts`) choose the best MODEL by
+> capability. `chooseModel({provider,needs,mode})` — **Auto** (best capability match by priority) ·
+> **Manual** (benchmark pick) · **Developer** (metadata). Fal adapter is now **payload-kind driven**
+> (no FLUX branching — research confirmed all target editing models take `{prompt,image_urls}`).
+> Registered FLUX Kontext Max/Pro Multi, **FLUX.2 Pro Edit**, Nano Banana Pro, Gemini Image, GPT Image 2
+> (BYOK note), Seedream V5 Pro. Generate page shows the 3-mode selector grouped by vendor; Debug shows
+> chosen model + reason + models considered; `Generation.model` records the exact model. **Auto stays
+> the proven Kontext Max Multi** (adding models never changes the default). `verify-model-routing.ts`;
+> new `docs/MODEL_REGISTRY.md`. **Next = identity-preservation milestone (face embeddings / LoRA).**
+> Before that:
+>
+> **▶ Resume (2026-07-17, build + tsc + verifiers green):** **DEV Fal model selector** (Decision 053) —
+> benchmark Kontext **Max Multi** vs **Pro Multi** with everything else identical. Config-driven model
+> list (`ai/benchmark-models.ts` — adding a model is config, not code); `modelOverride` flows
+> `GenerateImageInput → runImageGeneration → ImageGenerationRequest → fal.ts` (reference path, multi
+> shape). `Generation.model` records the exact model used; Debug shows "Chosen model". Dev-only Model
+> selector (Auto · Max Multi · Pro Multi) by the benchmark controls; default Auto preserves behavior.
+> Protocol in IDENTITY_BENCHMARK.md — if the two models are essentially identical, next is identity
+> LoRA / stronger conditioning, not more selector tuning. Before that:
+>
+> **▶ Resume (2026-07-17, build + tsc + verifiers green):** **Manual reference picker + Identity Anchor
+> prominence fix** (Decisions 051–052). **Manual picker** (dev-only): Generate → References → Manual
+> pins the exact images + order sent to Fal (bypasses selector/anchor/safety), click to include, drag
+> to reorder, Anchor/Face/Body/Tattoos/Hair/Smile badges; Debug says "Manual reference selection".
+> **Anchor prominence fix**: the anchor was always the full-body studio photo (small face) — confirmed
+> it scores on FACE only, but face *size* (resolution) barely counted; added a prominence factor so a
+> clear close-up beats a higher-confidence full-body (verified 0.877 vs 0.546). **Anchor diagnostic**:
+> the Debug panel now prints the top-5 anchor candidates with the full face breakdown (faceQ /
+> frontal / eyes / light / res / prom / conf / score) + thumbnails, so the "who is this person?"
+> decision is auditable on real data. **Next = identity-preservation milestone (face embeddings).**
+> Before that:
+>
+> **▶ Resume (2026-07-17, build + tsc + verifiers green):** **Identity benchmark tooling** (Decision
+> 051) — evidence before more heuristics. The Generate → Debug panel now shows **thumbnails of the
+> exact references sent** (in order; image #1 ringed + labelled ★ anchor), a **dev-only References
+> 1·2·3·4·Auto control** caps how many references are sent (anchor kept first; 1 = anchor only) so you
+> can A/B identity preservation with 1→4 refs **without code changes**, and each generation records
+> `params.references`. Protocol + conclusion scaffold in **`docs/IDENTITY_BENCHMARK.md`** — if the
+> anchor is image #1 and identity still drifts (especially at a single clean anchor), the bottleneck is
+> the provider's identity preservation, not our selection → move to the identity-preservation
+> milestone. Before that:
+>
 > **▶ Resume (2026-07-17, build + tsc + verifiers green):** **Reference Safety / exposure filtering**
 > (Decision 050) — the real cause of the black images (reproduced in Fal Playground → provider NSFW
 > moderation from nude/lingerie *reference* images sent for normal prompts). New selector dimension:
