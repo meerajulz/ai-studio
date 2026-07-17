@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ImagePlus, Plus } from "lucide-react";
+import { ImagePlus, Loader2, Plus, Sparkles } from "lucide-react";
+
+import { analyzeIdentityLibraryAction } from "@/actions/identities";
 
 import {
   useRemoveTrainingMedia,
@@ -17,10 +19,13 @@ import type {
   TrainingMediaRoleValue,
 } from "@/lib/identity/types";
 import type { MediaAsset } from "@/lib/media/types";
+import { useQueryClient } from "@tanstack/react-query";
+
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { MediaViewer } from "@/components/media/media-viewer";
 import { TrainingMediaCard } from "./training-media-card";
+import { TrainingMediaKnowledgePanel } from "./training-media-knowledge-panel";
 import { TrainingMediaSelector } from "./training-media-selector";
 
 type IdentityTrainingMediaProps = {
@@ -35,6 +40,28 @@ export function IdentityTrainingMedia({
 }: IdentityTrainingMediaProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [viewing, setViewing] = useState<MediaAsset | null>(null);
+  const [knowledgeItem, setKnowledgeItem] = useState<TrainingMediaItem | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const qc = useQueryClient();
+
+  const refreshIdentity = () =>
+    qc.invalidateQueries({ queryKey: ["identity", identity.id] });
+
+  async function analyzeLibrary() {
+    setAnalyzing(true);
+    try {
+      const s = await analyzeIdentityLibraryAction(identity.id);
+      const parts = [`analyzed ${s.analyzed}`];
+      if (s.skipped) parts.push(`${s.skipped} up to date`);
+      if (s.failed) parts.push(`${s.failed} failed`);
+      toast.success(`Vision analysis complete — ${parts.join(", ")}.`);
+      await refreshIdentity();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Analysis failed.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
 
   const setHeroMut = useSetHeroImage(identity.id);
   const favoriteMut = useSetTrainingMediaFavorite(identity.id);
@@ -70,10 +97,21 @@ export function IdentityTrainingMedia({
         <p className="text-muted-foreground text-sm">
           {identity.mediaCount} training {identity.mediaCount === 1 ? "item" : "items"}
         </p>
-        <Button onClick={() => setSelectorOpen(true)}>
-          <Plus className="size-4" />
-          Add media
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={analyzeLibrary}
+            disabled={analyzing || identity.trainingMedia.length === 0}
+            title="Analyze training images with Vision so Smart Reference Selection can use them"
+          >
+            {analyzing ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            {analyzing ? "Analyzing…" : "Analyze library"}
+          </Button>
+          <Button onClick={() => setSelectorOpen(true)}>
+            <Plus className="size-4" />
+            Add media
+          </Button>
+        </div>
       </div>
 
       {identity.trainingMedia.length === 0 ? (
@@ -98,6 +136,7 @@ export function IdentityTrainingMedia({
               isFirst={index === 0}
               isLast={index === identity.trainingMedia.length - 1}
               onOpen={(it) => setViewing(it.media)}
+              onOpenKnowledge={(it) => setKnowledgeItem(it)}
               onSetHero={(it) =>
                 run(setHeroMut.mutateAsync(it.media.id), "Couldn't set Hero Image")
               }
@@ -131,6 +170,16 @@ export function IdentityTrainingMedia({
         onOpenChange={(open) => {
           if (!open) setViewing(null);
         }}
+      />
+
+      <TrainingMediaKnowledgePanel
+        mediaId={knowledgeItem?.media.id ?? null}
+        title={knowledgeItem?.media.originalFilename ?? "Training image"}
+        open={knowledgeItem !== null}
+        onOpenChange={(open) => {
+          if (!open) setKnowledgeItem(null);
+        }}
+        onReanalyzed={refreshIdentity}
       />
 
       <TrainingMediaSelector
