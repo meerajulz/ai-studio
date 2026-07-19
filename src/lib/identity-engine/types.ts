@@ -82,6 +82,10 @@ export type ConditioningContribution = {
   referenceImages?: ReferenceImage[];
   identityAnchor?: ReferenceImage;
   loraModelId?: string | null;
+  /** Trained-LoRA weights URL + trigger phrase (Milestone 24) — set by the LoRA module. */
+  loraWeightsUrl?: string | null;
+  loraTriggerWord?: string | null;
+  loraScale?: number | null;
   adapterInputs?: Record<string, unknown> | null;
   reason: string;
   /** Partial debug the module can attach (reference module fills selection + anchor ranking). */
@@ -120,6 +124,10 @@ export type ConditioningPlan = {
   referenceImages: ReferenceImage[];
   identityAnchor?: ReferenceImage;
   loraModelId: string | null;
+  /** When the strategy includes a LoRA (Milestone 24): the weights URL + trigger phrase to apply. */
+  loraWeightsUrl: string | null;
+  loraTriggerWord: string | null;
+  loraScale: number | null;
   adapterInputs: Record<string, unknown> | null;
   reason: string;
   debug?: ConditioningDebug;

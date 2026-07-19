@@ -52,10 +52,13 @@ export async function planConditioning(
   const engines: EngineId[] = ["reference"];
   const strategyParts: string[] = ["reference"];
   let loraModelId: string | null = null;
+  let loraWeightsUrl: string | null = null;
+  let loraTriggerWord: string | null = null;
+  let loraScale: number | null = null;
   let adapterInputs: Record<string, unknown> | null = null;
   const engineNotes: string[] = [];
 
-  // Layer any enabled trainable/adapter modules that are available for this identity (none today).
+  // Layer any enabled trainable/adapter modules that are available for this identity.
   const layerable = enabled.filter((m) => m.kind !== "reference").sort(byPriority);
   for (const m of layerable) {
     const avail = await m.availability(ctx);
@@ -67,6 +70,9 @@ export async function planConditioning(
     engines.push(m.id);
     strategyParts.push(m.id);
     if (c.loraModelId) loraModelId = c.loraModelId;
+    if (c.loraWeightsUrl) loraWeightsUrl = c.loraWeightsUrl;
+    if (c.loraTriggerWord) loraTriggerWord = c.loraTriggerWord;
+    if (typeof c.loraScale === "number") loraScale = c.loraScale;
     if (c.adapterInputs) adapterInputs = { ...(adapterInputs ?? {}), ...c.adapterInputs };
     engineNotes.push(`${m.id}: ${c.reason}`);
   }
@@ -79,6 +85,9 @@ export async function planConditioning(
     referenceImages,
     identityAnchor,
     loraModelId,
+    loraWeightsUrl,
+    loraTriggerWord,
+    loraScale,
     adapterInputs,
     reason: base.reason,
     debug: {

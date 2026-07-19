@@ -13,7 +13,7 @@
 import type { ProviderCapability } from "./capabilities";
 
 /** How the provider adapter builds the request body for a model. */
-export type PayloadKind = "t2i" | "image_url" | "image_urls";
+export type PayloadKind = "t2i" | "image_url" | "image_urls" | "image_url_lora";
 
 export type ModelSpec = {
   id: string; // provider model id, e.g. "fal-ai/flux-pro/kontext/max/multi"
@@ -123,6 +123,21 @@ export const MODEL_REGISTRY: ModelSpec[] = [
     priority: 82,
     enabled: true,
     note: "fal-ai/bytedance/seedream/v4.5/edit is the newer tier — swap the id to try it",
+  },
+  {
+    // Reference + trained LoRA (Milestone 24). Kontext image-to-image that ALSO applies a trained
+    // LoRA — the only Fal endpoint that does reference + LoRA together. Single reference (image_url).
+    // Chosen by the model router only when the conditioning strategy includes a LoRA.
+    id: "fal-ai/flux-kontext-lora",
+    provider: "fal",
+    vendor: "FLUX",
+    label: "Kontext + LoRA",
+    capabilities: [...EDIT, "realism", "lora"],
+    maxReferences: 1, // Kontext-LoRA takes a single image_url; the LoRA carries identity
+    payloadKind: "image_url_lora",
+    priority: 90,
+    enabled: true,
+    note: "identity-trained LoRA + one reference (Identity Anchor); requires a trained model",
   },
   // Non-identity fallbacks (used by routing when there are no references).
   {

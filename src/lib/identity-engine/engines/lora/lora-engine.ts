@@ -1,10 +1,10 @@
 /**
- * LoRA Engine (Milestone 22) — ARCHITECTURE ONLY, DISABLED.
+ * LoRA Engine (Milestone 22 architecture · Milestone 24 enabled).
  *
- * A `trainable` identity module: it conditions generation by attaching a trained LoRA adapter (via
- * `loraModelId`) ON TOP of the reference baseline → strategy `reference+lora`. It is registered but
- * `enabled: false`, and `availability` reports "no trained model" until (a future milestone) training
- * ships and a READY `IdentityTrainedModel` exists for the identity. Nothing here trains anything.
+ * A `trainable` identity module: it conditions generation by attaching a trained LoRA adapter ON TOP
+ * of the reference baseline → strategy `reference+lora`. `availability` is true once a READY
+ * `IdentityTrainedModel` (engine `lora`, with weights) exists for the identity; `contribute` hands the
+ * generation layer the weights URL + trigger phrase. The engine never trains — that's the Fal trainer.
  */
 import type { IdentityModule } from "../../modules/IdentityModule";
 import type {
@@ -13,15 +13,22 @@ import type {
   ModuleAvailability,
 } from "../../types";
 
+/** Latest (highest-version) READY LoRA model with weights, if any. */
+function latestLora(ctx: ConditioningContext) {
+  return ctx.trainedModels
+    .filter((m) => m.engine === "lora" && m.artifactRef)
+    .sort((a, b) => b.version - a.version)[0];
+}
+
 export const loraEngine: IdentityModule = {
   id: "lora",
   label: "LoRA Engine",
   kind: "trainable",
   priority: 80,
-  enabled: false, // architecture only — no training implemented yet
+  enabled: true, // Milestone 24 — enabled; availability still gates on a trained model existing
 
   async availability(ctx: ConditioningContext): Promise<ModuleAvailability> {
-    const ready = ctx.trainedModels.find((m) => m.engine === "lora" && m.artifactRef);
+    const ready = latestLora(ctx);
     if (!ready) {
       return { available: false, reason: "no trained LoRA model for this identity" };
     }
@@ -29,11 +36,13 @@ export const loraEngine: IdentityModule = {
   },
 
   async contribute(ctx: ConditioningContext): Promise<ConditioningContribution> {
-    // Reached only once enabled + a model is ready (future). Layers the model onto the baseline.
-    const model = ctx.trainedModels.find((m) => m.engine === "lora" && m.artifactRef) ?? null;
+    const model = latestLora(ctx) ?? null;
     return {
       part: "lora",
       loraModelId: model?.id ?? null,
+      loraWeightsUrl: model?.artifactRef ?? null,
+      loraTriggerWord: model?.triggerWord ?? null,
+      loraScale: 1,
       reason: model ? `conditioning with LoRA v${model.version}` : "no LoRA model",
     };
   },

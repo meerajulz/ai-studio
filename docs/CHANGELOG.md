@@ -7,8 +7,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-19, build + tsc + verify-training-infrastructure[21/21] + verify-identity-engine[31/31] green):**
-> **Milestone 23 — Fal Training Infrastructure** (Decision 056). Taught the Identity Engine *how to
+> **▶ Resume (2026-07-19, build + tsc + verify-training-infrastructure[28/28] + verify-identity-engine[31/31] +
+> verify-selection green):** **Milestone 24 — LoRA Trainer (first real training, end-to-end)** (Decision 057).
+> The payoff milestone: a READY identity trains a LoRA on Fal and immediately generates with **Reference +
+> LoRA**. **FalTrainer** is now a real Fal **queue** client (`fal-ai/flux-lora-portrait-trainer`) — submit /
+> poll / fetch weights. **Dataset packaging** (`identity/training.ts` `packageDataset`): the CURATED
+> recommended images → `fflate` ZIP → Blob → signed URL. **Orchestration** `startIdentityTraining` /
+> `pollIdentityTraining` (client-driven polling — webhooks can't reach localhost) persists a versioned
+> `IdentityTrainedModel` with **full provenance JSON** (provider/trainer/base model/dataset version/params).
+> **LoRA module enabled**; `getCapabilities.conditioning.lora` lights up + `recommendedStrategy` becomes
+> `reference+lora`. **Generation consumes it:** new registry model `fal-ai/flux-kontext-lora` (single
+> `image_url` + `loras` + `lora` capability); when a LoRA is present, routing picks it, sends
+> `loras:[{path}]`, and prepends the trigger phrase. Functional **Train** button + progress
+> (Queued/Training…) on the Models tab. New dep `fflate`; env `FAL_LORA_TRAINER_MODEL`. **The live
+> end-to-end run is user-driven** (needs `FAL_KEY` + real cost/time). **NOT M24:** evaluation (M25),
+> retries (M26), multi-LoRA. **Next = M25 Identity Evaluation Engine.**
+
+> **▶ Prior (2026-07-19):** **Milestone 23 — Fal Training Infrastructure** (Decision 056). Taught the Identity Engine *how to
 > train* — infrastructure only, NOT real training (M24) or evaluation (M25). New **Training Registry**
 > (`identity-engine/training/registry.ts`) — the THIRD registry symmetric with the Model + Identity
 > Module registries: `FalTrainer` enabled; `Replicate`/`OpenAI`/`Google`/`Future` trainers registered

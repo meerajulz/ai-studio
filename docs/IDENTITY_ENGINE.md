@@ -152,9 +152,15 @@ versioning), `IdentityTrainingJob`, `IdentityEvaluation` (reserved metric column
 
 ## Roadmap (confirmed — do not reorder)
 
-**M22** foundation (this) → **M23** Fal Training Infrastructure → **M24** LoRA Trainer → **M25** Identity
+**M22** foundation → **M23** Fal Training Infrastructure → **M24** LoRA Trainer ✅ → **M25** Identity
 Evaluation Engine → **M26** Automatic Retry & Best-Candidate Selection → **M27** PuLID → **M28** InstantID
 → future modules. Each step plugs in behind the interfaces above.
+
+**M24 shipped:** the LoRA module is enabled; `FalTrainer` really trains on Fal
+(`fal-ai/flux-lora-portrait-trainer`, queue API) from the curated dataset (recommended images →
+`fflate` zip → Blob signed URL); a versioned `IdentityTrainedModel` is persisted with full provenance;
+generation consumes it via **`fal-ai/flux-kontext-lora`** (single reference + `loras` + trigger phrase)
+→ strategy `reference+lora`. Client-driven polling (webhooks can't reach localhost). See Decision 057.
 
 ### M23 — Fal Training Infrastructure ✅ (teach the engine *how to train*, not how to evaluate)
 

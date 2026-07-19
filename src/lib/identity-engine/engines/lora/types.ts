@@ -23,9 +23,13 @@ export type TrainingOptions = {
   triggerWord?: string;
   /** The curated dataset revision to train on (see IdentityDataset.datasetVersion). */
   datasetVersion?: number;
+  /** A URL to the packaged training dataset (ZIP of the recommended images) — Milestone 24. */
+  imagesDataUrl?: string;
+  /** Training iterations (trainer default when omitted). */
+  steps?: number;
   /** Base models this run should target (compatibility of the produced adapter). */
   baseModels?: string[];
-  params?: Record<string, unknown>; // steps, rank, learning rate, … (trainer-specific)
+  params?: Record<string, unknown>; // rank, learning rate, … (trainer-specific)
 };
 
 /** A training run in flight. Mirrors `IdentityTrainingJob`. */
@@ -64,6 +68,8 @@ export type TrainingResult = {
   identityId: string;
   engine: EngineId;
   artifactRef: string; // blob key / url of the weights
+  configUrl?: string | null; // trainer config file (provenance / reproducibility)
+  providerMetadata?: Record<string, unknown> | null; // raw provider output (provenance)
   metadata: TrainingMetadata;
 };
 

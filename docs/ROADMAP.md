@@ -219,7 +219,7 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       `add_identity_engine` (versioned, never-overwritten trained models). Read-only Dataset/Models UI.
       Reference flow byte-for-byte unchanged (`verify-identity-engine.ts`). **Architecture only — no
       LoRA/PuLID/ML.** [IDENTITY_ENGINE.md](./IDENTITY_ENGINE.md).
-**Confirmed identity sequence (do not reorder):** M22 ✅ → M23 ✅ → M24 → M25 → M26 → M27 → M28 → future modules.
+**Confirmed identity sequence (do not reorder):** M22 ✅ → M23 ✅ → M24 ✅ → M25 → M26 → M27 → M28 → future modules.
 
 - [x] **Milestone 23 — Fal Training Infrastructure** (Decision 056) — taught the Identity Engine *how to
       train* (not how to evaluate). **Training Registry** (`identity-engine/training/registry.ts`) — the
@@ -231,10 +231,16 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       `IdentityTrainedModel.datasetVersion` (migration `add_trained_model_dataset_version`). Lifecycle
       persistence seams in `identity/training.ts`. Read-only Models tab shows state + providers; no working
       Train button. `verify-training-infrastructure.ts`. **NOT M23:** retries/eval/real Fal training.
-- [ ] **Milestone 24 — LoRA Trainer** ← **next** — the first concrete `Trainer` (Fal LoRA): assemble the curated
-      dataset, train, persist a versioned model, enable the LoRA module (`reference+lora`). getCapabilities
-      lights up `lora: true` with no UI change.
-- [ ] **Milestone 25 — Identity Evaluation Engine** — implement `IdentityEvaluator` (InsightFace face
+- [x] **Milestone 24 — LoRA Trainer (first real training, end-to-end)** (Decision 057) — a READY
+      identity trains a LoRA on Fal and immediately generates with `reference+lora`. **FalTrainer** real
+      queue client (`fal-ai/flux-lora-portrait-trainer`); **dataset packaging** (curated/recommended imgs
+      → `fflate` zip → Blob signed URL); orchestration + client-driven polling (`identity/training.ts`
+      `startIdentityTraining`/`pollIdentityTraining`, webhooks can't reach localhost); versioned
+      `IdentityTrainedModel` with **full provenance JSON**; **LoRA module enabled**; generation routes
+      `reference+lora` to **`fal-ai/flux-kontext-lora`** (single ref + `loras` + trigger phrase).
+      Functional **Train** button + progress. Live end-to-end is user-run (needs `FAL_KEY` + cost).
+      `verify-training-infrastructure.ts` (routing). **NOT M24:** eval/retries/multi-LoRA.
+- [ ] **Milestone 25 — Identity Evaluation Engine** ← **next** — implement `IdentityEvaluator` (InsightFace face
       similarity + embeddings for tattoos/hair/etc.); fill the reserved `IdentityEvaluation` metrics.
 - [ ] **Milestone 26 — Automatic Retry & Best-Candidate Selection** — use evaluation to retry/rank
       generations and pick the best.

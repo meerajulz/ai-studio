@@ -17,6 +17,7 @@ import {
   type ConditioningContext,
   type TrainingState,
 } from "../src/lib/identity-engine";
+import { chooseModel, getModel } from "../src/lib/ai";
 
 let pass = 0;
 let fail = 0;
@@ -46,9 +47,10 @@ async function main() {
     enabledTrainers().length === 1 && enabledTrainers()[0].id === "fal");
   check("trainerFor('lora') → fal", trainerFor("lora")?.id === "fal");
   check("trainerFor('lora','replicate') → none (disabled)", trainerFor("lora", "replicate") === undefined);
-  check("fal.startTraining throws NOT_IMPLEMENTED", await throwsNotImplemented(() =>
-    byId.fal.startTraining({} as never, { engine: "lora" }),
-  ));
+  check("disabled trainer (replicate) throws NOT_IMPLEMENTED", await throwsMatching(
+    () => byId.replicate.startTraining({ engine: "lora" }), /not implemented/i));
+  check("fal.startTraining requires a packaged dataset (M24 real trainer)", await throwsMatching(
+    () => byId.fal.startTraining({ engine: "lora" }), /dataset|imagesDataUrl/i));
 
   // 2. Training capability surface.
   console.log("\nCapabilities.training:");
@@ -89,16 +91,36 @@ async function main() {
     state({ identityArchived: true, hasActiveJob: true }) === "ARCHIVED");
   check("all six states are defined", TRAINING_STATES.length === 6);
 
+  // 4. LoRA generation routing (M24) — a trained LoRA is consumed via fal-ai/flux-kontext-lora.
+  console.log("\nLoRA generation routing:");
+  const kl = getModel("fal-ai/flux-kontext-lora");
+  check("flux-kontext-lora registered", kl != null);
+  check("has 'lora' capability", kl?.capabilities.includes("lora") === true);
+  check("single reference (maxReferences 1)", kl?.maxReferences === 1);
+  check("payloadKind image_url_lora", kl?.payloadKind === "image_url_lora");
+  const routed = chooseModel({
+    provider: "fal",
+    needs: ["imageEditing", "referenceImages", "identityPreservation", "lora"],
+  });
+  check("router picks flux-kontext-lora when 'lora' needed",
+    routed.model.id === "fal-ai/flux-kontext-lora", routed.model.id);
+  const noLora = chooseModel({
+    provider: "fal",
+    needs: ["imageEditing", "referenceImages", "identityPreservation", "multipleReferenceImages"],
+  });
+  check("router does NOT pick the LoRA model without 'lora' need",
+    noLora.model.id !== "fal-ai/flux-kontext-lora", noLora.model.id);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail > 0) process.exit(1);
 }
 
-async function throwsNotImplemented(fn: () => Promise<unknown>): Promise<boolean> {
+async function throwsMatching(fn: () => Promise<unknown>, re: RegExp): Promise<boolean> {
   try {
     await fn();
     return false;
   } catch (e) {
-    return e instanceof Error && /not implemented/i.test(e.message);
+    return e instanceof Error && re.test(e.message);
   }
 }
 

@@ -2242,3 +2242,53 @@ Accepted — implemented (infrastructure only). `tsc` + `npm run build` pass; `v
 (21 — registry + capabilities + all six lifecycle states) + `verify-identity-engine.ts` (31, nested caps) +
 `verify-selection.ts` (no regression) green; migration applied to Neon. `FalTrainer.startTraining` still
 throws (M24 implements). Next = M24 LoRA Trainer.
+
+# Decision 057
+
+Date
+2026-07-19
+
+Decision
+**LoRA Trainer — first real training, end-to-end (Milestone 24).** The payoff milestone: a READY
+identity trains a LoRA on Fal and immediately generates with `reference+lora`, no manual config. Tight
+scope (one success criterion); evaluation/retries/multi-LoRA explicitly deferred.
+
+1. **FalTrainer** (`training/trainers/fal-trainer.ts`) — real Fal **queue** client for
+   `fal-ai/flux-lora-portrait-trainer` (submit → `/status` → result). fetch-based, `FAL_KEY`, no SDK
+   (mirrors `ai/providers/fal.ts`). `Trainer.startTraining(opts)` (dropped the unused dataset param).
+2. **Dataset packaging** (`identity/training.ts` `packageDataset`): the CURATED `recommendedImageIds`
+   (NOT every image) → signed originals → **`fflate`** ZIP → Blob upload → signed URL as `images_data_url`.
+3. **Orchestration** `startIdentityTraining` / `pollIdentityTraining` — **client-driven polling** (Fal
+   webhooks can't reach localhost). Persists a versioned `IdentityTrainedModel` with **full provenance
+   JSON** in `params` (provider, trainer, baseModel, datasetVersion, imageCount, trainingParameters,
+   providerMetadata incl. config file) so runs are comparable + reproducible.
+4. **LoRA module enabled** (`engines/lora/lora-engine.ts`) — availability gates on a READY model with
+   weights; `contribute` returns weights URL + trigger phrase. `getCapabilities.conditioning.lora` +
+   `recommendedStrategy:"reference+lora"` light up automatically.
+5. **Generation consumes it:** new registry model **`fal-ai/flux-kontext-lora`** (`lora` capability,
+   `maxReferences:1`, payloadKind `image_url_lora`). `ImageGenerationRequest.loras`; `fal.ts` sends
+   `{image_url, loras}`. When `plan.loraWeightsUrl` present, model routing needs `lora` → picks it, and
+   the **trigger phrase is prepended** to the prompt (LoRA activation).
+6. **UI:** functional **Train** button (READY_TO_TRAIN/OUTDATED) + progress (Queued/Training…) on the
+   Models tab.
+
+**Honest trade:** `flux-kontext-lora` takes ONE reference, so `reference+lora` = Identity Anchor (1) +
+LoRA (down from 4 refs) — the LoRA now carries identity, and it's the only Fal endpoint doing reference +
+LoRA together.
+
+Reason
+This is the first milestone the user sees a benefit. The M22/M23 seams (registry, capabilities, lifecycle,
+persistence) meant M24 is "fill in FalTrainer + package the dataset + one inference model" — the whole
+stack lit up with no rework. Keeping evaluation/retries out kept it shippable.
+
+Alternatives
+`fal-ai/flux-lora` t2i inference (rejected — no reference; the strategy is *reference*+lora); mirror LoRA
+weights to our Blob (deferred — Fal URLs are durable; store the Fal url as `artifactRef` for now);
+background worker for training (rejected — no worker infra + webhooks can't reach localhost; client
+polling is pragmatic); upload dataset to Fal storage (rejected — Blob signed URL reuses existing infra).
+
+Status
+Accepted — implemented. `tsc` + `npm run build` pass; `verify-training-infrastructure.ts` (28 — incl. LoRA
+routing to `flux-kontext-lora`) + `verify-identity-engine.ts` (31) + `verify-selection.ts` green. **Real
+training is async + paid — the live end-to-end run (train → progress → LoRA v1 → generate `reference+lora`)
+is user-driven** (needs `FAL_KEY`). Then the 4-way benchmark (baseline for M25). Next = M25 Identity Evaluation.

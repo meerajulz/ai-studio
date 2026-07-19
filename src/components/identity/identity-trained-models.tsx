@@ -1,14 +1,22 @@
 "use client";
 
 import { format } from "date-fns";
-import { Boxes, Clock } from "lucide-react";
+import { Boxes, Clock, Loader2, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 
-import { useIdentityEngineOverview } from "@/hooks/use-identities";
+import {
+  useIdentityEngineOverview,
+  usePollIdentityTraining,
+  useStartIdentityTraining,
+} from "@/hooks/use-identities";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 type Props = { identityId: string };
+
+const ACTIVE_JOB_STATUS = ["PENDING", "QUEUED", "RUNNING"];
 
 /** User-oriented training lifecycle label + tone (distinct from provider job status). */
 const TRAINING_STATE_LABEL: Record<string, string> = {
@@ -21,19 +29,36 @@ const TRAINING_STATE_LABEL: Record<string, string> = {
 };
 
 /**
- * Trained Models + Training Jobs (Milestone 22/23) — READ-ONLY. Trained models are versioned and never
+ * Trained Models + Training Jobs (Milestone 22/23/24). Trained models are versioned and never
  * overwritten (LoRA v1, v2, …). The UI adapts off engine capabilities + the training lifecycle state —
- * no hardcoded "if a LoRA exists…" / "if Fal…". No functional Train button yet (executes in M24).
+ * no hardcoded "if a LoRA exists…" / "if Fal…". M24: a real Train button trains a LoRA on Fal and the
+ * state advances (client-driven polling) until a versioned model appears.
  */
 export function IdentityTrainedModels({ identityId }: Props) {
   const { data, isLoading } = useIdentityEngineOverview(identityId);
-
-  if (isLoading) return <LoadingState variant="list" rows={3} />;
+  const startTraining = useStartIdentityTraining(identityId);
 
   const models = data?.trainedModels ?? [];
   const jobs = data?.trainingJobs ?? [];
   const caps = data?.capabilities;
   const trainingState = data?.trainingState;
+
+  // Client-driven polling: while a job is active, reconcile it against Fal every few seconds.
+  const activeJob = jobs.find((j) => ACTIVE_JOB_STATUS.includes(j.status)) ?? null;
+  const isTraining = trainingState === "TRAINING" || activeJob != null;
+  usePollIdentityTraining(identityId, activeJob?.id ?? null, isTraining);
+
+  function onTrain() {
+    startTraining.mutate(undefined, {
+      onSuccess: () => toast.success("Training started — this takes a few minutes."),
+      onError: (e) =>
+        toast.error(e instanceof Error ? e.message : "Couldn't start training"),
+    });
+  }
+
+  const canTrain = trainingState === "READY_TO_TRAIN" || trainingState === "OUTDATED";
+
+  if (isLoading) return <LoadingState variant="list" rows={3} />;
 
   const techniques: { id: string; label: string; on: boolean }[] = caps
     ? [
@@ -71,11 +96,28 @@ export function IdentityTrainedModels({ identityId }: Props) {
                 ? `Training available via: ${caps.training.providers.join(", ")}`
                 : "Training unavailable"}
             </span>
-            {caps.training.available ? (
-              <Badge variant="outline" className="ml-auto">
-                Train — available in M24
-              </Badge>
-            ) : null}
+            <div className="ml-auto flex items-center gap-2">
+              {isTraining ? (
+                <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  {activeJob?.status === "RUNNING" ? "Training…" : "Queued…"} (a few minutes; you can
+                  leave this page)
+                </span>
+              ) : canTrain && caps.training.available ? (
+                <Button size="sm" onClick={onTrain} disabled={startTraining.isPending}>
+                  <Sparkles className="size-4" />
+                  {startTraining.isPending
+                    ? "Starting…"
+                    : trainingState === "OUTDATED"
+                      ? "Retrain LoRA"
+                      : "Train LoRA"}
+                </Button>
+              ) : trainingState === "NOT_READY" ? (
+                <span className="text-muted-foreground text-xs">
+                  Analyze the library to enable training
+                </span>
+              ) : null}
+            </div>
           </div>
         </section>
       ) : null}

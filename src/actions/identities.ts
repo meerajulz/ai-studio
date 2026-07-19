@@ -35,6 +35,11 @@ import {
   refreshIdentityDataset,
   type IdentityEngineOverview,
 } from "@/lib/identity/dataset";
+import {
+  pollIdentityTraining,
+  startIdentityTraining,
+  type PollResult,
+} from "@/lib/identity/training";
 
 /**
  * Owner-scoped Server Actions for identities + their training media. Each resolves the
@@ -175,6 +180,23 @@ export async function getIdentityEngineOverviewAction(
 ): Promise<IdentityEngineOverview | null> {
   const userId = await requireUserId();
   return getIdentityEngineOverview(userId, identityId);
+}
+
+/**
+ * Start a LoRA training run for an identity (Milestone 24). Packages the curated dataset + submits it
+ * to Fal; the client then polls. Owner-scoped. Real training is async + costs money.
+ */
+export async function startIdentityTrainingAction(
+  identityId: string,
+): Promise<{ jobId: string }> {
+  const userId = await requireUserId();
+  return startIdentityTraining(userId, identityId);
+}
+
+/** Reconcile an in-flight training job against Fal (client-driven polling). Owner-scoped. */
+export async function pollIdentityTrainingAction(jobId: string): Promise<PollResult> {
+  const userId = await requireUserId();
+  return pollIdentityTraining(userId, jobId);
 }
 
 /** Re-analyze + persist Vision knowledge for a single training image (Milestone 20). */

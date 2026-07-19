@@ -122,10 +122,10 @@ async function main() {
   console.log("\nRegistry:");
   const byId = Object.fromEntries(IDENTITY_MODULES.map((m) => [m.id, m]));
   check("reference enabled", byId.reference?.enabled === true);
-  check("lora registered + disabled", byId.lora != null && byId.lora.enabled === false);
+  check("lora enabled (M24)", byId.lora != null && byId.lora.enabled === true);
   check("pulid registered + disabled", byId.pulid != null && byId.pulid.enabled === false);
   check("instantid registered + disabled", byId.instantid != null && byId.instantid.enabled === false);
-  check("exactly one enabled module", IDENTITY_MODULES.filter((m) => m.enabled).length === 1);
+  check("reference + lora enabled (2)", IDENTITY_MODULES.filter((m) => m.enabled).length === 2);
 
   // 4. DATASET — readiness computed from mock knowledge.
   console.log("\nDataset readiness:");

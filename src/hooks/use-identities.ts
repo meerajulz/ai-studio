@@ -14,6 +14,8 @@ import {
   getIdentityAction,
   getIdentityEngineOverviewAction,
   listIdentitiesAction,
+  pollIdentityTrainingAction,
+  startIdentityTrainingAction,
   removeTrainingMediaAction,
   reorderTrainingMediaAction,
   restoreIdentityAction,
@@ -65,15 +67,44 @@ export function useIdentity(id: string) {
 }
 
 /**
- * Identity Engine overview (Milestone 22) — dataset readiness + trained models + training jobs.
- * Keyed UNDER the identity detail so "Analyze library" (which invalidates `["identity", id]`) also
- * refreshes it. Read-only placeholder data; no training is triggered.
+ * Identity Engine overview (Milestone 22) — dataset readiness + trained models + training jobs +
+ * capabilities + training state. Keyed UNDER the identity detail so "Analyze library" (which
+ * invalidates `["identity", id]`) also refreshes it.
  */
 export function useIdentityEngineOverview(id: string) {
   return useQuery({
     queryKey: [...identityKeys.detail(id), "engine"] as const,
     queryFn: () => getIdentityEngineOverviewAction(id),
     enabled: Boolean(id),
+  });
+}
+
+/** Start a LoRA training run (Milestone 24); refresh the overview so the state → TRAINING. */
+export function useStartIdentityTraining(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => startIdentityTrainingAction(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [...identityKeys.detail(id), "engine"] }),
+  });
+}
+
+/**
+ * Reconcile an in-flight training job against Fal (client-driven polling — webhooks can't reach
+ * localhost). Runs only while a job is active; refreshes the overview on each tick so `TrainingState`
+ * and the trained-models list advance. Stops when the job leaves the active set.
+ */
+export function usePollIdentityTraining(id: string, jobId: string | null, active: boolean) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: [...identityKeys.detail(id), "train-poll", jobId ?? "none"] as const,
+    queryFn: async () => {
+      const result = await pollIdentityTrainingAction(jobId as string);
+      // Refresh the overview (state + models) WITHOUT re-triggering this poll query.
+      qc.invalidateQueries({ queryKey: [...identityKeys.detail(id), "engine"] });
+      return result;
+    },
+    enabled: Boolean(active && jobId),
+    refetchInterval: active ? 4000 : false,
   });
 }
 

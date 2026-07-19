@@ -37,6 +37,12 @@ export type ImageGenerationRequest = {
    * and max references — no per-model branching. When absent, the adapter uses its own default.
    */
   model?: string;
+  /**
+   * Trained adapters (LoRA) to apply at inference, provider-neutral (Milestone 24). Each is a weights
+   * URL + optional strength. Adapters use them ONLY if the chosen model is LoRA-capable; others ignore
+   * them. Set by the Identity Engine when the conditioning strategy includes a trained model.
+   */
+  loras?: { path: string; scale?: number }[];
   // Reserved (NOT implemented): width/height/seed/negativePrompt.
 };
 

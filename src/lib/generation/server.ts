@@ -126,8 +126,12 @@ async function runImageGeneration(
   // capability (Auto), or the user's manual pick (benchmark). Only when we have references (the
   // identity/editing path); a no-reference generation falls through to the adapter's text-to-image.
   const totalRefs = referenceImages.length + (identityAnchor ? 1 : 0);
-  const modelNeeds: ProviderCapability[] =
-    totalRefs > 1
+  // Reference + LoRA (Milestone 24): when the Identity Engine chose a trained LoRA, require a
+  // LoRA-capable model (routes to fal-ai/flux-kontext-lora — single reference + the adapter).
+  const hasLora = plan.loraWeightsUrl != null;
+  const modelNeeds: ProviderCapability[] = hasLora
+    ? ["imageEditing", "referenceImages", "identityPreservation", "lora"]
+    : totalRefs > 1
       ? ["imageEditing", "referenceImages", "identityPreservation", "multipleReferenceImages"]
       : ["imageEditing", "referenceImages", "identityPreservation"];
   const routedModel = hasReferences
@@ -138,6 +142,12 @@ async function runImageGeneration(
         manualModelId: opts.modelOverride,
       })
     : null;
+
+  // The LoRA activates via its trigger phrase — prepend it to the compiled prompt when present.
+  const promptForProvider =
+    hasLora && plan.loraTriggerWord
+      ? `${plan.loraTriggerWord}, ${directive.prompt}`
+      : directive.prompt;
 
   const params: Prisma.InputJsonValue = {
     ...(opts.lineage ?? {}),
@@ -173,11 +183,12 @@ async function runImageGeneration(
 
   try {
     const result = await provider.generateImage({
-      prompt: directive.prompt,
+      prompt: promptForProvider,
       referenceImages: referenceImages.length ? referenceImages : undefined,
       identityAnchor,
       maxReferences: opts.maxReferences,
       model: routedModel?.model.id,
+      loras: hasLora ? [{ path: plan.loraWeightsUrl as string, scale: plan.loraScale ?? 1 }] : undefined,
     });
 
     const media = await createGeneratedMedia(userId, {

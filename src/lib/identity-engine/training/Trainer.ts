@@ -8,7 +8,6 @@
  * `ModelSpec` (model registry) and `IdentityModule` (identity module registry) — three symmetrical
  * registries. No backend actually trains yet — `FalTrainer` is implemented in M24.
  */
-import type { IdentityDataset } from "../dataset/types";
 import type {
   TrainingJob,
   TrainingOptions,
@@ -23,7 +22,8 @@ export interface Trainer {
   supports: string[];
   enabled: boolean; // registered + selectable (only Fal today)
   priority: number; // Auto tiebreak (higher wins) — like ModelSpec.priority
-  startTraining(dataset: IdentityDataset, opts: TrainingOptions): Promise<TrainingJob>;
+  /** Submit a run. The packaged dataset URL + trigger word + steps travel in `opts` (Milestone 24). */
+  startTraining(opts: TrainingOptions): Promise<TrainingJob>;
   pollStatus(job: TrainingJob): Promise<TrainingStatus>;
   fetchResult(job: TrainingJob): Promise<TrainingResult>;
   cancel(job: TrainingJob): Promise<void>;

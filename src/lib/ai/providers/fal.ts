@@ -91,6 +91,23 @@ function planRequest(request: ImageGenerationRequest): {
   const model = spec?.id ?? DEFAULT_IDENTITY_MULTI_MODEL;
   const kind = spec?.payloadKind ?? "image_urls";
 
+  // Reference + trained LoRA (Milestone 24): Kontext-LoRA takes a single `image_url` + a `loras`
+  // array of trained-weights URLs. The Identity Engine set `request.loras` when the strategy is
+  // `reference+lora`; the model router already picked this LoRA-capable model.
+  if (kind === "image_url_lora") {
+    return {
+      model,
+      body: {
+        prompt: request.prompt,
+        image_url: refs[0].url,
+        loras: request.loras ?? [],
+        num_images: 1,
+      },
+      usedRefs: refs,
+      supportsReferenceImages: true,
+    };
+  }
+
   // Single-reference models take `image_url`; every multi/edit model takes `image_urls` (verified).
   if (kind === "image_url") {
     return {
