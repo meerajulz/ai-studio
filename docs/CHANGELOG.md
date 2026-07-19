@@ -7,7 +7,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-19, build + tsc + verifiers green):** **Milestone 22 — Identity Engine
+> **▶ Resume (2026-07-19, build + tsc + verify-training-infrastructure[21/21] + verify-identity-engine[31/31] green):**
+> **Milestone 23 — Fal Training Infrastructure** (Decision 056). Taught the Identity Engine *how to
+> train* — infrastructure only, NOT real training (M24) or evaluation (M25). New **Training Registry**
+> (`identity-engine/training/registry.ts`) — the THIRD registry symmetric with the Model + Identity
+> Module registries: `FalTrainer` enabled; `Replicate`/`OpenAI`/`Google`/`Future` trainers registered
+> but disabled (shared `stubTrainer`, all `NOT_IMPLEMENTED`). `getCapabilities` restructured to nested
+> `{ conditioning, training }` — the `training` block (`available`/`providers`/`recommendedProvider`) is
+> derived from the registry so a new provider needs no UI change. New **`TrainingState`** user lifecycle
+> (`NOT_READY → READY_TO_TRAIN → TRAINING → TRAINED → OUTDATED → ARCHIVED`, pure `deriveTrainingState`),
+> distinct from provider job statuses; needs `IdentityTrainedModel.datasetVersion` (migration
+> `add_trained_model_dataset_version`). Lifecycle persistence seams (`identity/training.ts`). Read-only
+> Models tab now shows the state badge + training providers (no working Train button — M24).
+> `verify-training-infrastructure.ts`. **Next = M24 LoRA Trainer** (`FalTrainer.startTraining`).
+
+> **▶ Prior (2026-07-19):** **Milestone 22 — Identity Engine
 > Architecture** (Decision 055, foundation only). Identity is now its own subsystem: Generation calls
 > `planConditioning` on the **Identity Engine** and never learns HOW an identity is implemented
 > (reference / LoRA / adapter). New `src/lib/identity-engine/` — a pluggable `IdentityModule` registry

@@ -60,10 +60,22 @@ export {
   type IdentityDataset,
 } from "./dataset/types";
 
-// Training architecture
+// Training architecture + registry (Milestone 23)
 export { TrainingEngine, trainingEngine } from "./training/TrainingEngine";
 export type { Trainer } from "./training/Trainer";
-export { loraTrainer } from "./training/trainers/lora-trainer";
+export {
+  TRAINING_REGISTRY,
+  listTrainers,
+  getTrainer,
+  enabledTrainers,
+  trainerFor,
+} from "./training/registry";
+export { falTrainer } from "./training/trainers/fal-trainer";
+export { replicateTrainer } from "./training/trainers/replicate-trainer";
+export { openAiTrainer } from "./training/trainers/openai-trainer";
+export { googleTrainer } from "./training/trainers/google-trainer";
+export { futureTrainer } from "./training/trainers/future-trainer";
+export { deriveTrainingState, TRAINING_STATES, type TrainingState } from "./training/state";
 
 // Evaluation architecture
 export {

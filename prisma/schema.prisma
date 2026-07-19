@@ -438,6 +438,7 @@ model IdentityTrainedModel {
   version            Int // per (identity, engine) — never reused
   label              String
   status             TrainedModelStatus @default(DRAFT)
+  datasetVersion     Int? // curated dataset revision this model was trained on (M23 — drives OUTDATED)
   triggerWord        String?
   artifactRef        String? // blob key / url of the weights (null until trained)
   modelCompatibility String[] // base models this adapter is compatible with

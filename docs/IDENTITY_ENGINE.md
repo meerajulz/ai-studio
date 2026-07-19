@@ -76,22 +76,28 @@ The pure surface is exported from `@/lib/identity-engine`; the Prisma read-model
 
 ## Capabilities — `getCapabilities(ctx, { model })`
 
-So the UI never hardcodes "if a LoRA exists…", the engine reports what an identity can do **now**:
+So the UI never hardcodes "if a LoRA exists…" or "if Fal is the provider…", the engine reports what an
+identity can do **now** — two symmetric blocks (M23):
 
 ```ts
 // today
-{ reference: true, lora: false, pulid: false, instantid: false,
-  trainingAvailable: true, recommendedStrategy: "reference" }
-// after training enables the LoRA module + a READY, model-compatible adapter exists
-{ reference: true, lora: true, …, recommendedStrategy: "reference+lora" }
+{
+  conditioning: { reference: true, lora: false, pulid: false, instantid: false,
+                  recommendedStrategy: "reference" },
+  training:     { available: true, providers: ["fal"], recommendedProvider: "fal" }
+}
+// after M24 enables the LoRA module + a READY, model-compatible adapter exists
+{
+  conditioning: { reference: true, lora: true, …, recommendedStrategy: "reference+lora" },
+  training:     { available: true, providers: ["fal"], recommendedProvider: "fal" }
+}
 ```
 
-A capability is `true` only when its module is **enabled AND available** for this identity (+ target
-`model`, checked against a trained adapter's `modelCompatibility`). `trainingAvailable` is true when a
-trainable module is registered (later also gated on readiness + a registered `Trainer`).
-`recommendedStrategy` = the reference baseline plus the highest-priority usable module. Surfaced through
-`getIdentityEngineOverview` → the **Models** tab renders the flags directly, so enabling LoRA later
-lights up the UI with **no component change**.
+A conditioning capability is `true` only when its module is **enabled AND available** for this identity
+(+ target `model`, checked against a trained adapter's `modelCompatibility`). The `training` block is
+derived from the **Training Registry** (which enabled providers can train a trainable module's engine) —
+a new provider just appears in `providers`, no UI change. Surfaced through `getIdentityEngineOverview` →
+the **Models** tab renders the flags + `TrainingState` directly.
 
 ## Data flow (generation)
 
@@ -144,11 +150,39 @@ versioning), `IdentityTrainingJob`, `IdentityEvaluation` (reserved metric column
 - No provider lock-in, no hardcoded LoRA assumptions anywhere in app/generation code.
 - Current Reference flow works exactly as before — **no regression** (parity-checked).
 
-## Roadmap
+## Roadmap (confirmed — do not reorder)
 
-M22 foundation (this) → Dataset Readiness UX polish → **LoRA training via a Fal `Trainer`** (persist
-versioned models) → Identity Evaluation (InsightFace face similarity + embeddings for the rest) →
-PuLID / InstantID adapters. Each step plugs in behind the interfaces above.
+**M22** foundation (this) → **M23** Fal Training Infrastructure → **M24** LoRA Trainer → **M25** Identity
+Evaluation Engine → **M26** Automatic Retry & Best-Candidate Selection → **M27** PuLID → **M28** InstantID
+→ future modules. Each step plugs in behind the interfaces above.
+
+### M23 — Fal Training Infrastructure ✅ (teach the engine *how to train*, not how to evaluate)
+
+Shipped (infrastructure only — real training is M24):
+
+1. **Training Registry** (`identity-engine/training/registry.ts`) — the THIRD registry, symmetric with
+   the Model Registry + Identity Module Registry. `FalTrainer` enabled; `ReplicateTrainer` /
+   `OpenAITrainer` / `GoogleTrainer` / `FutureTrainer` registered but disabled (each `NOT_IMPLEMENTED`
+   via a shared `stubTrainer` factory). Provider-named trainers (the technique is `TrainingOptions.engine`).
+   `trainerFor(engine, provider?)` selects; `TrainingEngine` is seeded from the enabled trainers.
+2. **`getCapabilities` gained a `training` block** (see above) derived from the registry — providers +
+   recommendedProvider, no hardcoded name.
+3. **`TrainingState`** (`training/state.ts`, pure `deriveTrainingState`) — USER-oriented lifecycle,
+   distinct from provider job statuses (QUEUED/RUNNING/FAILED) and from the per-artifact
+   `TrainedModelStatus` enum: `NOT_READY → READY_TO_TRAIN → TRAINING → TRAINED → OUTDATED → ARCHIVED`.
+   Derived from dataset readiness + latest READY model's `datasetVersion` + active job. Surfaced in the
+   overview + Models tab.
+4. **Lifecycle persistence seams** (`identity/training.ts`): `nextModelVersion` (append-only),
+   `createTrainingJob` / `transitionTrainingJob` / `persistTrainedModel` — ready for M24 to drive.
+   Schema: `IdentityTrainedModel.datasetVersion` added (migration `add_trained_model_dataset_version`)
+   so OUTDATED is computable.
+
+**NOT in M23** (kept focused): retries (M26), evaluation / face similarity (M25), real Fal training
+(M24 — `FalTrainer.startTraining` still throws). `verify-training-infrastructure.ts` covers registry +
+capabilities + all six lifecycle states.
+
+**Explicitly NOT in M23:** retries, evaluation, face similarity — each is its own milestone (M25/M26).
+Keep M23 from becoming "half of LoRA".
 
 ## Verification
 

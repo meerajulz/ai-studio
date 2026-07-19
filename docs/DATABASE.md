@@ -112,7 +112,9 @@ Additive, owner-scoped, cascade from `Identity`. See [IDENTITY_ENGINE.md](./IDEN
   `metrics` JSON) + curation (`datasetVersion`, `recommendedImageIds`, `rejectedImageIds`,
   `rejectionReasons`). Recomputed when the library is analyzed; never at generation time.
 - **`IdentityTrainedModel`** — versioned trained models. `@@unique([identityId, engine, version])`
-  → **append-only, never overwritten** (LoRA v1, v2, …). `status: TrainedModelStatus`.
+  → **append-only, never overwritten** (LoRA v1, v2, …). `status: TrainedModelStatus`. `datasetVersion`
+  (M23, migration `add_trained_model_dataset_version`) records which curated dataset revision the model
+  was trained on → drives the `OUTDATED` training state.
 - **`IdentityTrainingJob`** — a training run (provider-agnostic; Fal is the eventual first backend).
 - **`IdentityEvaluation`** — identity score of a generated image; all metric columns reserved
   (`face/tattoos/hair/accessories/pose/expression/lighting/composition/overallIdentityScore`), null today.

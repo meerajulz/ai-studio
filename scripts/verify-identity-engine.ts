@@ -146,10 +146,14 @@ async function main() {
     identityId: "id_mock", hasAnalyzedCandidates: true, trainedModels: [], artifacts: [],
   };
   const caps = await getCapabilities(emptyCtx);
-  check("reference capability true", caps.reference === true);
-  check("lora/pulid/instantid false today", !caps.lora && !caps.pulid && !caps.instantid);
-  check("trainingAvailable true (trainable module registered)", caps.trainingAvailable === true);
-  check("recommendedStrategy = 'reference'", caps.recommendedStrategy === "reference", caps.recommendedStrategy);
+  check("conditioning.reference true", caps.conditioning.reference === true);
+  check("lora/pulid/instantid false today",
+    !caps.conditioning.lora && !caps.conditioning.pulid && !caps.conditioning.instantid);
+  check("training.available true (Fal registered)", caps.training.available === true);
+  check("training.providers = ['fal']", JSON.stringify(caps.training.providers) === JSON.stringify(["fal"]));
+  check("training.recommendedProvider = 'fal'", caps.training.recommendedProvider === "fal");
+  check("recommendedStrategy = 'reference'", caps.conditioning.recommendedStrategy === "reference",
+    caps.conditioning.recommendedStrategy);
 
   // Post-training: enable the LoRA module + a READY model in context → capabilities adapt with NO UI change.
   const enabledLora = { ...loraEngine, enabled: true };
@@ -159,13 +163,14 @@ async function main() {
     artifacts: [],
   };
   const capsTrained = await getCapabilities(trainedCtx, {}, [referenceEngine, enabledLora]);
-  check("lora true once enabled + model ready", capsTrained.lora === true);
-  check("recommendedStrategy adapts to 'reference+lora'", capsTrained.recommendedStrategy === "reference+lora",
-    capsTrained.recommendedStrategy);
+  check("lora true once enabled + model ready", capsTrained.conditioning.lora === true);
+  check("recommendedStrategy adapts to 'reference+lora'",
+    capsTrained.conditioning.recommendedStrategy === "reference+lora",
+    capsTrained.conditioning.recommendedStrategy);
   const capsWrongModel = await getCapabilities(trainedCtx, { model: "sdxl" }, [referenceEngine, enabledLora]);
-  check("lora gated by model compatibility (sdxl → false)", capsWrongModel.lora === false);
+  check("lora gated by model compatibility (sdxl → false)", capsWrongModel.conditioning.lora === false);
   const capsRightModel = await getCapabilities(trainedCtx, { model: "flux" }, [referenceEngine, enabledLora]);
-  check("lora usable for a compatible model (flux → true)", capsRightModel.lora === true);
+  check("lora usable for a compatible model (flux → true)", capsRightModel.conditioning.lora === true);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail > 0) process.exit(1);

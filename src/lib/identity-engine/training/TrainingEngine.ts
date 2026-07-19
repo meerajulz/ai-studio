@@ -1,44 +1,50 @@
 /**
- * Identity Engine (Milestone 22) — the TrainingEngine orchestrator. ARCHITECTURE ONLY.
+ * Identity Engine — the TrainingEngine orchestrator.
  *
- * Owns the training lifecycle: pick a `Trainer` for the requested engine, start a run, persist the
- * job + resulting versioned `IdentityTrainedModel` (never overwriting prior versions), and surface
- * status. It does NOT know any provider's API — that lives behind `Trainer`. No trainers are
- * registered by default in this milestone, so `train()` reports that training is unavailable.
+ * Owns trainer SELECTION: given the requested engine (+ optional provider), pick a `Trainer` from the
+ * Training Registry. It does NOT know any provider's API — that lives behind `Trainer` — nor does it
+ * touch the database (job/model persistence is the server's `identity/training.ts`, mirroring
+ * `identity/dataset.ts`). M23 seeds the default instance from the registry's ENABLED trainers; the
+ * actual `train()` body (upload dataset → run → persist versioned model) is implemented in M24.
  */
 import type { Trainer } from "./Trainer";
+import { enabledTrainers } from "./registry";
 import type { TrainingJob, TrainingOptions } from "../engines/lora/types";
 
 export class TrainingEngine {
-  private trainers: Trainer[] = [];
+  private trainers: Trainer[];
 
-  /** Register a training backend (e.g. a Fal LoRA trainer). None registered by default. */
+  constructor(trainers: Trainer[] = enabledTrainers()) {
+    this.trainers = [...trainers];
+  }
+
+  /** Register an additional training backend (e.g. in tests). */
   registerTrainer(trainer: Trainer): void {
     this.trainers.push(trainer);
   }
 
-  /** Find a registered backend that can train the requested engine (+ optional provider). */
+  /** Registered backends that can train the requested engine (highest priority first). */
   trainerFor(engine: string, provider?: string): Trainer | undefined {
-    return this.trainers.find(
-      (t) => t.supports.includes(engine) && (!provider || t.id === provider),
-    );
+    return this.trainers
+      .filter((t) => t.supports.includes(engine) && (!provider || t.id === provider))
+      .sort((a, b) => b.priority - a.priority)[0];
   }
 
   /**
-   * Start a training run for an identity. Architecture only: with no registered trainer this throws a
-   * clear, provider-agnostic error. A future milestone assembles the curated dataset, delegates to
-   * the trainer, and persists the job + a new `IdentityTrainedModel` version.
+   * Start a training run for an identity. M23 resolves the trainer via the registry; the full lifecycle
+   * (assemble curated dataset → trainer.startTraining → persist versioned `IdentityTrainedModel`) is
+   * implemented in M24. Throws a clear, provider-agnostic error until then.
    */
   async train(_identityId: string, opts: TrainingOptions): Promise<TrainingJob> {
     const trainer = this.trainerFor(opts.engine, opts.provider);
     if (!trainer) {
       throw new Error(
-        `No trainer registered for engine "${opts.engine}" — training is not available yet.`,
+        `No enabled trainer can train engine "${opts.engine}"${opts.provider ? ` via "${opts.provider}"` : ""}.`,
       );
     }
-    throw new Error("TrainingEngine.train is not implemented yet (architecture only).");
+    throw new Error("TrainingEngine.train is implemented in M24 (M23 = infrastructure only).");
   }
 }
 
-/** The default engine instance (no trainers registered — training unavailable in this milestone). */
+/** The default engine instance — seeded from the Training Registry's enabled trainers (Fal). */
 export const trainingEngine = new TrainingEngine();

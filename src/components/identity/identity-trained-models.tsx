@@ -10,10 +10,20 @@ import { Badge } from "@/components/ui/badge";
 
 type Props = { identityId: string };
 
+/** User-oriented training lifecycle label + tone (distinct from provider job status). */
+const TRAINING_STATE_LABEL: Record<string, string> = {
+  NOT_READY: "Not ready to train",
+  READY_TO_TRAIN: "Ready to train",
+  TRAINING: "Training…",
+  TRAINED: "Trained",
+  OUTDATED: "Outdated — retrain suggested",
+  ARCHIVED: "Archived",
+};
+
 /**
- * Trained Models + Training Jobs (Milestone 22) — READ-ONLY placeholders. Trained models are versioned
- * and never overwritten (LoRA v1, v2, …). No "Train" button — training is a future milestone; this
- * only renders the structure + empty states so the Identity Engine is visible in the UI.
+ * Trained Models + Training Jobs (Milestone 22/23) — READ-ONLY. Trained models are versioned and never
+ * overwritten (LoRA v1, v2, …). The UI adapts off engine capabilities + the training lifecycle state —
+ * no hardcoded "if a LoRA exists…" / "if Fal…". No functional Train button yet (executes in M24).
  */
 export function IdentityTrainedModels({ identityId }: Props) {
   const { data, isLoading } = useIdentityEngineOverview(identityId);
@@ -23,14 +33,14 @@ export function IdentityTrainedModels({ identityId }: Props) {
   const models = data?.trainedModels ?? [];
   const jobs = data?.trainingJobs ?? [];
   const caps = data?.capabilities;
+  const trainingState = data?.trainingState;
 
-  // The UI adapts off engine capabilities — no hardcoded "if a LoRA exists…".
   const techniques: { id: string; label: string; on: boolean }[] = caps
     ? [
-        { id: "reference", label: "Reference", on: caps.reference },
-        { id: "lora", label: "LoRA", on: caps.lora },
-        { id: "pulid", label: "PuLID", on: caps.pulid },
-        { id: "instantid", label: "InstantID", on: caps.instantid },
+        { id: "reference", label: "Reference", on: caps.conditioning.reference },
+        { id: "lora", label: "LoRA", on: caps.conditioning.lora },
+        { id: "pulid", label: "PuLID", on: caps.conditioning.pulid },
+        { id: "instantid", label: "InstantID", on: caps.conditioning.instantid },
       ]
     : [];
 
@@ -41,7 +51,7 @@ export function IdentityTrainedModels({ identityId }: Props) {
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium">Identity capabilities</h3>
             <span className="text-muted-foreground text-xs">
-              Recommended: <span className="font-mono">{caps.recommendedStrategy}</span>
+              Recommended: <span className="font-mono">{caps.conditioning.recommendedStrategy}</span>
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -51,9 +61,21 @@ export function IdentityTrainedModels({ identityId }: Props) {
                 {t.on ? "" : " · off"}
               </Badge>
             ))}
-            <Badge variant={caps.trainingAvailable ? "secondary" : "outline"}>
-              {caps.trainingAvailable ? "Training available" : "Training unavailable"}
-            </Badge>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+            {trainingState ? (
+              <Badge variant="secondary">{TRAINING_STATE_LABEL[trainingState] ?? trainingState}</Badge>
+            ) : null}
+            <span className="text-muted-foreground text-xs">
+              {caps.training.available && caps.training.providers.length
+                ? `Training available via: ${caps.training.providers.join(", ")}`
+                : "Training unavailable"}
+            </span>
+            {caps.training.available ? (
+              <Badge variant="outline" className="ml-auto">
+                Train — available in M24
+              </Badge>
+            ) : null}
           </div>
         </section>
       ) : null}

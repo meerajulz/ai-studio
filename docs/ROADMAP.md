@@ -219,14 +219,30 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       `add_identity_engine` (versioned, never-overwritten trained models). Read-only Dataset/Models UI.
       Reference flow byte-for-byte unchanged (`verify-identity-engine.ts`). **Architecture only — no
       LoRA/PuLID/ML.** [IDENTITY_ENGINE.md](./IDENTITY_ENGINE.md).
-- [ ] **LoRA training via a Fal `Trainer`** ← **next** — first `Trainer` backend behind the Identity
-      Engine: assemble the curated dataset, train, persist versioned `IdentityTrainedModel`s, enable the
-      LoRA module (`reference+lora`). Then Identity Evaluation + PuLID/InstantID adapters.
-- [ ] **Milestone 19B — Face Embeddings** — the remaining face drift is a Kontext/reference-guided
-      limitation; strengthen identity preservation directly: **InsightFace**
-      ([research/RESEARCH_03_FACE_EMBEDDINGS.md](./research/RESEARCH_03_FACE_EMBEDDINGS.md)) behind a
-      provider-neutral `FaceEmbeddingProvider`, fed to the selector/anchor via
-      `SelectionCandidate.signals`, and to the `IdentityEvaluator` for drift scoring.
+**Confirmed identity sequence (do not reorder):** M22 ✅ → M23 ✅ → M24 → M25 → M26 → M27 → M28 → future modules.
+
+- [x] **Milestone 23 — Fal Training Infrastructure** (Decision 056) — taught the Identity Engine *how to
+      train* (not how to evaluate). **Training Registry** (`identity-engine/training/registry.ts`) — the
+      third registry, symmetric with the Model + Identity Module registries: `FalTrainer` enabled;
+      `ReplicateTrainer`/`OpenAITrainer`/`GoogleTrainer`/`FutureTrainer` registered but disabled (shared
+      `stubTrainer`). **`getCapabilities` gained a `training` block** (`{available, providers, recommendedProvider}`)
+      derived from the registry. **`TrainingState`** (`NOT_READY → READY_TO_TRAIN → TRAINING → TRAINED →
+      OUTDATED → ARCHIVED`, pure `deriveTrainingState`) — user lifecycle distinct from job status; needs
+      `IdentityTrainedModel.datasetVersion` (migration `add_trained_model_dataset_version`). Lifecycle
+      persistence seams in `identity/training.ts`. Read-only Models tab shows state + providers; no working
+      Train button. `verify-training-infrastructure.ts`. **NOT M23:** retries/eval/real Fal training.
+- [ ] **Milestone 24 — LoRA Trainer** ← **next** — the first concrete `Trainer` (Fal LoRA): assemble the curated
+      dataset, train, persist a versioned model, enable the LoRA module (`reference+lora`). getCapabilities
+      lights up `lora: true` with no UI change.
+- [ ] **Milestone 25 — Identity Evaluation Engine** — implement `IdentityEvaluator` (InsightFace face
+      similarity + embeddings for tattoos/hair/etc.); fill the reserved `IdentityEvaluation` metrics.
+- [ ] **Milestone 26 — Automatic Retry & Best-Candidate Selection** — use evaluation to retry/rank
+      generations and pick the best.
+- [ ] **Milestone 27 — PuLID** — first adapter (non-trainable) identity module.
+- [ ] **Milestone 28 — InstantID** — second adapter module. Future identity modules become plug-ins.
+- [ ] **Milestone 19B — Face Embeddings** — folds into M25 (InsightFace behind a provider-neutral
+      `FaceEmbeddingProvider`, fed to the selector/anchor via `SelectionCandidate.signals` and the
+      `IdentityEvaluator`). See [research/RESEARCH_03_FACE_EMBEDDINGS.md](./research/RESEARCH_03_FACE_EMBEDDINGS.md).
 
 ### Future — documented, NOT scheduled (research first)
 

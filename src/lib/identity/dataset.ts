@@ -11,12 +11,14 @@ import { getPersistedKnowledge } from "@/lib/vision/persist";
 import {
   assembleDataset,
   computeReadiness,
+  deriveTrainingState,
   getCapabilities,
   type ConditioningContext,
   type DatasetImage,
   type DatasetMetrics,
   type EngineId,
   type IdentityCapabilities,
+  type TrainingState,
 } from "@/lib/identity-engine";
 import { getIdentityAssets, type TrainedModelSummary } from "@/lib/identity-engine/assets/assets";
 
@@ -93,6 +95,7 @@ export type TrainingJobView = {
 
 export type IdentityEngineOverview = {
   capabilities: IdentityCapabilities; // what this identity can do now — UI adapts off this
+  trainingState: TrainingState; // user-oriented lifecycle (M23) — UI reasons about this, not job status
   dataset: DatasetReadinessView | null;
   trainedModels: TrainedModelSummary[];
   trainingJobs: TrainingJobView[];
@@ -106,22 +109,27 @@ export async function getIdentityEngineOverview(
   const assets = await getIdentityAssets(userId, identityId);
   if (!assets) return null;
 
-  const [row, jobs, readyModels, artifactRows] = await Promise.all([
+  const [row, jobs, readyModels, artifactRows, identityRow] = await Promise.all([
     prisma.identityDataset.findUnique({ where: { identityId } }),
     prisma.identityTrainingJob.findMany({
       where: { identityId, userId },
       orderBy: { createdAt: "desc" },
       take: 20,
     }),
-    // Only READY models can condition — they seed the capability context.
+    // Only READY models can condition — they seed the capability context + training state.
     prisma.identityTrainedModel.findMany({
       where: { identityId, userId, status: "READY" },
-      select: { id: true, engine: true, version: true, triggerWord: true, artifactRef: true, modelCompatibility: true },
+      orderBy: { version: "desc" },
+      select: {
+        id: true, engine: true, version: true, triggerWord: true, artifactRef: true,
+        modelCompatibility: true, datasetVersion: true,
+      },
     }),
     prisma.identityArtifact.findMany({
       where: { identityId, userId },
       select: { id: true, kind: true, engine: true, ref: true },
     }),
+    prisma.identity.findUnique({ where: { id: identityId }, select: { status: true } }),
   ]);
 
   // Capabilities: what this identity can do NOW (reference today; lora/pulid/instantid once their
@@ -145,6 +153,20 @@ export async function getIdentityEngineOverview(
     })),
   };
   const capabilities = await getCapabilities(ctx);
+
+  // Training lifecycle (M23) — user-oriented state derived from readiness + latest model + active job.
+  // Distinct from provider job statuses (PENDING/RUNNING/…), which live on the jobs below.
+  const activeStatuses = new Set(["PENDING", "QUEUED", "RUNNING"]);
+  const latestReady = readyModels[0] ?? null; // already ordered by version desc
+  const trainingState = deriveTrainingState({
+    identityArchived: identityRow?.status === "ARCHIVED",
+    datasetReadinessScore: row?.readinessScore ?? null,
+    currentDatasetVersion: row?.datasetVersion ?? null,
+    hasActiveJob: jobs.some((j) => activeStatuses.has(j.status)),
+    latestReadyModel: latestReady
+      ? { datasetVersion: latestReady.datasetVersion ?? null, archived: false }
+      : null,
+  });
 
   let dataset: DatasetReadinessView | null = null;
   if (row) {
@@ -178,6 +200,7 @@ export async function getIdentityEngineOverview(
 
   return {
     capabilities,
+    trainingState,
     dataset,
     trainedModels: assets.trainedModels,
     trainingJobs: jobs.map((j) => ({

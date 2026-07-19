@@ -2146,6 +2146,12 @@ suffices); let Auto pick the highest-capability model regardless (rejected — w
 default to an unbenchmarked model; priority keeps Kontext Max Multi until evidence); per-request env
 vars (rejected — a UI mode toggle is faster and visible).
 
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-model-routing.ts` (Auto
+picks the best capable enabled model + stays Kontext Max Multi; Manual honored; disabled never
+auto-chosen) + selection/coverage/scoring verifiers pass offline. **Live model comparison is the user's
+benchmark** (needs `FAL_KEY`; GPT Image may need BYOK). Providers otherwise unchanged; HF still works.
+
 # Decision 055
 
 Date
@@ -2190,7 +2196,49 @@ called out); a single polymorphic asset table (rejected — trained models are v
 (rejected — architecture first, per the approved plan).
 
 Status
-Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-model-routing.ts` (Auto
-picks the best capable enabled model + stays Kontext Max Multi; Manual honored; disabled never
-auto-chosen) + selection/coverage/scoring verifiers pass offline. **Live model comparison is the user's
-benchmark** (needs `FAL_KEY`; GPT Image may need BYOK). Providers otherwise unchanged; HF still works.
+Accepted — implemented (foundation). `tsc` + `build` + `verify-identity-engine.ts` (parity + registry +
+dataset + capabilities) pass; migration `add_identity_engine` applied. Architecture only — no
+LoRA/PuLID/ML. Committed `0c74ace` on `feat/identity-engine-m22`. Addendum: `getCapabilities(ctx,{model})`.
+
+# Decision 056
+
+Date
+2026-07-19
+
+Decision
+**Fal Training Infrastructure (Milestone 23) — teach the engine HOW to train, not how to evaluate.**
+Focused, provider-agnostic training foundation on top of M22's stubs; NO real training (M24), evaluation
+(M25), or retries (M26).
+
+1. **Training Registry** (`identity-engine/training/registry.ts`) — the THIRD registry, symmetric with
+   the Model Registry + Identity Module Registry. Provider trainers: `FalTrainer` enabled;
+   `Replicate/OpenAI/Google/Future` registered but disabled (shared `stubTrainer`, all `NOT_IMPLEMENTED`).
+   `Trainer` gained `label/enabled/priority`. Renamed the M22 technique-named `loraTrainer` → provider
+   `falTrainer` (technique is `TrainingOptions.engine`). `trainerFor(engine, provider?)` selects;
+   `TrainingEngine` seeds from enabled trainers.
+2. **`getCapabilities` → nested `{ conditioning, training }`.** `training = { available, providers,
+   recommendedProvider }` derived from the registry — a new training provider needs no UI change.
+3. **`TrainingState`** (`training/state.ts`, pure `deriveTrainingState`) — user lifecycle `NOT_READY →
+   READY_TO_TRAIN → TRAINING → TRAINED → OUTDATED → ARCHIVED`, DISTINCT from provider job statuses
+   (QUEUED/RUNNING/FAILED on `IdentityTrainingJob`) and the `TrainedModelStatus` artifact enum.
+4. **Schema:** `IdentityTrainedModel.datasetVersion` (migration `add_trained_model_dataset_version`) so
+   OUTDATED is computable. Lifecycle persistence seams in `identity/training.ts` (nextModelVersion /
+   create/transition job / persist model), ready for M24.
+5. **UI:** Models tab shows the `TrainingState` badge + training providers; no working Train button.
+
+Reason
+Building the registry + capability surface + lifecycle NOW (symmetric with the other two registries)
+means M24 only implements `FalTrainer.startTraining` — the whole stack lights up with no rework. Keeping
+evaluation/retries out prevents M23 from becoming "half of LoRA".
+
+Alternatives
+Technique-named trainers in the registry (rejected — the user's registry lists PROVIDERS; technique is an
+option); persist `TrainingState` as a column (rejected — it's derived from readiness + model + jobs, so
+compute it); implement Fal training now (rejected — that's M24); a persistence port abstraction (rejected
+— prisma-direct matches `identity/dataset.ts`; consistency over premature indirection).
+
+Status
+Accepted — implemented (infrastructure only). `tsc` + `npm run build` pass; `verify-training-infrastructure.ts`
+(21 — registry + capabilities + all six lifecycle states) + `verify-identity-engine.ts` (31, nested caps) +
+`verify-selection.ts` (no regression) green; migration applied to Neon. `FalTrainer.startTraining` still
+throws (M24 implements). Next = M24 LoRA Trainer.

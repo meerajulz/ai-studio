@@ -1,9 +1,12 @@
 /**
- * Identity Engine (Milestone 22) — the provider-agnostic Trainer contract. ARCHITECTURE ONLY.
+ * Identity Engine — the provider-agnostic Trainer contract.
  *
- * A `Trainer` is a training BACKEND (the first will be Fal). The `TrainingEngine` orchestrates jobs
- * and delegates the actual work to a registered Trainer, so training providers are swappable without
- * touching the rest of AI Studio. No backend is implemented in this milestone.
+ * A `Trainer` is a training BACKEND provider (Fal, Replicate, OpenAI, …). The `TrainingEngine`
+ * orchestrates jobs and delegates the actual work to a registered Trainer, so training providers are
+ * swappable without touching the rest of AI Studio. M23 ships the **Training Registry** of provider
+ * trainers (Fal enabled; others disabled). The registry fields (`label`/`enabled`/`priority`) mirror
+ * `ModelSpec` (model registry) and `IdentityModule` (identity module registry) — three symmetrical
+ * registries. No backend actually trains yet — `FalTrainer` is implemented in M24.
  */
 import type { IdentityDataset } from "../dataset/types";
 import type {
@@ -14,9 +17,12 @@ import type {
 } from "../engines/lora/types";
 
 export interface Trainer {
-  id: string; // "fal" | … — provider-agnostic
-  /** Which engines this backend can train (e.g. ["lora"]). */
+  id: string; // "fal" | "replicate" | … — provider-agnostic
+  label: string; // UI label, e.g. "Fal"
+  /** Which identity engines this backend can train (e.g. ["lora"]). */
   supports: string[];
+  enabled: boolean; // registered + selectable (only Fal today)
+  priority: number; // Auto tiebreak (higher wins) — like ModelSpec.priority
   startTraining(dataset: IdentityDataset, opts: TrainingOptions): Promise<TrainingJob>;
   pollStatus(job: TrainingJob): Promise<TrainingStatus>;
   fetchResult(job: TrainingJob): Promise<TrainingResult>;

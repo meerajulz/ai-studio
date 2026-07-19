@@ -10,6 +10,7 @@
  * models / artifacts yet), so today every plan resolves to `reference` with unchanged output.
  */
 import { IDENTITY_MODULES } from "./registry";
+import { enabledTrainers } from "./training/registry";
 import type { IdentityModule } from "./modules/IdentityModule";
 import type {
   ConditioningContext,
@@ -92,19 +93,28 @@ export async function planConditioning(
 }
 
 /**
- * What can this identity do RIGHT NOW — so the UI adapts without hardcoding "if a LoRA exists…".
- * A capability is `true` only when its module is BOTH enabled and available for this identity+model.
- * Today: `{ reference: true, lora/pulid/instantid: false, trainingAvailable: true, recommended:
- * "reference" }`. After training flips the LoRA module on and a READY model exists →
- * `{ lora: true, recommendedStrategy: "reference+lora" }` with no UI change.
+ * What can this identity do RIGHT NOW — so the UI adapts without hardcoding "if a LoRA exists…" or
+ * "if Fal is the provider…". Two symmetric blocks:
+ *   • `conditioning` — which techniques can condition generation (module enabled && available).
+ *   • `training` — which providers can train this identity (from the Training Registry, M23).
+ * Today: `conditioning.reference: true` (rest false, strategy "reference"); `training.available: true`
+ * via `["fal"]`. When M24 enables the LoRA module + a trained model exists → `conditioning.lora: true`,
+ * `recommendedStrategy: "reference+lora"`; when another training provider is added it just appears in
+ * `training.providers`. No UI change either way.
  */
 export type IdentityCapabilities = {
-  reference: boolean;
-  lora: boolean;
-  pulid: boolean;
-  instantid: boolean;
-  trainingAvailable: boolean;
-  recommendedStrategy: ConditioningStrategy;
+  conditioning: {
+    reference: boolean;
+    lora: boolean;
+    pulid: boolean;
+    instantid: boolean;
+    recommendedStrategy: ConditioningStrategy;
+  };
+  training: {
+    available: boolean;
+    providers: string[];
+    recommendedProvider: string | null;
+  };
 };
 
 export async function getCapabilities(
@@ -134,15 +144,26 @@ export async function getCapabilities(
     layer ? `reference+${layer.id}` : "reference"
   ) as ConditioningStrategy;
 
+  // Training: which providers (Training Registry) can train a trainable module's engine for this
+  // identity. Provider-agnostic — the UI reads `providers`, never a hardcoded name.
+  const trainableEngines: string[] = modules.filter((m) => m.kind === "trainable").map((m) => m.id);
+  const trainers = enabledTrainers()
+    .filter((t) => t.supports.some((e) => trainableEngines.includes(e)))
+    .sort((a, b) => b.priority - a.priority);
+
   return {
-    reference: usable.reference ?? false,
-    lora: usable.lora ?? false,
-    pulid: usable.pulid ?? false,
-    instantid: usable.instantid ?? false,
-    // The engine SUPPORTS training for this identity (a trainable module is registered). A future
-    // milestone also gates this on dataset readiness + a registered Trainer backend.
-    trainingAvailable: modules.some((m) => m.kind === "trainable"),
-    recommendedStrategy,
+    conditioning: {
+      reference: usable.reference ?? false,
+      lora: usable.lora ?? false,
+      pulid: usable.pulid ?? false,
+      instantid: usable.instantid ?? false,
+      recommendedStrategy,
+    },
+    training: {
+      available: trainers.length > 0,
+      providers: trainers.map((t) => t.id),
+      recommendedProvider: trainers[0]?.id ?? null,
+    },
   };
 }
 
