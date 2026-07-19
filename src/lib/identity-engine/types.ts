@@ -42,6 +42,13 @@ export type ConditioningRequest = {
   manualReferenceMediaIds?: string[];
   /** DEV cap on references sent (anchor kept first). */
   maxReferences?: number;
+  /**
+   * The identity's READY trained models + adapter artifacts (Milestone 24). The generation layer loads
+   * these and passes them in; the engine keeps its purity (no DB). Empty → the LoRA/adapter modules are
+   * simply unavailable and the plan stays `reference`.
+   */
+  trainedModels?: TrainedModelRef[];
+  artifacts?: ArtifactRef[];
 };
 
 /**

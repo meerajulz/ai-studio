@@ -172,6 +172,19 @@ async function main() {
   const capsRightModel = await getCapabilities(trainedCtx, { model: "flux" }, [referenceEngine, enabledLora]);
   check("lora usable for a compatible model (flux → true)", capsRightModel.conditioning.lora === true);
 
+  // 6. AUTOMATIC reference+lora — the generation-time wiring: a READY trained model in the request
+  // (which the generation layer loads) makes the plan `reference+lora` with NO manual toggle.
+  console.log("\nAutomatic reference+lora (generation-time wiring):");
+  const loraPlan = await planConditioning({
+    identityId: "id_mock", directive, candidates: library,
+    trainedModels: [{ id: "m1", engine: "lora", version: 1, triggerWord: "jln", artifactRef: "blob://w", modelCompatibility: ["fal-ai/flux-kontext-lora"] }],
+  });
+  check("strategy becomes 'reference+lora' automatically", loraPlan.strategy === "reference+lora", loraPlan.strategy);
+  check("lora weights threaded into the plan", loraPlan.loraWeightsUrl === "blob://w");
+  check("lora trigger word threaded into the plan", loraPlan.loraTriggerWord === "jln");
+  const noModelPlan = await planConditioning({ identityId: "id_mock", directive, candidates: library });
+  check("no trained model → strategy stays 'reference'", noModelPlan.strategy === "reference");
+
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail > 0) process.exit(1);
 }

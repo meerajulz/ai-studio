@@ -20,13 +20,13 @@ import type {
   EngineId,
 } from "./types";
 
-/** Build the identity-scoped context modules consult. Foundation: no trained models / artifacts. */
+/** Build the identity-scoped context modules consult from the request (the app loads the DB rows). */
 function buildContext(req: ConditioningRequest): ConditioningContext {
   return {
     identityId: req.identityId,
     hasAnalyzedCandidates: (req.candidates?.length ?? 0) > 0,
-    trainedModels: [], // future: hydrate from IdentityTrainedModel (READY only)
-    artifacts: [], // future: hydrate from IdentityArtifact
+    trainedModels: req.trainedModels ?? [], // READY IdentityTrainedModel rows (Milestone 24)
+    artifacts: req.artifacts ?? [], // IdentityArtifact rows (future adapters)
   };
 }
 

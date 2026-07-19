@@ -13,7 +13,8 @@ import {
   routeImageProvider,
   type ProviderCapability,
 } from "@/lib/ai";
-import { planConditioning } from "@/lib/identity-engine";
+import { planConditioning, type TrainedModelRef } from "@/lib/identity-engine";
+import { getIdentityTrainedModelRefs } from "@/lib/identity/training";
 import {
   directCreative,
   type CreativeBrief,
@@ -81,6 +82,8 @@ async function runImageGeneration(
     candidates?: SelectionCandidate[];
     /** The identity's static Visual Package — FALLBACK when no analyzed candidates exist. */
     visualPackage?: IdentityVisualPackage | null;
+    /** The identity's READY trained models (LoRA) — enables the `reference+lora` strategy (M24). */
+    trainedModels?: TrainedModelRef[];
     /** DEV identity-benchmark cap on references sent (anchor kept first). */
     maxReferences?: number;
     /** DEV manual override: send exactly these media ids in this order (bypasses selector/anchor). */
@@ -105,6 +108,7 @@ async function runImageGeneration(
     directive,
     candidates: opts.candidates ?? [],
     visualPackage: opts.visualPackage,
+    trainedModels: opts.trainedModels,
     manualReferenceMediaIds: opts.manualReferenceMediaIds,
     maxReferences: opts.maxReferences,
   });
@@ -320,6 +324,7 @@ export async function generateImage(
     identityId,
     candidates: inputs.candidates,
     visualPackage: inputs.visualPackage,
+    trainedModels: inputs.trainedModels,
     maxReferences: input.maxReferences,
     manualReferenceMediaIds: input.manualReferenceMediaIds,
     modelOverride: input.modelOverride,
@@ -342,12 +347,15 @@ async function loadIdentityInputs(
   identity: IdentityContext | null;
   candidates: SelectionCandidate[];
   visualPackage: IdentityVisualPackage | null;
+  trainedModels: TrainedModelRef[];
 }> {
-  if (!identityId) return { identity: null, candidates: [], visualPackage: null };
-  const [info, candidates, visualPackage] = await Promise.all([
+  if (!identityId) return { identity: null, candidates: [], visualPackage: null, trainedModels: [] };
+  const [info, candidates, visualPackage, trainedModels] = await Promise.all([
     getIdentityContext(userId, identityId),
     getIdentitySelectionCandidates(userId, identityId),
     getIdentityVisualPackage(userId, identityId),
+    // READY trained models (LoRA) so the Identity Engine can offer `reference+lora` automatically (M24).
+    getIdentityTrainedModelRefs(userId, identityId),
   ]);
   const identity: IdentityContext | null = info
     ? {
@@ -360,7 +368,7 @@ async function loadIdentityInputs(
         trainingMediaCount: info.trainingMediaCount,
       }
     : null;
-  return { identity, candidates, visualPackage };
+  return { identity, candidates, visualPackage, trainedModels };
 }
 
 /** Re-run a generation's recipe unchanged (a new generation, lineage tagged in `params`). */
@@ -378,6 +386,7 @@ export async function regenerateGeneration(
     identityId: source.identityId,
     candidates: inputs.candidates,
     visualPackage: inputs.visualPackage,
+    trainedModels: inputs.trainedModels,
     lineage: { source: "regenerate", fromGenerationId: generationId },
   });
 }
@@ -397,6 +406,7 @@ export async function generateVariation(
     identityId: source.identityId,
     candidates: inputs.candidates,
     visualPackage: inputs.visualPackage,
+    trainedModels: inputs.trainedModels,
     lineage: { source: "variation", fromGenerationId: generationId },
   });
 }

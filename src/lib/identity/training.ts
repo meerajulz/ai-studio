@@ -11,7 +11,43 @@ import { zipSync } from "fflate";
 import { prisma, type Prisma } from "@/lib/db";
 import { getMediaByIds } from "@/lib/media/server";
 import { getSignedUrl, uploadAsset } from "@/lib/blob/server";
-import { falTrainer, type TrainingJob, type TrainingStatus } from "@/lib/identity-engine";
+import {
+  falTrainer,
+  type EngineId,
+  type TrainedModelRef,
+  type TrainingJob,
+  type TrainingStatus,
+} from "@/lib/identity-engine";
+
+/**
+ * The identity's READY trained models (with weights), newest first — the generation layer feeds these
+ * into `planConditioning` so the Identity Engine can offer `reference+lora` (Milestone 24). Owner-scoped.
+ */
+export async function getIdentityTrainedModelRefs(
+  userId: string,
+  identityId: string,
+): Promise<TrainedModelRef[]> {
+  const rows = await prisma.identityTrainedModel.findMany({
+    where: { identityId, userId, status: "READY", NOT: { artifactRef: null } },
+    orderBy: { version: "desc" },
+    select: {
+      id: true,
+      engine: true,
+      version: true,
+      triggerWord: true,
+      artifactRef: true,
+      modelCompatibility: true,
+    },
+  });
+  return rows.map((m) => ({
+    id: m.id,
+    engine: m.engine as EngineId,
+    version: m.version,
+    triggerWord: m.triggerWord,
+    artifactRef: m.artifactRef,
+    modelCompatibility: m.modelCompatibility,
+  }));
+}
 
 const EXT_BY_MIME: Record<string, string> = {
   "image/jpeg": "jpg",
