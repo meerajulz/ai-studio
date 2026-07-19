@@ -111,15 +111,18 @@ export const MODEL_REGISTRY: ModelSpec[] = [
     note: "may require OpenAI BYOK on the Fal account",
   },
   {
-    id: "bytedance/seedream/v5/pro/edit",
+    // Real Fal endpoint. The prior id `bytedance/seedream/v5/pro/edit` did NOT exist (missing the
+    // `fal-ai/` prefix and no `v5/pro` tier) → every request 404'd. v4 edit accepts up to 10 refs.
+    id: "fal-ai/bytedance/seedream/v4/edit",
     provider: "fal",
     vendor: "ByteDance",
-    label: "Seedream V5 Pro",
+    label: "Seedream 4 Edit",
     capabilities: [...EDIT, "realism"],
     maxReferences: 10,
     payloadKind: "image_urls",
     priority: 82,
     enabled: true,
+    note: "fal-ai/bytedance/seedream/v4.5/edit is the newer tier — swap the id to try it",
   },
   // Non-identity fallbacks (used by routing when there are no references).
   {
