@@ -7,7 +7,22 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-17, build + tsc + verifiers green):** **Milestone 21 — Model Registry**
+> **▶ Resume (2026-07-19, build + tsc + verifiers green):** **Milestone 22 — Identity Engine
+> Architecture** (Decision 055, foundation only). Identity is now its own subsystem: Generation calls
+> `planConditioning` on the **Identity Engine** and never learns HOW an identity is implemented
+> (reference / LoRA / adapter). New `src/lib/identity-engine/` — a pluggable `IdentityModule` registry
+> (only **Reference Engine** enabled; **LoRA / PuLID / InstantID** registered but disabled), a
+> provider-agnostic training architecture (`TrainingEngine → Trainer → LoRATrainer`, arch only), an
+> **Identity Dataset** (readiness score + metrics + curation, reusing the coverage engine), and an
+> **IdentityEvaluator** with all metric slots reserved. Additive migration `add_identity_engine`
+> (`IdentityDataset`, `IdentityTrainedModel`, `IdentityTrainingJob`, `IdentityEvaluation`,
+> `IdentityArtifact`; versioned, never-overwritten trained models). Read-only **Dataset** + **Models**
+> UI tabs (no training buttons). Reference flow is **byte-for-byte unchanged** (parity-checked);
+> `scripts/verify-identity-engine.ts` (21 checks). New `docs/IDENTITY_ENGINE.md`. **No LoRA/PuLID/ML
+> implemented — architecture first.** Also fixed the Seedream Fal endpoint id (old `bytedance/seedream/v5/pro/edit`
+> 404'd → `fal-ai/bytedance/seedream/v4/edit`). **Next = LoRA training via a Fal Trainer.**
+
+> **▶ Prior (2026-07-17, build + tsc + verifiers green):** **Milestone 21 — Model Registry**
 > (Decision 054). AI Studio is no longer "a FLUX app": a config-driven **model registry**
 > (`ai/model-registry.ts`) + **capability router** (`ai/model-router.ts`) choose the best MODEL by
 > capability. `chooseModel({provider,needs,mode})` — **Auto** (best capability match by priority) ·

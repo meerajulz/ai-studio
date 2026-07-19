@@ -210,12 +210,23 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       Seedream V5 Pro (all verified `{prompt,image_urls}` from Fal docs; adding a model = one config
       entry). Fal adapter is now payload-kind driven (no FLUX branching). Auto stays on the proven
       Kontext Max Multi. `verify-model-routing.ts`. [MODEL_REGISTRY.md](./MODEL_REGISTRY.md).
-- [ ] **Milestone 19B — Face Embeddings** ← **next (identity-preservation milestone)** — the remaining
-      face drift is now assessed as a Kontext/reference-guided limitation; strengthen identity
-      preservation directly: **InsightFace** ([research/RESEARCH_03_FACE_EMBEDDINGS.md](./research/RESEARCH_03_FACE_EMBEDDINGS.md))
-      behind a provider-neutral `FaceEmbeddingProvider`, fed to the selector/anchor via
-      `SelectionCandidate.signals` → identity similarity, drift scoring, generation evaluation, LoRA
-      benchmarking.
+- [x] **Milestone 22 — Identity Engine Architecture (foundation)** (Decision 055) — Identity is now its
+      own subsystem in **`src/lib/identity-engine/`**: Generation calls `planConditioning` and never
+      learns HOW an identity is implemented. Pluggable `IdentityModule` registry (only **Reference**
+      enabled; **LoRA / PuLID / InstantID** registered, disabled), provider-agnostic training arch
+      (`TrainingEngine → Trainer → LoRATrainer`), **Identity Dataset** (readiness + metrics + curation,
+      reusing the coverage engine), `IdentityEvaluator` (reserved metrics). Additive migration
+      `add_identity_engine` (versioned, never-overwritten trained models). Read-only Dataset/Models UI.
+      Reference flow byte-for-byte unchanged (`verify-identity-engine.ts`). **Architecture only — no
+      LoRA/PuLID/ML.** [IDENTITY_ENGINE.md](./IDENTITY_ENGINE.md).
+- [ ] **LoRA training via a Fal `Trainer`** ← **next** — first `Trainer` backend behind the Identity
+      Engine: assemble the curated dataset, train, persist versioned `IdentityTrainedModel`s, enable the
+      LoRA module (`reference+lora`). Then Identity Evaluation + PuLID/InstantID adapters.
+- [ ] **Milestone 19B — Face Embeddings** — the remaining face drift is a Kontext/reference-guided
+      limitation; strengthen identity preservation directly: **InsightFace**
+      ([research/RESEARCH_03_FACE_EMBEDDINGS.md](./research/RESEARCH_03_FACE_EMBEDDINGS.md)) behind a
+      provider-neutral `FaceEmbeddingProvider`, fed to the selector/anchor via
+      `SelectionCandidate.signals`, and to the `IdentityEvaluator` for drift scoring.
 
 ### Future — documented, NOT scheduled (research first)
 

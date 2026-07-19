@@ -75,9 +75,17 @@ export type GenerationDebug = {
   referenceImages: ReferenceImageDebug; // what was offered/sent to the provider (Milestone 17)
   referenceSelection: ReferenceSelectionDebug | null; // Smart Reference Selection trace (Milestone 20)
   anchorRanking: AnchorScore[]; // top identity-anchor candidates + face scoring breakdown (Milestone 20)
+  conditioning: ConditioningDebugSummary | null; // Identity Engine strategy + engines (Milestone 22)
   modelRouting: ModelRoutingDecision | null; // capability model routing: chosen model + why (Milestone 21)
   responseMetadata: Record<string, unknown> | null; // provider response metadata (seed/timings/…)
   payload: Record<string, unknown>; // secret-free echo of the provider request
+};
+
+/** Which Identity Engine strategy conditioned this generation (Milestone 22). `reference` today. */
+export type ConditioningDebugSummary = {
+  strategy: string; // "reference" | "reference+lora" | …
+  engines: string[]; // modules that contributed
+  engineNotes: string[]; // per non-reference module: why it did / didn't contribute
 };
 
 /** Why the Smart Reference Selector chose this package (Milestone 20). `null` = static fallback used. */

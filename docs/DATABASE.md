@@ -104,6 +104,22 @@ npx prisma migrate deploy     # apply migrations (prod)
 npx prisma studio             # browse data
 ```
 
+## Identity Engine (Milestone 22, migration `add_identity_engine`)
+
+Additive, owner-scoped, cascade from `Identity`. See [IDENTITY_ENGINE.md](./IDENTITY_ENGINE.md).
+
+- **`IdentityDataset`** (1:1 `Identity`) — persisted readiness (`readinessScore`, `rating`,
+  `metrics` JSON) + curation (`datasetVersion`, `recommendedImageIds`, `rejectedImageIds`,
+  `rejectionReasons`). Recomputed when the library is analyzed; never at generation time.
+- **`IdentityTrainedModel`** — versioned trained models. `@@unique([identityId, engine, version])`
+  → **append-only, never overwritten** (LoRA v1, v2, …). `status: TrainedModelStatus`.
+- **`IdentityTrainingJob`** — a training run (provider-agnostic; Fal is the eventual first backend).
+- **`IdentityEvaluation`** — identity score of a generated image; all metric columns reserved
+  (`face/tattoos/hair/accessories/pose/expression/lighting/composition/overallIdentityScore`), null today.
+- **`IdentityArtifact`** — generic versioned identity resources (LoRAs, embeddings, adapters, vectors)
+  — home for non-trainable engines (PuLID/InstantID).
+- New enum **`TrainedModelStatus { DRAFT, READY, FAILED, ARCHIVED }`**.
+
 ## Conventions
 
 - Access the client through the single instance in `src/lib/db/` (global singleton —

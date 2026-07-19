@@ -2146,6 +2146,49 @@ suffices); let Auto pick the highest-capability model regardless (rejected — w
 default to an unbenchmarked model; priority keeps Kontext Max Multi until evidence); per-request env
 vars (rejected — a UI mode toggle is faster and visible).
 
+# Decision 055
+
+Date
+2026-07-19
+
+Decision
+**Identity Engine Architecture (Milestone 22) — foundation only.** Facial identity still drifts across
+every benchmarked model (reference-guided-editing limit). Rather than "add LoRA support", promote
+Identity to its own **subsystem** with pluggable conditioning methods; Generation becomes a consumer.
+
+1. **`src/lib/identity-engine/`** — `planConditioning(request) → ConditioningPlan`. A pluggable
+   `IdentityModule` registry (mirrors the model registry): **Reference** enabled; **LoRA / PuLID /
+   InstantID** registered but `enabled: false`. Reference is the always-on baseline; trainable/adapter
+   modules layer on → strategies `reference(+lora|+pulid|+instantid)`. Generation never learns the
+   method.
+2. **Naming refinements (user review):** the plugin interface is the neutral **`IdentityModule`** (not
+   "Conditioner"); training is **`TrainingEngine → Trainer → LoRATrainer`** (provider-agnostic, Fal is
+   the eventual first backend); the generic resource table is **`IdentityArtifact`** (LoRAs,
+   embeddings, adapters, vectors — not only media).
+3. **Identity Dataset** — `assembleDataset` reuses `analyzeIdentityCoverage` + adds diversity/quality
+   metrics + curation (recommended/rejected + reasons) + a **readiness score** persisted to
+   `IdentityDataset` (becomes part of the Identity).
+4. **Evaluation** — `IdentityEvaluator` with ALL metric slots reserved
+   (face/tattoos/hair/accessories/pose/expression/lighting/composition/overall), null today.
+5. **Schema (additive `add_identity_engine`):** `IdentityDataset`, `IdentityTrainedModel`
+   (`@@unique(identityId, engine, version)` — append-only, never overwrite), `IdentityTrainingJob`,
+   `IdentityEvaluation`, `IdentityArtifact`, enum `TrainedModelStatus`.
+6. **Generation** swaps its inline exposure→package→anchor block for `planConditioning`; the reference
+   logic moved verbatim into the Reference Engine. Output is **byte-for-byte identical** (parity-checked
+   in `verify-identity-engine.ts`). Read-only **Dataset** + **Models** UI tabs; no training buttons.
+
+Reason
+The next several milestones (LoRA, PuLID, InstantID, evaluation, direct providers) are all identity
+techniques. Building the pluggable subsystem first means each plugs in behind stable interfaces without
+reworking Generation. Architecture-first (approved) de-risks the expensive work.
+
+Alternatives
+Add LoRA directly into generation (rejected — hardcodes one technique, the anti-pattern the user
+called out); a single polymorphic asset table (rejected — trained models are versioned + relational;
+`IdentityArtifact` covers only genuinely generic artifacts); compute dataset readiness on-read
+(rejected — "the score becomes part of the Identity", so persist it); implement LoRA training now
+(rejected — architecture first, per the approved plan).
+
 Status
 Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-model-routing.ts` (Auto
 picks the best capable enabled model + stays Kontext Max Multi; Manual honored; disabled never

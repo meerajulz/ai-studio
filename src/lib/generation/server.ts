@@ -12,8 +12,8 @@ import {
   isProviderError,
   routeImageProvider,
   type ProviderCapability,
-  type ReferenceImage,
 } from "@/lib/ai";
+import { planConditioning } from "@/lib/identity-engine";
 import {
   directCreative,
   type CreativeBrief,
@@ -26,14 +26,7 @@ import {
   getIdentityVisualPackage,
 } from "@/lib/identity/server";
 import type { IdentityVisualPackage } from "@/lib/identity/types";
-import {
-  buildReferencePackage,
-  filterCandidatesByExposure,
-  pickIdentityAnchor,
-  rankIdentityAnchors,
-  type SelectedReference,
-  type SelectionCandidate,
-} from "@/lib/selection";
+import { type SelectionCandidate } from "@/lib/selection";
 import { synthesizeIdentityAppearance } from "@/lib/vision";
 import { createGeneratedMedia, getGeneratedMediaByIds } from "@/lib/media/server";
 import type {
@@ -102,63 +95,24 @@ async function runImageGeneration(
 ): Promise<GenerationResult> {
   const directive = directCreative(opts.brief);
 
-  // Smart Reference Selection (Milestone 20): when the identity has PERSISTED Vision knowledge, build
-  // the best package FOR THIS request (diverse/complementary, explained). Otherwise fall back to the
-  // static Visual Package. Either way the provider just receives ordered, provider-neutral references
-  // and never knows how they were chosen. The Creative Director never sees these — text only.
-  const candidates = opts.candidates ?? [];
-  const manualIds = opts.manualReferenceMediaIds?.filter(Boolean) ?? [];
-  let referenceImages: ReferenceImage[];
-  let referenceSelectionReason: string;
-  let selectionDebug: ReferenceSelectionDebug | null = null;
-  let manualMode = false;
-  // Reference Safety filter (Milestone 20): drop nude/lingerie references for non-explicit prompts so
-  // we don't trip Kontext's NSFW moderation (which returns a black image). Applied to BOTH the scene
-  // selection AND the Identity Anchor below — a nude image is never sent, even for its face.
-  let safeCandidates = candidates;
-
-  if (manualIds.length && candidates.length) {
-    // DEV manual override: send EXACTLY these images in THIS order — no selector, no anchor, no
-    // safety filter. For isolating which reference helps/hurts identity preservation.
-    manualMode = true;
-    const byId = new Map(candidates.map((c) => [c.mediaId, c] as const));
-    referenceImages = manualIds
-      .map((id) => byId.get(id))
-      .filter((c): c is SelectionCandidate => c != null)
-      .map((c) => ({ url: c.url, role: "reference" as const }));
-    referenceSelectionReason = `MANUAL reference selection (dev): ${referenceImages.length} image(s), exact order`;
-    safeCandidates = []; // no auto-anchor in manual mode
-  } else if (candidates.length) {
-    const exposure = filterCandidatesByExposure(directive, candidates);
-    safeCandidates = exposure.safe;
-    const selection = buildReferencePackage(directive, exposure.safe);
-    referenceImages = selection.package.map((p) => ({ url: p.url, role: toReferenceRole(p.role) }));
-    referenceSelectionReason = referenceImages.length
-      ? `smart selection: ${selection.package.map((p) => `${p.role} — ${p.reason}`).join("; ")}`
-      : "no suitable references selected";
-    selectionDebug = {
-      requirements: selection.requirements.active.map((r) => r.label),
-      selected: selection.package.map((p) => ({ role: p.role, reason: p.reason, satisfies: p.satisfies })),
-      warnings: selection.warnings,
-      allowedExposure: exposure.allowed,
-      excludedForSafety: exposure.excluded.length,
-    };
-  } else {
-    referenceImages = toReferenceImages(opts.visualPackage);
-    referenceSelectionReason = referenceImages.length
-      ? `curated from the identity visual package, best-first: ${referenceImages
-          .map((r) => r.role)
-          .join(", ")}`
-      : "no reference images available";
-  }
-
-  // Identity Anchor (Milestone 20 invariant) — chosen INDEPENDENTLY of the scene selector; it answers
-  // "who is this person?" (strongest frontal face). The provider prepends it before sending. Only when
-  // we have analyzed candidates (it needs face knowledge); it never enters the selector's reasoning.
-  const anchorCandidate = !manualMode && safeCandidates.length ? pickIdentityAnchor(safeCandidates) : null;
-  const identityAnchor: ReferenceImage | undefined = anchorCandidate
-    ? { url: anchorCandidate.url, role: "anchor" }
-    : undefined;
+  // Identity Engine (Milestone 22): Generation asks the engine HOW to condition this identity for
+  // this request and receives a provider-neutral ConditioningPlan. The only enabled module today is
+  // the Reference Engine (Smart Reference Selection + Identity Anchor, exposure-filtered), so the plan
+  // is `reference` and output is unchanged; LoRA/PuLID/InstantID layer on here later WITHOUT touching
+  // this call site. The Creative Director never sees references — text only.
+  const plan = await planConditioning({
+    identityId: opts.identityId,
+    directive,
+    candidates: opts.candidates ?? [],
+    visualPackage: opts.visualPackage,
+    manualReferenceMediaIds: opts.manualReferenceMediaIds,
+    maxReferences: opts.maxReferences,
+  });
+  const referenceImages = plan.referenceImages;
+  const identityAnchor = plan.identityAnchor;
+  const referenceSelectionReason = plan.reason;
+  const selectionDebug: ReferenceSelectionDebug | null = plan.debug?.selection ?? null;
+  const manualMode = plan.debug?.manual ?? false;
 
   // Route by capability, never by name. When we actually have reference images (scene refs OR an
   // identity anchor) we require a provider that can preserve identity (else the first configured one).
@@ -272,7 +226,11 @@ async function runImageGeneration(
           },
           referenceSelection: selectionDebug,
           // Identity-anchor diagnostic: the top face candidates + why the winner won (dev evidence).
-          anchorRanking: rankIdentityAnchors(candidates).slice(0, 5),
+          anchorRanking: plan.debug?.anchorRanking ?? [],
+          // Identity Engine conditioning strategy (Milestone 22) — `reference` today.
+          conditioning: plan.debug
+            ? { strategy: plan.strategy, engines: plan.engines, engineNotes: plan.debug.engineNotes }
+            : null,
           modelRouting: routedModel?.decision ?? null,
           responseMetadata: result.metadata ?? null,
           payload: result.requestPayload ?? { prompt: directive.prompt },
@@ -289,40 +247,6 @@ async function runImageGeneration(
       .catch(() => {});
     throw toFriendlyError(error);
   }
-}
-
-/** Map a Smart Reference Selection role onto the provider-neutral `ReferenceImage` role vocabulary. */
-function toReferenceRole(role: SelectedReference["role"]): ReferenceImage["role"] {
-  switch (role) {
-    case "hero":
-      return "hero";
-    case "face":
-      return "portrait";
-    case "body":
-      return "fullBody";
-    default:
-      return "reference";
-  }
-}
-
-/** Flatten an Identity Visual Package into provider-neutral reference images (deduped by url). */
-function toReferenceImages(pkg?: IdentityVisualPackage | null): ReferenceImage[] {
-  if (!pkg) return [];
-  const refs: ReferenceImage[] = [];
-  const push = (url: string | null, role: ReferenceImage["role"]) => {
-    if (url) refs.push({ url, role });
-  };
-  push(pkg.heroImageUrl, "hero");
-  push(pkg.bestPortraitUrl, "portrait");
-  push(pkg.bestFullBodyUrl, "fullBody");
-  for (const url of pkg.referenceImageUrls) push(url, "reference");
-
-  const seen = new Set<string>();
-  return refs.filter((r) => {
-    if (seen.has(r.url)) return false;
-    seen.add(r.url);
-    return true;
-  });
 }
 
 /** Safe readers for the provider's secret-free requestPayload echo. */

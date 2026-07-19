@@ -12,6 +12,7 @@ import {
   createIdentityAction,
   deleteIdentityAction,
   getIdentityAction,
+  getIdentityEngineOverviewAction,
   listIdentitiesAction,
   removeTrainingMediaAction,
   reorderTrainingMediaAction,
@@ -59,6 +60,19 @@ export function useIdentity(id: string) {
   return useQuery({
     queryKey: identityKeys.detail(id),
     queryFn: () => getIdentityAction(id),
+    enabled: Boolean(id),
+  });
+}
+
+/**
+ * Identity Engine overview (Milestone 22) — dataset readiness + trained models + training jobs.
+ * Keyed UNDER the identity detail so "Analyze library" (which invalidates `["identity", id]`) also
+ * refreshes it. Read-only placeholder data; no training is triggered.
+ */
+export function useIdentityEngineOverview(id: string) {
+  return useQuery({
+    queryKey: [...identityKeys.detail(id), "engine"] as const,
+    queryFn: () => getIdentityEngineOverviewAction(id),
     enabled: Boolean(id),
   });
 }

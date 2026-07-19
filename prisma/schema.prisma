@@ -57,6 +57,15 @@ enum TrainingMediaRole {
   OTHER
 }
 
+// Identity Engine (Milestone 22) — lifecycle of a trained identity model (LoRA, …). Append-only
+// versioning: a model is never overwritten, so status tracks a single version's state.
+enum TrainedModelStatus {
+  DRAFT
+  READY
+  FAILED
+  ARCHIVED
+}
+
 // ============================================================
 // Auth
 // Auth models (User/Session/Account/Verification) follow the Better Auth
@@ -85,6 +94,13 @@ model User {
   templates       Template[]
   favoritePrompts FavoritePrompt[]
   jobs            Job[]
+
+  // Identity Engine (Milestone 22) — owner back-relations.
+  identityDatasets      IdentityDataset[]
+  identityTrainedModels IdentityTrainedModel[]
+  identityTrainingJobs  IdentityTrainingJob[]
+  identityEvaluations   IdentityEvaluation[]
+  identityArtifacts     IdentityArtifact[]
 }
 
 model Session {
@@ -177,6 +193,14 @@ model Identity {
 
   trainingMedia IdentityMedia[]
   generations   Generation[]
+
+  // Identity Engine (Milestone 22) — dataset readiness, versioned trained models, training jobs,
+  // evaluations, and generic identity artifacts (LoRAs/embeddings/adapters/vectors).
+  dataset       IdentityDataset?
+  trainedModels IdentityTrainedModel[]
+  trainingJobs  IdentityTrainingJob[]
+  evaluations   IdentityEvaluation[]
+  artifacts     IdentityArtifact[]
 
   @@index([userId])
   @@index([projectId])
@@ -279,8 +303,9 @@ model Generation {
   templateId String?
   template   Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
-  job     Job?
-  results GeneratedMedia[]
+  job         Job?
+  results     GeneratedMedia[]
+  evaluations IdentityEvaluation[] // Identity Engine (Milestone 22) — identity score of a result
 
   @@index([userId])
   @@index([projectId])
@@ -363,5 +388,159 @@ model FavoritePrompt {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+}
+
+// ============================================================
+// Identity Engine (Milestone 22) — Identity as its own subsystem.
+// All additive; the current Reference-only flow is unchanged. Generation consumes the Identity
+// Engine and never learns how an identity is implemented (reference / LoRA / adapter). Training,
+// evaluation and adapters are ARCHITECTURE ONLY here — no LoRA/PuLID/InstantID/ML implementation.
+// ============================================================
+
+/// Persisted dataset readiness for an Identity. Computed from the identity's persisted Vision
+/// knowledge when its library is (re)analyzed — never at generation time. 1:1 with Identity.
+/// Curation fields are reserved for future training (which curated revision a trainer consumes).
+model IdentityDataset {
+  id             String   @id @default(cuid())
+  readinessScore Int      @default(0) // 0..100 — "this score becomes part of the Identity"
+  rating         String   @default("poor") // excellent | good | fair | poor
+  imageCount     Int      @default(0)
+  analyzedCount  Int      @default(0)
+  metrics        Json // DatasetMetrics (coverage + diversity/quality)
+  version        String // metrics-engine version (e.g. "de-1")
+  computedAt     DateTime @default(now())
+
+  // Curation metadata (reserved for training).
+  datasetVersion      Int      @default(1) // curated revision a trainer consumes
+  recommendedImageIds String[]
+  rejectedImageIds    String[]
+  rejectionReasons    Json? // { [mediaId]: reason }
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  identityId String   @unique
+  identity   Identity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// A versioned trained identity model (architecture only — no training yet). Append-only: never
+/// overwrite — every run creates a new version (LoRA v1, v2, …). Provider-agnostic.
+model IdentityTrainedModel {
+  id                 String             @id @default(cuid())
+  engine             String // "lora" | future engines
+  provider           String // "fal" | … (provider-agnostic)
+  version            Int // per (identity, engine) — never reused
+  label              String
+  status             TrainedModelStatus @default(DRAFT)
+  triggerWord        String?
+  artifactRef        String? // blob key / url of the weights (null until trained)
+  modelCompatibility String[] // base models this adapter is compatible with
+  cost               Float?
+  durationSeconds    Int?
+  params             Json?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  identityId String
+  identity   Identity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  trainingJobs IdentityTrainingJob[]
+
+  @@unique([identityId, engine, version])
+  @@index([identityId])
+  @@index([userId])
+}
+
+/// A training run (architecture only). Provider-agnostic; the first backend will be Fal.
+model IdentityTrainingJob {
+  id             String    @id @default(cuid())
+  engine         String
+  provider       String
+  status         JobStatus @default(PENDING)
+  providerJobId  String?
+  datasetVersion Int
+  triggerWord    String?
+  params         Json?
+  cost           Float?
+  error          String?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  identityId String
+  identity   Identity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  trainedModelId String?
+  trainedModel   IdentityTrainedModel? @relation(fields: [trainedModelId], references: [id], onDelete: SetNull)
+
+  @@index([identityId])
+  @@index([userId])
+  @@index([status])
+}
+
+/// Identity evaluation of a generated image (architecture only — no ML yet). All metric slots are
+/// reserved now (null today) so future evaluators fill them without a schema change.
+model IdentityEvaluation {
+  id                   String   @id @default(cuid())
+  face                 Float?
+  tattoos              Float?
+  hair                 Float?
+  accessories          Float?
+  pose                 Float?
+  expression           Float?
+  lighting             Float?
+  composition          Float?
+  overallIdentityScore Float?
+  method               String   @default("not-configured")
+  metrics              Json?
+  createdAt            DateTime @default(now())
+
+  identityId String
+  identity   Identity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  generationId String?
+  generation   Generation? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([identityId])
+  @@index([generationId])
+  @@index([userId])
+}
+
+/// A generic, versioned identity resource. Stores LoRAs, embeddings, adapter files, vectors, and
+/// other generated identity artifacts — not only media. Gives non-trainable engines (PuLID/InstantID)
+/// a home for precomputed artifacts, so the schema supports trainable AND non-trainable engines.
+model IdentityArtifact {
+  id        String   @id @default(cuid())
+  kind      String // "lora" | "embedding" | "id-vector" | "adapter" | …
+  engine    String?
+  version   Int      @default(1)
+  ref       String // blob key / url
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  identityId String
+  identity   Identity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([identityId])
   @@index([userId])
 }

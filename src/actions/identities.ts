@@ -30,6 +30,11 @@ import {
   type AnalyzeLibrarySummary,
 } from "@/lib/vision/persist";
 import { buildMediaKnowledgeDetail, type MediaKnowledgeDetail } from "@/lib/vision";
+import {
+  getIdentityEngineOverview,
+  refreshIdentityDataset,
+  type IdentityEngineOverview,
+} from "@/lib/identity/dataset";
 
 /**
  * Owner-scoped Server Actions for identities + their training media. Each resolves the
@@ -154,7 +159,22 @@ export async function analyzeIdentityLibraryAction(
   opts: { force?: boolean } = {},
 ): Promise<AnalyzeLibrarySummary> {
   const userId = await requireUserId();
-  return analyzeIdentityLibrary(userId, identityId, opts);
+  const summary = await analyzeIdentityLibrary(userId, identityId, opts);
+  // Identity Engine (Milestone 22): recompute + persist dataset readiness from the fresh knowledge.
+  await refreshIdentityDataset(userId, identityId);
+  return summary;
+}
+
+/**
+ * Identity Engine overview (Milestone 22) — dataset readiness + trained models + training jobs for
+ * the placeholder UI. Read-only; reads persisted `IdentityDataset` / model / job rows (no analysis,
+ * no training). Owner-scoped.
+ */
+export async function getIdentityEngineOverviewAction(
+  identityId: string,
+): Promise<IdentityEngineOverview | null> {
+  const userId = await requireUserId();
+  return getIdentityEngineOverview(userId, identityId);
 }
 
 /** Re-analyze + persist Vision knowledge for a single training image (Milestone 20). */
