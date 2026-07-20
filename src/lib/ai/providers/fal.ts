@@ -38,6 +38,14 @@ export function isFalConfigured(): boolean {
 
 function mapError(status: number, message: string, model: string): ProviderError {
   const snippet = message ? ` — ${message.slice(0, 200)}` : "";
+  // A locked account / exhausted balance also comes back as 403 — surface THAT (it's not a model or
+  // credential problem), so the user tops up instead of chasing model access.
+  if (/exhausted balance|is locked|top up|insufficient/i.test(message)) {
+    return new ProviderError(
+      "PROVIDER_UNAVAILABLE",
+      "Your Fal account is out of balance — top up at fal.ai/dashboard/billing to generate or train.",
+    );
+  }
   // 401 = the KEY is wrong/missing (a real config problem). 403 = the key is fine but the account
   // isn't allowed to use THIS model — a model-access problem, NOT "not configured". Keep them distinct
   // so the message is actionable (this was previously masked as "isn't configured yet").
