@@ -65,9 +65,10 @@ export function chooseModel(
     decision: { mode: m, chosen: model.id, label: model.label, vendor: model.vendor, reason, considered },
   });
 
-  // Manual: honour an explicit, enabled model id (benchmarking); else fall through to Auto.
+  // Manual: honour an explicit, enabled model id (benchmarking); else fall through to Auto. Auto-only
+  // models (e.g. Kontext+LoRA — needs a trained LoRA the app supplies) are never a manual pick.
   if (mode === "manual" && criteria.manualModelId) {
-    const picked = pool.find((m) => m.id === criteria.manualModelId && m.enabled);
+    const picked = pool.find((m) => m.id === criteria.manualModelId && m.enabled && !m.autoOnly);
     if (picked) return decide(picked, "manual", "manual selection (benchmark)");
   }
 

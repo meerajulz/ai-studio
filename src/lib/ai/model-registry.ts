@@ -24,7 +24,13 @@ export type ModelSpec = {
   maxReferences: number; // 1 (t2i has none) … 10 (Seedream)
   payloadKind: PayloadKind;
   priority: number; // Auto tiebreak (higher wins) — tune after benchmarking
-  enabled: boolean; // registered + selectable
+  enabled: boolean; // registered + routable by the capability router
+  /**
+   * Auto-only: the capability router may choose it, but it is NOT offered in the Manual/Developer model
+   * picker. For models that only work with extra inputs the app supplies automatically (e.g. a trained
+   * LoRA) — manually picking them would send an incomplete request.
+   */
+  autoOnly?: boolean;
   note?: string; // caveats, e.g. "may require OpenAI BYOK on the Fal account"
 };
 
@@ -137,6 +143,9 @@ export const MODEL_REGISTRY: ModelSpec[] = [
     payloadKind: "image_url_lora",
     priority: 90,
     enabled: true,
+    // Auto-only: routed automatically when the identity has a trained LoRA (it needs the weights). NOT
+    // a manual pick — selecting it by hand would send a request with no LoRA and Fal rejects it.
+    autoOnly: true,
     note: "identity-trained LoRA + one reference (Identity Anchor); requires a trained model",
   },
   // Non-identity fallbacks (used by routing when there are no references).

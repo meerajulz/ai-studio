@@ -100,11 +100,12 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
       }));
   }, [identityDetail]);
 
-  // Registry models grouped by vendor for the Manual/Developer selector (config-driven; t2i hidden).
+  // Registry models grouped by vendor for the Manual/Developer selector (config-driven; t2i hidden;
+  // auto-only models like Kontext+LoRA hidden — they need inputs the app supplies automatically).
   const modelsByVendor = useMemo(() => {
     const groups = new Map<string, typeof MODEL_REGISTRY>();
     for (const m of MODEL_REGISTRY) {
-      if (m.payloadKind === "t2i") continue;
+      if (m.payloadKind === "t2i" || m.autoOnly) continue;
       groups.set(m.vendor, [...(groups.get(m.vendor) ?? []), m]);
     }
     return [...groups.entries()];
