@@ -36,15 +36,29 @@ export function isFalConfigured(): boolean {
   return Boolean(getKey());
 }
 
-function mapError(status: number, message: string): ProviderError {
-  if (status === 401 || status === 403) {
-    return new ProviderError("MISSING_TOKEN", "Fal rejected the credentials (check FAL_KEY).");
+function mapError(status: number, message: string, model: string): ProviderError {
+  const snippet = message ? ` — ${message.slice(0, 200)}` : "";
+  // 401 = the KEY is wrong/missing (a real config problem). 403 = the key is fine but the account
+  // isn't allowed to use THIS model — a model-access problem, NOT "not configured". Keep them distinct
+  // so the message is actionable (this was previously masked as "isn't configured yet").
+  if (status === 401) {
+    return new ProviderError("MISSING_TOKEN", `Fal rejected the credentials (401) — check FAL_KEY.`);
+  }
+  if (status === 403) {
+    return new ProviderError(
+      "GENERATION_FAILED",
+      `Fal denied access to model "${model}" (403). Your Fal account may not have access to this ` +
+        `model — enable it in the Fal dashboard, or pick a different model.${snippet}`,
+    );
   }
   if (status === 429 || status === 503 || status === 502) {
     return new ProviderError("PROVIDER_UNAVAILABLE", "Fal is busy — try again in a moment.");
   }
   if (status === 408) return new ProviderError("TIMEOUT", "Fal request timed out.");
-  return new ProviderError("GENERATION_FAILED", message || "Fal image generation failed.");
+  return new ProviderError(
+    "GENERATION_FAILED",
+    `Fal request for "${model}" failed (${status})${snippet}`,
+  );
 }
 
 type FalImage = { url: string; content_type?: string };
@@ -167,7 +181,11 @@ export const falProvider: ImageProvider = {
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw mapError(response.status, text);
+      // Dev diagnostic: which model + status actually failed (never logs the key).
+      if (process.env.NODE_ENV !== "production") {
+        console.error(`[fal] ${response.status} for model "${model}"${text ? `: ${text.slice(0, 300)}` : ""}`);
+      }
+      throw mapError(response.status, text, model);
     }
 
     const json = (await response.json()) as FalResponse;

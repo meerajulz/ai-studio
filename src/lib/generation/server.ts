@@ -534,13 +534,18 @@ function toFriendlyError(error: unknown): Error {
   if (isProviderError(error)) {
     switch (error.code) {
       case "MISSING_TOKEN":
-        return new Error("Image generation isn't configured yet.");
+        // Credentials rejected or absent. Surface the provider's specific message (e.g. 401 vs
+        // "set FAL_KEY") so it's not the old misleading "isn't configured yet".
+        return new Error(error.message || "Image generation credentials were rejected — check FAL_KEY.");
       case "PROVIDER_UNAVAILABLE":
         return new Error("The model is warming up or busy — try again in a moment.");
       case "TIMEOUT":
         return new Error("Generation timed out — please try again.");
       case "CONTENT_MODERATED":
         return new Error(error.message); // already user-facing + specific (safety filter / blank image)
+      case "GENERATION_FAILED":
+        // Now carries the model + HTTP status (e.g. a 403 model-access problem) — show it, don't mask it.
+        return new Error(error.message || "Generation failed — try a different prompt or try again.");
       default:
         return new Error("Generation failed — try a different prompt or try again.");
     }
