@@ -11,6 +11,7 @@ import {
 import {
   useIdentities,
   useIdentity,
+  useIdentityEngineOverview,
   defaultIdentityFilters,
 } from "@/hooks/use-identities";
 import {
@@ -74,6 +75,9 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   const isDev = process.env.NODE_ENV !== "production";
   // Selected identity's analyzed images (for the manual reference picker). Fetch only in dev.
   const { data: identityDetail } = useIdentity(isDev && identityId ? identityId : "");
+  // Whether the identity has a trained LoRA — generation then uses ONE reference + the LoRA.
+  const { data: engineOverview } = useIdentityEngineOverview(isDev && identityId ? identityId : "");
+  const hasTrainedLora = engineOverview?.capabilities.conditioning.lora ?? false;
   const { data: history, isLoading: historyLoading } =
     useProjectGenerations(projectId);
   const { data: identities } = useIdentities(projectId, defaultIdentityFilters);
@@ -338,6 +342,11 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
                 onChange={setManualSelected}
                 max={4}
                 disabled={isPending}
+                note={
+                  hasTrainedLora
+                    ? "This identity has a trained LoRA — generation uses your #1 reference + the LoRA (one image, model fal-ai/flux-kontext-lora). Extra picks are ignored."
+                    : undefined
+                }
               />
             ) : (
               <p className="text-muted-foreground text-xs">
@@ -658,13 +667,31 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
             />
           ) : null}
           <DebugRow
+            label="References selected"
+            value={`${debug.referenceImages.offered}${debug.referenceImages.manual ? " (manual)" : ""}`}
+          />
+          <DebugRow
+            label="Model reference limit"
+            value={
+              debug.referenceImages.modelMaxReferences != null
+                ? `${debug.referenceImages.modelMaxReferences}${debug.model ? ` — ${debug.model}` : ""}`
+                : "—"
+            }
+          />
+          {debug.referenceImages.devCap != null ? (
+            <DebugRow label="Dev References cap" value={`${debug.referenceImages.devCap}`} />
+          ) : null}
+          <DebugRow
             label="Reference images sent"
-            value={`${debug.referenceImages.sent} of ${debug.referenceImages.offered} offered${
+            value={`${debug.referenceImages.sent} of ${debug.referenceImages.offered}${
               debug.referenceImages.sentRoles.length
                 ? ` (${debug.referenceImages.sentRoles.join(", ")})`
                 : ""
             }`}
           />
+          {debug.referenceImages.limitReason ? (
+            <DebugRow label="Why fewer than selected" value={debug.referenceImages.limitReason} />
+          ) : null}
           {debug.referenceImages.sentImages.length ? (
             <DebugRow
               label="Images sent (in order)"

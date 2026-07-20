@@ -18,6 +18,8 @@ type Props = {
   onChange: (ordered: string[]) => void;
   max: number;
   disabled?: boolean;
+  /** Optional caveat shown at the top (e.g. a single-reference model / trained LoRA will cap this). */
+  note?: string;
 };
 
 /**
@@ -25,7 +27,7 @@ type Props = {
  * sent — and in what order — to isolate identity drift. The ordered strip is the exact order sent to
  * the provider. Pure UI; only rendered in development.
  */
-export function ManualReferencePicker({ images, selected, onChange, max, disabled }: Props) {
+export function ManualReferencePicker({ images, selected, onChange, max, disabled, note }: Props) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const byId = new Map(images.map((i) => [i.mediaId, i] as const));
   const orderOf = (id: string) => selected.indexOf(id);
@@ -46,6 +48,11 @@ export function ManualReferencePicker({ images, selected, onChange, max, disable
 
   return (
     <div className="grid gap-3">
+      {note ? (
+        <p className="rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+          {note}
+        </p>
+      ) : null}
       {selected.length ? (
         <div>
           <p className="text-muted-foreground mb-1 text-xs">

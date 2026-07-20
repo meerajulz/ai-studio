@@ -238,6 +238,14 @@ async function runImageGeneration(
             selectionReason: referenceSelectionReason,
             identityAnchor: identityAnchor != null,
             manual: manualMode,
+            ...describeReferenceLimit({
+              offered: referenceImages.length + (identityAnchor ? 1 : 0),
+              sent: readNumber(result.requestPayload, "usedReferenceImages"),
+              modelMax: routedModel?.model.maxReferences ?? null,
+              devCap: opts.maxReferences ?? null,
+              model: result.model,
+              hasLora: hasLora,
+            }),
           },
           referenceSelection: selectionDebug,
           // Identity-anchor diagnostic: the top face candidates + why the winner won (dev evidence).
@@ -286,6 +294,36 @@ function readRefImages(obj: Record<string, unknown> | undefined): { url: string;
     const role = (r as Record<string, unknown>).role;
     return typeof url === "string" ? [{ url, role: typeof role === "string" ? role : "reference" }] : [];
   });
+}
+
+/**
+ * Explain (for the Debug panel) why fewer references were sent than offered — the MODEL's own limit
+ * (e.g. Kontext+LoRA accepts one `image_url`) vs the dev References cap. Resolves the confusing
+ * "manual: 4 images" next to "1 of 4 sent": now the reason is explicit (Milestone 24 audit).
+ */
+function describeReferenceLimit(x: {
+  offered: number;
+  sent: number;
+  modelMax: number | null;
+  devCap: number | null;
+  model: string;
+  hasLora: boolean;
+}): { modelMaxReferences: number | null; devCap: number | null; limitReason: string } {
+  let limitReason = "";
+  if (x.sent < x.offered) {
+    const causes: string[] = [];
+    if (x.modelMax != null && x.modelMax === x.sent) {
+      causes.push(`the model "${x.model}" accepts ${x.modelMax} reference${x.modelMax === 1 ? "" : "s"}`);
+    }
+    if (x.devCap != null && x.devCap === x.sent) causes.push(`the dev References cap is ${x.devCap}`);
+    limitReason = causes.length
+      ? `Sent ${x.sent} of ${x.offered} — ${causes.join(" and ")}.`
+      : `Sent ${x.sent} of ${x.offered}.`;
+    if (x.hasLora && x.modelMax === 1) {
+      limitReason += " The trained LoRA carries identity, so only the top reference is used.";
+    }
+  }
+  return { modelMaxReferences: x.modelMax, devCap: x.devCap, limitReason };
 }
 
 /** Debug-safe summary of the Visual Package (booleans + counts, never signed URLs). */

@@ -108,6 +108,9 @@ export type ReferenceImageDebug = {
   selectionReason: string;
   identityAnchor: boolean; // whether an Identity Anchor was prepended (Milestone 20)
   manual: boolean; // dev manual reference override was used (Milestone 20)
+  modelMaxReferences: number | null; // the chosen model's own reference limit (Milestone 24)
+  devCap: number | null; // dev References cap (1·2·3·4·Auto), null = Auto
+  limitReason: string; // why fewer than offered were sent (empty when all offered were sent)
 };
 
 export type GenerationResult = {
