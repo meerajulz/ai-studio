@@ -46,6 +46,15 @@ function mapError(status: number, message: string, model: string): ProviderError
       "Your Fal account is out of balance — top up at fal.ai/dashboard/billing to generate or train.",
     );
   }
+  // The MODEL's content policy refused the prompt/image (e.g. GPT Image is much stricter than FLUX).
+  // Not a bug or a config issue — surface it cleanly with an actionable next step.
+  if (/content[_ ]?policy|content checker|flagged by|safety system|moderation/i.test(message)) {
+    return new ProviderError(
+      "CONTENT_MODERATED",
+      `"${model}" refused this request on its content policy. That model (e.g. GPT Image) is stricter ` +
+        `than FLUX — rephrase the prompt, or switch to a FLUX / Kontext model (the Auto default).`,
+    );
+  }
   // 401 = the KEY is wrong/missing (a real config problem). 403 = the key is fine but the account
   // isn't allowed to use THIS model — a model-access problem, NOT "not configured". Keep them distinct
   // so the message is actionable (this was previously masked as "isn't configured yet").
