@@ -2292,3 +2292,35 @@ Accepted — implemented. `tsc` + `npm run build` pass; `verify-training-infrast
 routing to `flux-kontext-lora`) + `verify-identity-engine.ts` (31) + `verify-selection.ts` green. **Real
 training is async + paid — the live end-to-end run (train → progress → LoRA v1 → generate `reference+lora`)
 is user-driven** (needs `FAL_KEY`). Then the 4-way benchmark (baseline for M25). Next = M25 Identity Evaluation.
+
+# Decision 058
+
+Date
+2026-07-21
+
+Decision
+**Identity adapter research (Milestone 24.5).** After LoRA benchmarking (great tattoos/body/hair, weak
+FACE), researched the identity-preservation ecosystem instead of assuming PuLID. Findings + recommendation
+captured in **`docs/IDENTITY_TECHNOLOGIES.md`** (a living reference):
+
+1. **Face adapters are face-only** (PuLID/InfiniteYou/InstantID inject a face embedding; no tattoo/body
+   preservation). LoRA remains best for tattoos/body/hair → **keep LoRA**, add a face technique alongside.
+2. **Hosted single-call APIs can't stack LoRA + a face adapter** (PuLID takes a face image, not a `loras`
+   array). Stacking needs ComfyUI (ruled out). So they are **alternative** strategies chosen per request.
+3. **PuLID** = best FLUX face adapter **on Fal** (`fal-ai/flux-pulid`; output shape our `fal.ts` already
+   handles). **InfiniteYou** (ByteDance, ICCV'25) **beats PuLID** but is **Replicate-only**. DreamO's Fal
+   endpoint is deprecated; InstantID is SDXL; WithAnyone has no hosted API yet.
+
+Recommendation: add **PuLID (Fal)** as the first face-identity module now (validates the pluggable engine
+with a real 2nd technique, hosted, drop-in) + a reusable identity **benchmark**; adopt **InfiniteYou via a
+new Replicate provider** next if PuLID's face is insufficient. Keep the architecture unchanged — plug in
+via the Identity Module Registry, like Reference/LoRA.
+
+Reason
+The milestone's goal is a technology-agnostic identity platform, not a bet on PuLID. Research first keeps
+us honest: LoRA + a face adapter cover different halves, and the "best" depends on hosting (PuLID on Fal,
+InfiniteYou on Replicate). Documenting it once means future adapters are a table update, not new research.
+
+Status
+Research complete; `IDENTITY_TECHNOLOGIES.md` shipped. **Implementation path pending user pick** (PuLID-Fal
+now vs InfiniteYou-Replicate vs benchmark-first). No code/architecture change yet.

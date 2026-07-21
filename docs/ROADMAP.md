@@ -240,6 +240,13 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       `reference+lora` to **`fal-ai/flux-kontext-lora`** (single ref + `loras` + trigger phrase).
       Functional **Train** button + progress. Live end-to-end is user-run (needs `FAL_KEY` + cost).
       `verify-training-infrastructure.ts` (routing). **NOT M24:** eval/retries/multi-LoRA.
+- [~] **Milestone 24.5 — Identity Adapter Research** (Decision 058) — researched the identity-preservation
+      ecosystem (PuLID / InfiniteYou / InstantID / DreamO / UNO / WithAnyone / FLUX.2). Findings: face
+      adapters are **face-only** (LoRA still wins tattoos/body); hosted single-call APIs **can't stack**
+      LoRA + a face adapter. **PuLID** is the best FLUX face adapter **on Fal**; **InfiniteYou** beats it
+      but is **Replicate-only**. New [IDENTITY_TECHNOLOGIES.md](./IDENTITY_TECHNOLOGIES.md) (living
+      reference). **Recommendation:** add PuLID (Fal) module + reusable benchmark; adopt InfiniteYou via a
+      Replicate provider next if PuLID's face is insufficient. Keep LoRA. Implementation pending user pick.
 - [ ] **Milestone 25 — Identity Evaluation Engine** ← **next** — implement `IdentityEvaluator` (InsightFace face
       similarity + embeddings for tattoos/hair/etc.); fill the reserved `IdentityEvaluation` metrics.
 - [ ] **Milestone 26 — Automatic Retry & Best-Candidate Selection** — use evaluation to retry/rank
