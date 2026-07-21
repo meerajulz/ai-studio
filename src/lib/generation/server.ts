@@ -262,6 +262,15 @@ async function runImageGeneration(
 
     return { generationId: generation.id, media, debug };
   } catch (error) {
+    // Dev diagnostic: log the COMPILED prompt actually sent (not the user's idea) + the model, so a
+    // provider refusal (e.g. GPT Image content policy) can be traced to specific wording.
+    if (DEBUG_ENABLED) {
+      console.error(
+        `[generation] FAILED · ${provider.id}/${routedModel?.model.id ?? "t2i"}\n` +
+          `  prompt sent: ${promptForProvider}\n` +
+          `  error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     await prisma.generation
       .update({
         where: { id: generation.id },
