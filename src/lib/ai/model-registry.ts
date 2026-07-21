@@ -13,7 +13,7 @@
 import type { ProviderCapability } from "./capabilities";
 
 /** How the provider adapter builds the request body for a model. */
-export type PayloadKind = "t2i" | "image_url" | "image_urls" | "image_url_lora";
+export type PayloadKind = "t2i" | "image_url" | "image_urls" | "image_url_lora" | "pulid";
 
 export type ModelSpec = {
   id: string; // provider model id, e.g. "fal-ai/flux-pro/kontext/max/multi"
@@ -147,6 +147,22 @@ export const MODEL_REGISTRY: ModelSpec[] = [
     // a manual pick — selecting it by hand would send a request with no LoRA and Fal rejects it.
     autoOnly: true,
     note: "identity-trained LoRA + one reference (Identity Anchor); requires a trained model",
+  },
+  {
+    // PuLID face-identity adapter (Milestone 24.5). Zero-shot: generates from ONE face image +
+    // prompt (no training, no scene refs, no LoRA). Chosen only when the plan's primary technique is
+    // PuLID. Face-only — pair with LoRA (per-request) for tattoo/body scenes.
+    id: "fal-ai/flux-pulid",
+    provider: "fal",
+    vendor: "FLUX",
+    label: "PuLID (face identity)",
+    capabilities: ["imageGeneration", "identityPreservation", "faceId", "realism"],
+    maxReferences: 1, // a single face image
+    payloadKind: "pulid",
+    priority: 86,
+    enabled: true,
+    autoOnly: true, // the app supplies the face — not a manual pick
+    note: "zero-shot face identity; strong face, no tattoo/body preservation",
   },
   // Non-identity fallbacks (used by routing when there are no references).
   {

@@ -133,6 +133,7 @@ export const referenceEngine: IdentityModule = {
   kind: "reference",
   priority: 100,
   enabled: true,
+  autoSelect: true, // the always-on baseline
   async availability() {
     // Always available — references are the universal baseline (even with no analyzed candidates it
     // gracefully falls back to the static Visual Package, and may simply return no references).

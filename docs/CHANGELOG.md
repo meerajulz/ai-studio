@@ -7,8 +7,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-19, build + tsc + verify-training-infrastructure[28/28] + verify-identity-engine[31/31] +
-> verify-selection green):** **Milestone 24 — LoRA Trainer (first real training, end-to-end)** (Decision 057).
+> **▶ Resume (2026-07-21, build + tsc + verify-identity-engine[44/44] + verify-training-infrastructure[30/30] +
+> verify-selection green):** **Milestone 24.5 — Identity Adapter Research + PuLID module** (Decisions 058, 059).
+> Researched the identity ecosystem → new **`docs/IDENTITY_TECHNOLOGIES.md`** (living reference; face adapters
+> are face-only, LoRA still best for tattoos/body, hosted APIs can't stack them; PuLID best on Fal, InfiniteYou
+> best overall but Replicate-only). **Implemented PuLID** (`fal-ai/flux-pulid`) as the first **face-identity
+> module** — zero-shot (one face image + prompt), new `faceId` capability + `pulid` payload kind. The engine
+> now selects **ONE primary technique** (LoRA vs PuLID are mutually exclusive in a hosted call); **PuLID is
+> opt-in** (`IdentityModule.autoSelect:false`) so the **Auto default is unchanged** (reference / reference+lora).
+> Dev **strategy benchmark** on Generate (`Auto · Reference · Reference+LoRA · PuLID`, `strategyOverride` →
+> `preferEngine`). No architecture change (plugged in via the registry). LoRA untouched. **Next = InfiniteYou
+> via a Replicate provider (if PuLID's face is insufficient) + M25 automatic scoring.**
+
+> **▶ Prior (2026-07-19):** **Milestone 24 — LoRA Trainer (first real training, end-to-end)** (Decision 057).
 > The payoff milestone: a READY identity trains a LoRA on Fal and immediately generates with **Reference +
 > LoRA**. **FalTrainer** is now a real Fal **queue** client (`fal-ai/flux-lora-portrait-trainer`) — submit /
 > poll / fetch weights. **Dataset packaging** (`identity/training.ts` `packageDataset`): the CURATED

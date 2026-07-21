@@ -99,6 +99,15 @@ derived from the **Training Registry** (which enabled providers can train a trai
 a new provider just appears in `providers`, no UI change. Surfaced through `getIdentityEngineOverview` →
 the **Models** tab renders the flags + `TrainingState` directly.
 
+## Primary technique selection (M24.5)
+
+Hosted identity techniques are **mutually exclusive** in a single call (LoRA via Kontext-LoRA, PuLID via
+flux-pulid — you can't stack them). So the engine picks **ONE primary technique** on top of the Reference
+baseline: strategy is always exactly `reference`, `reference+lora`, or `reference+pulid`. Modules carry
+`autoSelect` — **LoRA** is a strict upgrade (`true`, chosen by Auto when trained); **PuLID** is a
+face-only trade-off (`false`, opt-in via the dev strategy benchmark / `preferEngine`). The Auto default is
+therefore unchanged by adding PuLID. See `docs/IDENTITY_TECHNOLOGIES.md`.
+
 ## Data flow (generation)
 
 `runImageGeneration` used to inline exposure-filter → reference-package → anchor. It now calls

@@ -39,7 +39,7 @@ the benchmark decide the defaults. This is exactly what the strategy-routing was
 
 | Tech | Base | Face | Tattoo/body | Multi-ref | Text align | Hosted API | License | Verdict |
 |---|---|---|---|---|---|---|---|---|
-| **PuLID-Flux** | FLUX.1-dev | good | ❌ face-only | ❌ single | medium (copy-paste) | **Fal** `fal-ai/flux-pulid`, Replicate | Apache-2.0 (code) | **ADOPT (Fal, now)** |
+| **PuLID-Flux** | FLUX.1-dev | good | ❌ face-only | ❌ single | medium (copy-paste) | **Fal** `fal-ai/flux-pulid`, Replicate | Apache-2.0 (code) | **✅ SHIPPED** (opt-in module) |
 | **InfiniteYou** (InfU) | FLUX.1-dev | **best** | ❌ face-only | ❌ single | **high** | **Replicate** `zsxkib/infinite-you`, HF | Apache-2.0 (ICCV'25) | **ADOPT NEXT (needs Replicate)** |
 | **LoRA** (portrait) | FLUX.1-dev | weak | **best** | 1 (Kontext-LoRA) | high | **Fal** (train + infer) | — | **KEEP** (already shipped) |
 | **InstantID** | SDXL | good | ❌ | ❌ | medium | Fal/Replicate (SDXL) | Apache-2.0 | REJECT (SDXL base ≪ FLUX) |

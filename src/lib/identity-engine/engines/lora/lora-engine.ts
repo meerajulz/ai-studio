@@ -26,6 +26,7 @@ export const loraEngine: IdentityModule = {
   kind: "trainable",
   priority: 80,
   enabled: true, // Milestone 24 — enabled; availability still gates on a trained model existing
+  autoSelect: true, // a trained LoRA is a strict upgrade → auto-used when present
 
   async availability(ctx: ConditioningContext): Promise<ModuleAvailability> {
     const ready = latestLora(ctx);

@@ -22,8 +22,15 @@ export interface IdentityModule {
   kind: EngineKind;
   /** Auto tiebreak among layerable modules (higher wins), like `ModelSpec.priority`. */
   priority: number;
-  /** Registered + selectable. Only the Reference module is enabled in the foundation. */
+  /** Registered + selectable. */
   enabled: boolean;
+  /**
+   * Whether the engine may choose this as the primary technique AUTOMATICALLY (Auto strategy). A LoRA
+   * is a strict upgrade when trained → `true`. PuLID/adapters are a different TRADE-OFF (face-only, no
+   * tattoos/scene) → `false`: opt-in only, chosen when explicitly requested (benchmark). The Reference
+   * baseline always runs regardless.
+   */
+  autoSelect: boolean;
 
   /** Can this module condition THIS identity right now? (e.g. is a trained model ready?) */
   availability(ctx: ConditioningContext): Promise<ModuleAvailability>;

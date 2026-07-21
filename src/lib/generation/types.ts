@@ -49,6 +49,12 @@ export type GenerateImageInput = {
   modelOverride?: string;
   /** Model selection mode (Milestone 21): "auto" = capability router picks; "manual" = the id above. */
   modelMode?: "auto" | "manual";
+  /**
+   * DEV-only identity STRATEGY benchmark (Milestone 24.5): force the primary identity technique —
+   * "reference" (baseline only), "lora" (Reference+LoRA), or "pulid" (PuLID face). Undefined = the
+   * engine picks. Ignored in prod.
+   */
+  strategyOverride?: "reference" | "lora" | "pulid";
 };
 
 /**

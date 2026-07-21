@@ -240,13 +240,16 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       `reference+lora` to **`fal-ai/flux-kontext-lora`** (single ref + `loras` + trigger phrase).
       Functional **Train** button + progress. Live end-to-end is user-run (needs `FAL_KEY` + cost).
       `verify-training-infrastructure.ts` (routing). **NOT M24:** eval/retries/multi-LoRA.
-- [~] **Milestone 24.5 — Identity Adapter Research** (Decision 058) — researched the identity-preservation
-      ecosystem (PuLID / InfiniteYou / InstantID / DreamO / UNO / WithAnyone / FLUX.2). Findings: face
-      adapters are **face-only** (LoRA still wins tattoos/body); hosted single-call APIs **can't stack**
-      LoRA + a face adapter. **PuLID** is the best FLUX face adapter **on Fal**; **InfiniteYou** beats it
-      but is **Replicate-only**. New [IDENTITY_TECHNOLOGIES.md](./IDENTITY_TECHNOLOGIES.md) (living
-      reference). **Recommendation:** add PuLID (Fal) module + reusable benchmark; adopt InfiniteYou via a
-      Replicate provider next if PuLID's face is insufficient. Keep LoRA. Implementation pending user pick.
+- [x] **Milestone 24.5 — Identity Adapter Research + PuLID module** (Decisions 058, 059) — researched the
+      identity ecosystem (PuLID/InfiniteYou/InstantID/DreamO/UNO/WithAnyone/FLUX.2) →
+      [IDENTITY_TECHNOLOGIES.md](./IDENTITY_TECHNOLOGIES.md). Findings: face adapters are **face-only**
+      (LoRA still wins tattoos/body); hosted APIs **can't stack** LoRA + a face adapter. **Implemented
+      PuLID** (`fal-ai/flux-pulid`) as the first **face-identity module** (zero-shot, `faceId` capability).
+      Engine now picks **ONE primary technique** (LoRA vs PuLID are mutually exclusive); **PuLID is
+      opt-in** (`autoSelect:false` — face-only trade-off), so the Auto default is unchanged
+      (reference / reference+lora). Dev **strategy benchmark** on Generate (Auto·Reference·Reference+LoRA·
+      PuLID). Keeps LoRA. `verify-identity-engine.ts` (44). **Next:** InfiniteYou via a Replicate provider
+      if PuLID's face is insufficient; automatic scoring in M25.
 - [ ] **Milestone 25 — Identity Evaluation Engine** ← **next** — implement `IdentityEvaluator` (InsightFace face
       similarity + embeddings for tattoos/hair/etc.); fill the reserved `IdentityEvaluation` metrics.
 - [ ] **Milestone 26 — Automatic Retry & Best-Candidate Selection** — use evaluation to retry/rank

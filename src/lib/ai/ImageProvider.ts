@@ -43,6 +43,8 @@ export type ImageGenerationRequest = {
    * them. Set by the Identity Engine when the conditioning strategy includes a trained model.
    */
   loras?: { path: string; scale?: number }[];
+  /** PuLID identity strength (Milestone 24.5) — how strongly the face adapter conditions on the face. */
+  idWeight?: number;
   // Reserved (NOT implemented): width/height/seed/negativePrompt.
 };
 

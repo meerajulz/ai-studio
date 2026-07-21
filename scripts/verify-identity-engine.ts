@@ -123,9 +123,11 @@ async function main() {
   const byId = Object.fromEntries(IDENTITY_MODULES.map((m) => [m.id, m]));
   check("reference enabled", byId.reference?.enabled === true);
   check("lora enabled (M24)", byId.lora != null && byId.lora.enabled === true);
-  check("pulid registered + disabled", byId.pulid != null && byId.pulid.enabled === false);
+  check("pulid enabled (M24.5)", byId.pulid != null && byId.pulid.enabled === true);
+  check("pulid is opt-in (autoSelect false)", byId.pulid?.autoSelect === false);
+  check("lora is auto-select", byId.lora?.autoSelect === true);
   check("instantid registered + disabled", byId.instantid != null && byId.instantid.enabled === false);
-  check("reference + lora enabled (2)", IDENTITY_MODULES.filter((m) => m.enabled).length === 2);
+  check("reference + lora + pulid enabled (3)", IDENTITY_MODULES.filter((m) => m.enabled).length === 3);
 
   // 4. DATASET — readiness computed from mock knowledge.
   console.log("\nDataset readiness:");
@@ -147,8 +149,8 @@ async function main() {
   };
   const caps = await getCapabilities(emptyCtx);
   check("conditioning.reference true", caps.conditioning.reference === true);
-  check("lora/pulid/instantid false today",
-    !caps.conditioning.lora && !caps.conditioning.pulid && !caps.conditioning.instantid);
+  check("lora/instantid unavailable; PuLID available (zero-shot, analyzed identity)",
+    !caps.conditioning.lora && caps.conditioning.pulid && !caps.conditioning.instantid);
   check("training.available true (Fal registered)", caps.training.available === true);
   check("training.providers = ['fal']", JSON.stringify(caps.training.providers) === JSON.stringify(["fal"]));
   check("training.recommendedProvider = 'fal'", caps.training.recommendedProvider === "fal");
@@ -184,6 +186,24 @@ async function main() {
   check("lora trigger word threaded into the plan", loraPlan.loraTriggerWord === "jln");
   const noModelPlan = await planConditioning({ identityId: "id_mock", directive, candidates: library });
   check("no trained model → strategy stays 'reference'", noModelPlan.strategy === "reference");
+
+  // 7. PuLID (M24.5) — opt-in face strategy, mutually exclusive with LoRA; the engine picks ONE primary.
+  console.log("\nPuLID (opt-in, pick-one primary):");
+  check("PuLID is NOT the auto default (analyzed identity stays 'reference')",
+    noModelPlan.strategy === "reference", noModelPlan.strategy);
+  const pulidPlan = await planConditioning({
+    identityId: "id_mock", directive, candidates: library, preferEngine: "pulid",
+  });
+  check("preferEngine 'pulid' → strategy 'reference+pulid'", pulidPlan.strategy === "reference+pulid", pulidPlan.strategy);
+  check("PuLID plan carries a face reference url", typeof pulidPlan.pulidReferenceUrl === "string");
+  const loraModelReq = { id: "m1", engine: "lora" as const, version: 1, triggerWord: "jln", artifactRef: "blob://w", modelCompatibility: ["fal-ai/flux-kontext-lora"] };
+  const autoLora = await planConditioning({ identityId: "id_mock", directive, candidates: library, trainedModels: [loraModelReq] });
+  check("Auto with a trained LoRA → 'reference+lora' (not pulid)", autoLora.strategy === "reference+lora", autoLora.strategy);
+  const forcePulidOverLora = await planConditioning({ identityId: "id_mock", directive, candidates: library, trainedModels: [loraModelReq], preferEngine: "pulid" });
+  check("explicit 'pulid' overrides an available LoRA (pick-one)", forcePulidOverLora.strategy === "reference+pulid", forcePulidOverLora.strategy);
+  check("single primary — never reference+lora+pulid", forcePulidOverLora.engines.length === 2);
+  const forceRef = await planConditioning({ identityId: "id_mock", directive, candidates: library, trainedModels: [loraModelReq], preferEngine: "reference" });
+  check("preferEngine 'reference' forces the baseline only", forceRef.strategy === "reference", forceRef.strategy);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail > 0) process.exit(1);

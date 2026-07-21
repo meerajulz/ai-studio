@@ -71,6 +71,9 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   // DEV model selection: Auto (capability router) · Manual (pick one) · Developer (Manual + metadata).
   const [modelMode, setModelMode] = useState<"auto" | "manual" | "developer">("auto");
   const [modelId, setModelId] = useState<string | undefined>(undefined);
+  // Identity STRATEGY benchmark (M24.5): undefined = Auto; else force reference / lora / pulid.
+  const [strategyOverride, setStrategyOverride] =
+    useState<"reference" | "lora" | "pulid" | undefined>(undefined);
   const generateMut = useGenerateImage(projectId);
   const isDev = process.env.NODE_ENV !== "production";
   // Selected identity's analyzed images (for the manual reference picker). Fetch only in dev.
@@ -132,6 +135,7 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
           isDev && refMode === "manual" && manualSelected.length ? manualSelected : undefined,
         modelMode: isDev && modelMode === "auto" ? "auto" : isDev ? "manual" : undefined,
         modelOverride: isDev && modelMode !== "auto" ? modelId : undefined,
+        strategyOverride: isDev ? strategyOverride : undefined,
       });
       setViewing(res.media);
       setDebug(res.debug ?? null); // dev-only; undefined in production
@@ -216,6 +220,33 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
         </div>
         {isDev && identityId ? (
           <div className="grid gap-2 rounded-md border border-dashed p-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground mr-1 text-sm">
+                Identity strategy <span className="text-[10px] uppercase">dev</span>
+              </span>
+              {(
+                [
+                  [undefined, "Auto", true],
+                  ["reference", "Reference", true],
+                  ["lora", "Reference + LoRA", hasTrainedLora],
+                  ["pulid", "PuLID (face)", engineOverview?.capabilities.conditioning.pulid ?? false],
+                ] as const
+              ).map(([value, label, enabled]) => (
+                <Button
+                  key={label}
+                  type="button"
+                  size="sm"
+                  variant={strategyOverride === value ? "default" : "outline"}
+                  disabled={isPending || !enabled}
+                  onClick={() => setStrategyOverride(value)}
+                >
+                  {label}
+                </Button>
+              ))}
+              <span className="text-muted-foreground text-xs">
+                benchmark: same prompt across techniques (Debug shows the strategy + model)
+              </span>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-muted-foreground mr-1 text-sm">
                 References <span className="text-[10px] uppercase">dev</span>

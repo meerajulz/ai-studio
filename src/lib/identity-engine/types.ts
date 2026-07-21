@@ -49,6 +49,11 @@ export type ConditioningRequest = {
    */
   trainedModels?: TrainedModelRef[];
   artifacts?: ArtifactRef[];
+  /**
+   * Force a specific identity technique as the primary (Milestone 24.5) — for the dev strategy
+   * benchmark (`lora` vs `pulid`). Undefined = the engine picks the highest-priority available one.
+   */
+  preferEngine?: EngineId;
 };
 
 /**
@@ -93,6 +98,9 @@ export type ConditioningContribution = {
   loraWeightsUrl?: string | null;
   loraTriggerWord?: string | null;
   loraScale?: number | null;
+  /** PuLID face reference + identity strength (Milestone 24.5) — set by the PuLID module. */
+  pulidReferenceUrl?: string | null;
+  pulidIdWeight?: number | null;
   adapterInputs?: Record<string, unknown> | null;
   reason: string;
   /** Partial debug the module can attach (reference module fills selection + anchor ranking). */
@@ -135,6 +143,9 @@ export type ConditioningPlan = {
   loraWeightsUrl: string | null;
   loraTriggerWord: string | null;
   loraScale: number | null;
+  /** When the strategy is PuLID (Milestone 24.5): the face reference + identity strength. */
+  pulidReferenceUrl: string | null;
+  pulidIdWeight: number | null;
   adapterInputs: Record<string, unknown> | null;
   reason: string;
   debug?: ConditioningDebug;

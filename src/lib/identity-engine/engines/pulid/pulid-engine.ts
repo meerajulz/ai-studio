@@ -1,15 +1,18 @@
 /**
- * PuLID Engine (Milestone 22) — PLACEHOLDER, DISABLED.
+ * PuLID Engine (Milestone 22 architecture · Milestone 24.5 enabled).
  *
- * An `adapter` (NON-TRAINABLE) identity module: PuLID injects a precomputed face-ID embedding at
- * generation time → strategy `reference+pulid`, with no training run. It is registered `enabled:
- * false` to prove the architecture supports non-trainable engines alongside trainable ones. Its
- * embedding artifact would live in `IdentityArtifact` (kind: "id-vector"). No integration here.
+ * A `faceId` adapter: PuLID-Flux (`fal-ai/flux-pulid`) generates from a SINGLE face image + prompt —
+ * zero-shot (no training, no precomputed embedding). It is face-only (no tattoo/body preservation) and
+ * mutually exclusive with LoRA/Kontext in one hosted call, so the engine treats it as a PRIMARY
+ * technique, not additive. Availability = the identity has analyzed images (a face reference exists);
+ * `contribute` picks the strongest frontal face (the Identity Anchor) via the existing selection layer.
  */
+import { filterCandidatesByExposure, pickIdentityAnchor } from "@/lib/selection";
 import type { IdentityModule } from "../../modules/IdentityModule";
 import type {
   ConditioningContext,
   ConditioningContribution,
+  ConditioningRequest,
   ModuleAvailability,
 } from "../../types";
 
@@ -18,20 +21,32 @@ export const pulidEngine: IdentityModule = {
   label: "PuLID Engine",
   kind: "adapter",
   priority: 70,
-  enabled: false, // placeholder — not integrated
+  enabled: true, // Milestone 24.5 — zero-shot; available as soon as the library is analyzed
+  autoSelect: false, // face-only trade-off (no tattoos/scene) → opt-in via the strategy benchmark, not auto
 
   async availability(ctx: ConditioningContext): Promise<ModuleAvailability> {
-    const artifact = ctx.artifacts.find((a) => a.engine === "pulid" || a.kind === "id-vector");
-    if (!artifact) return { available: false, reason: "no PuLID identity embedding for this identity" };
-    return { available: true, reason: "PuLID embedding available" };
+    if (!ctx.hasAnalyzedCandidates) {
+      return { available: false, reason: "no analyzed images — analyze the library to enable PuLID" };
+    }
+    return { available: true, reason: "PuLID face conditioning available (zero-shot)" };
   },
 
-  async contribute(ctx: ConditioningContext): Promise<ConditioningContribution> {
-    const artifact = ctx.artifacts.find((a) => a.engine === "pulid" || a.kind === "id-vector") ?? null;
+  async contribute(
+    _ctx: ConditioningContext,
+    req: ConditioningRequest,
+  ): Promise<ConditioningContribution> {
+    // Pick the strongest frontal face, exposure-filtered (never send a nude/lingerie face reference).
+    const safe = filterCandidatesByExposure(req.directive, req.candidates ?? []).safe;
+    const face = safe.length ? pickIdentityAnchor(safe) : null;
+    if (!face) {
+      return { part: "pulid", reason: "no suitable frontal face for PuLID" };
+    }
     return {
       part: "pulid",
-      adapterInputs: artifact ? { pulid: { ref: artifact.ref } } : null,
-      reason: artifact ? "conditioning with PuLID embedding" : "no PuLID embedding",
+      pulidReferenceUrl: face.url,
+      pulidIdWeight: 1,
+      adapterInputs: { pulid: { referenceUrl: face.url, idWeight: 1 } },
+      reason: "conditioning identity with PuLID (face reference)",
     };
   },
 };

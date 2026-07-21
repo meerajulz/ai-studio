@@ -17,6 +17,7 @@ export type ProviderCapability =
   | "outpainting"
   | "video"
   | "lora"
+  | "faceId" // identity via a face adapter (PuLID/InfiniteYou/…) — a face embedding, not a trained model
   | "ipAdapter"
   | "controlNet"
   | "asyncJobs";

@@ -18,6 +18,7 @@ export const instantIdEngine: IdentityModule = {
   kind: "adapter",
   priority: 65,
   enabled: false, // placeholder — not integrated
+  autoSelect: false,
 
   async availability(ctx: ConditioningContext): Promise<ModuleAvailability> {
     const artifact = ctx.artifacts.find((a) => a.engine === "instantid");

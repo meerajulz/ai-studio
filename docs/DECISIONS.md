@@ -2324,3 +2324,48 @@ InfiniteYou on Replicate). Documenting it once means future adapters are a table
 Status
 Research complete; `IDENTITY_TECHNOLOGIES.md` shipped. **Implementation path pending user pick** (PuLID-Fal
 now vs InfiniteYou-Replicate vs benchmark-first). No code/architecture change yet.
+
+# Decision 059
+
+Date
+2026-07-21
+
+Decision
+**PuLID face-identity module (Milestone 24.5 impl).** User chose PuLID-on-Fal. Added as the first
+non-LoRA identity technique via the Identity Module Registry — **no architecture change**.
+
+1. **PuLID module** (`engines/pulid/pulid-engine.ts`, enabled) — a `faceId` **adapter**; ZERO-SHOT
+   (`fal-ai/flux-pulid`: one face image + prompt, no training/embedding). `availability` = the identity
+   is analyzed; `contribute` picks the strongest frontal face via the existing `pickIdentityAnchor` +
+   exposure filter → `reference_image_url` + `id_weight`.
+2. **Pick-ONE-primary composition** (`engine.ts`) — PuLID and LoRA are **mutually exclusive** in a hosted
+   call (PuLID is face→image, takes no scene refs / no `loras`). The engine now selects a **single**
+   primary technique on top of the Reference baseline (was: layer all). Strategy stays
+   `reference` / `reference+lora` / `reference+pulid` (exactly one).
+3. **PuLID is OPT-IN** (`IdentityModule.autoSelect`) — LoRA is a strict upgrade (`autoSelect:true`, used
+   by Auto); PuLID is a **trade-off** (face-only, drops tattoos/scene) so `autoSelect:false` — chosen
+   only when explicitly requested. **Auto default is unchanged**; PuLID doesn't hijack every generation.
+4. **Routing** — new `ProviderCapability` `faceId`, registry `fal-ai/flux-pulid` (`payloadKind:"pulid"`,
+   `autoOnly:true`), `fal.ts` `pulid` body `{prompt, reference_image_url, id_weight}` (output shape
+   already handled). When the plan's primary is PuLID, generation sends only the face + `idWeight`, no
+   trigger word, no scene refs.
+5. **Benchmark** — dev **strategy selector** on Generate (`Auto·Reference·Reference+LoRA·PuLID`) via
+   `GenerateImageInput.strategyOverride` → `ConditioningRequest.preferEngine`. Same prompt across
+   techniques; Debug shows the strategy + model. (Automatic scoring = M25.)
+
+Reason
+PuLID is the only strong FLUX face adapter hosted on our existing Fal provider — a clean drop-in that
+proves the engine routes a real second technique. Keeping it opt-in avoids regressing the (better)
+tattoo/body/scene results LoRA+reference give. Combining face + tattoos in one hosted call isn't possible
+today (needs ComfyUI/FLUX.2) — documented for later.
+
+Alternatives
+Make PuLID the auto default (rejected — face-only would regress tattoos/scene for everyone); layer
+LoRA+PuLID (rejected — not possible in a single hosted call); InfiniteYou first (deferred — better but
+Replicate-only = a new provider; revisit if PuLID's face is insufficient).
+
+Status
+Accepted — implemented. `tsc` + `npm run build` pass; `verify-identity-engine.ts` (44 — incl. pick-one +
+opt-in PuLID) + `verify-training-infrastructure.ts` (30 — incl. faceId routing) + `verify-selection.ts`
+green. **Live A/B is user-run** (needs FAL_KEY balance): Generate → strategy selector → Reference vs
+Reference+LoRA vs PuLID on the same prompt. Next = InfiniteYou (Replicate) / M25 evaluation.

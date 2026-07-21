@@ -122,6 +122,22 @@ function planRequest(request: ImageGenerationRequest): {
   const model = spec?.id ?? DEFAULT_IDENTITY_MULTI_MODEL;
   const kind = spec?.payloadKind ?? "image_urls";
 
+  // PuLID face identity (Milestone 24.5): a single face image drives identity; the prompt drives the
+  // scene. Zero-shot — no loras, no scene references. `reference_image_url` is the Identity Anchor face.
+  if (kind === "pulid") {
+    return {
+      model,
+      body: {
+        prompt: request.prompt,
+        reference_image_url: refs[0].url,
+        id_weight: request.idWeight ?? 1,
+        num_images: 1,
+      },
+      usedRefs: refs.slice(0, 1),
+      supportsReferenceImages: true,
+    };
+  }
+
   // Reference + trained LoRA (Milestone 24): Kontext-LoRA takes a single `image_url` + a `loras`
   // array of trained-weights URLs. The Identity Engine set `request.loras` when the strategy is
   // `reference+lora`; the model router already picked this LoRA-capable model.

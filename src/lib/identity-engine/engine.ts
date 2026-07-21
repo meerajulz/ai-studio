@@ -55,26 +55,57 @@ export async function planConditioning(
   let loraWeightsUrl: string | null = null;
   let loraTriggerWord: string | null = null;
   let loraScale: number | null = null;
+  let pulidReferenceUrl: string | null = null;
+  let pulidIdWeight: number | null = null;
   let adapterInputs: Record<string, unknown> | null = null;
   const engineNotes: string[] = [];
 
-  // Layer any enabled trainable/adapter modules that are available for this identity.
-  const layerable = enabled.filter((m) => m.kind !== "reference").sort(byPriority);
-  for (const m of layerable) {
+  // Pick ONE primary identity technique on top of the Reference baseline. Hosted identity techniques
+  // (LoRA via Kontext-LoRA, PuLID via flux-pulid) are MUTUALLY EXCLUSIVE in a single call — they can't
+  // be stacked — so the engine chooses the highest-priority available one, or an explicit `preferEngine`
+  // (the dev strategy benchmark). This is the composition refinement of Milestone 24.5.
+  const candidates = enabled.filter((m) => m.kind !== "reference").sort(byPriority);
+  const available: typeof candidates = [];
+  for (const m of candidates) {
     const avail = await m.availability(ctx);
-    if (!avail.available) {
-      engineNotes.push(`${m.id}: skipped — ${avail.reason}`);
-      continue;
+    if (avail.available) available.push(m);
+    else engineNotes.push(`${m.id}: skipped — ${avail.reason}`);
+  }
+  let primary: IdentityModule | null;
+  if (req.preferEngine === "reference") {
+    primary = null; // force the reference baseline only (benchmark)
+  } else if (req.preferEngine) {
+    // Explicit request (benchmark) — any available module, even non-auto ones like PuLID.
+    primary = available.find((m) => m.id === req.preferEngine) ?? null;
+    if (!primary) engineNotes.push(`${req.preferEngine}: requested but not available — staying reference`);
+  } else {
+    // Auto — only AUTO-SELECT modules (a LoRA is a strict upgrade; PuLID is a trade-off, opt-in).
+    primary = available.find((m) => m.autoSelect) ?? null;
+  }
+  for (const m of available) {
+    if (m !== primary) engineNotes.push(`${m.id}: available, not primary this request`);
+  }
+
+  if (primary) {
+    const c = await primary.contribute(ctx, req);
+    // Only adopt it if it actually produced usable conditioning (e.g. PuLID found a frontal face).
+    const usable = Boolean(
+      c.loraModelId || c.loraWeightsUrl || c.pulidReferenceUrl || c.adapterInputs,
+    );
+    if (usable) {
+      engines.push(primary.id);
+      strategyParts.push(primary.id);
+      loraModelId = c.loraModelId ?? null;
+      loraWeightsUrl = c.loraWeightsUrl ?? null;
+      loraTriggerWord = c.loraTriggerWord ?? null;
+      loraScale = typeof c.loraScale === "number" ? c.loraScale : null;
+      pulidReferenceUrl = c.pulidReferenceUrl ?? null;
+      pulidIdWeight = typeof c.pulidIdWeight === "number" ? c.pulidIdWeight : null;
+      adapterInputs = c.adapterInputs ?? null;
+      engineNotes.push(`${primary.id}: ${c.reason}`);
+    } else {
+      engineNotes.push(`${primary.id}: ${c.reason} — no usable conditioning, staying reference`);
     }
-    const c = await m.contribute(ctx, req);
-    engines.push(m.id);
-    strategyParts.push(m.id);
-    if (c.loraModelId) loraModelId = c.loraModelId;
-    if (c.loraWeightsUrl) loraWeightsUrl = c.loraWeightsUrl;
-    if (c.loraTriggerWord) loraTriggerWord = c.loraTriggerWord;
-    if (typeof c.loraScale === "number") loraScale = c.loraScale;
-    if (c.adapterInputs) adapterInputs = { ...(adapterInputs ?? {}), ...c.adapterInputs };
-    engineNotes.push(`${m.id}: ${c.reason}`);
   }
 
   const strategy = strategyParts.join("+") as ConditioningStrategy;
@@ -88,6 +119,8 @@ export async function planConditioning(
     loraWeightsUrl,
     loraTriggerWord,
     loraScale,
+    pulidReferenceUrl,
+    pulidIdWeight,
     adapterInputs,
     reason: base.reason,
     debug: {
@@ -145,9 +178,10 @@ export async function getCapabilities(
     );
   }
 
-  // Recommended = reference baseline + the highest-priority usable trainable/adapter module.
+  // Recommended = what AUTO would pick: reference baseline + the highest-priority usable AUTO-SELECT
+  // module (LoRA). PuLID is a usable option (`conditioning.pulid` true) but never the auto default.
   const layer = modules
-    .filter((m) => m.kind !== "reference" && usable[m.id])
+    .filter((m) => m.kind !== "reference" && m.autoSelect && usable[m.id])
     .sort(byPriority)[0];
   const recommendedStrategy = (
     layer ? `reference+${layer.id}` : "reference"

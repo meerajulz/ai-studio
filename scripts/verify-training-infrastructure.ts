@@ -111,6 +111,12 @@ async function main() {
   check("router does NOT pick the LoRA model without 'lora' need",
     noLora.model.id !== "fal-ai/flux-kontext-lora", noLora.model.id);
 
+  // PuLID face model (M24.5) — routed by the `faceId` capability, auto-only (app supplies the face).
+  const pl = getModel("fal-ai/flux-pulid");
+  check("flux-pulid registered with faceId + autoOnly", pl != null && pl.capabilities.includes("faceId") && pl.autoOnly === true);
+  const routedPulid = chooseModel({ provider: "fal", needs: ["identityPreservation", "faceId"] });
+  check("router picks flux-pulid when 'faceId' needed", routedPulid.model.id === "fal-ai/flux-pulid", routedPulid.model.id);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail > 0) process.exit(1);
 }

@@ -92,6 +92,8 @@ async function runImageGeneration(
     modelOverride?: string;
     /** Model selection mode (Milestone 21): auto = capability router; manual = the id above. */
     modelMode?: "auto" | "manual";
+    /** DEV strategy benchmark (Milestone 24.5): force the technique (reference | lora | pulid). */
+    strategyOverride?: "reference" | "lora" | "pulid";
     /** Lineage tags (regenerate/variation) merged alongside the creative record. */
     lineage?: Record<string, unknown>;
   },
@@ -111,12 +113,22 @@ async function runImageGeneration(
     trainedModels: opts.trainedModels,
     manualReferenceMediaIds: opts.manualReferenceMediaIds,
     maxReferences: opts.maxReferences,
+    preferEngine: opts.strategyOverride ?? undefined,
   });
-  const referenceImages = plan.referenceImages;
-  const identityAnchor = plan.identityAnchor;
+  let referenceImages = plan.referenceImages;
+  let identityAnchor = plan.identityAnchor;
   const referenceSelectionReason = plan.reason;
   const selectionDebug: ReferenceSelectionDebug | null = plan.debug?.selection ?? null;
   const manualMode = plan.debug?.manual ?? false;
+
+  // PuLID (Milestone 24.5): a DISTINCT generation path — a single face image drives identity, the
+  // prompt drives the scene. It replaces the scene references entirely (no scene refs, no LoRA, no
+  // trigger word). Mutually exclusive with LoRA/Kontext, which is why the engine picks one primary.
+  const hasPulid = plan.pulidReferenceUrl != null;
+  if (hasPulid) {
+    referenceImages = [{ url: plan.pulidReferenceUrl as string, role: "anchor" as const }];
+    identityAnchor = undefined;
+  }
 
   // Route by capability, never by name. When we actually have reference images (scene refs OR an
   // identity anchor) we require a provider that can preserve identity (else the first configured one).
@@ -130,14 +142,16 @@ async function runImageGeneration(
   // capability (Auto), or the user's manual pick (benchmark). Only when we have references (the
   // identity/editing path); a no-reference generation falls through to the adapter's text-to-image.
   const totalRefs = referenceImages.length + (identityAnchor ? 1 : 0);
-  // Reference + LoRA (Milestone 24): when the Identity Engine chose a trained LoRA, require a
-  // LoRA-capable model (routes to fal-ai/flux-kontext-lora — single reference + the adapter).
   const hasLora = plan.loraWeightsUrl != null;
-  const modelNeeds: ProviderCapability[] = hasLora
-    ? ["imageEditing", "referenceImages", "identityPreservation", "lora"]
-    : totalRefs > 1
-      ? ["imageEditing", "referenceImages", "identityPreservation", "multipleReferenceImages"]
-      : ["imageEditing", "referenceImages", "identityPreservation"];
+  // PuLID → a faceId model (fal-ai/flux-pulid); LoRA → a lora model (fal-ai/flux-kontext-lora); else
+  // the reference editor (Kontext Max Multi / single).
+  const modelNeeds: ProviderCapability[] = hasPulid
+    ? ["identityPreservation", "faceId"]
+    : hasLora
+      ? ["imageEditing", "referenceImages", "identityPreservation", "lora"]
+      : totalRefs > 1
+        ? ["imageEditing", "referenceImages", "identityPreservation", "multipleReferenceImages"]
+        : ["imageEditing", "referenceImages", "identityPreservation"];
   const routedModel = hasReferences
     ? chooseModel({
         provider: provider.id,
@@ -193,6 +207,7 @@ async function runImageGeneration(
       maxReferences: opts.maxReferences,
       model: routedModel?.model.id,
       loras: hasLora ? [{ path: plan.loraWeightsUrl as string, scale: plan.loraScale ?? 1 }] : undefined,
+      idWeight: hasPulid ? plan.pulidIdWeight ?? 1 : undefined,
     });
 
     const media = await createGeneratedMedia(userId, {
@@ -376,6 +391,7 @@ export async function generateImage(
     manualReferenceMediaIds: input.manualReferenceMediaIds,
     modelOverride: input.modelOverride,
     modelMode: input.modelMode,
+    strategyOverride: input.strategyOverride,
   });
 }
 
