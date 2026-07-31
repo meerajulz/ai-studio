@@ -258,8 +258,8 @@ a character"* to *"transform a known character."* M25–M28 are resequenced acco
 [CHARACTER_TRANSFORMATION.md](./CHARACTER_TRANSFORMATION.md). The Identity Engine, Vision, Selection, and
 Model Registry are all kept; LoRA/PuLID/InstantID become optional tools, not the center.
 
-- [ ] **Milestone 24.8 — Edit Provider Expansion + Benchmark Harness** ← **next** — front-load provider
-      breadth so the planner has the best editors to route to. Add **Qwen Image Edit** and **Wan** (Nano
+- [x] **Milestone 24.8 — Edit Provider Expansion + Benchmark Harness** (Decision 061, Phases 1–3 shipped) —
+      front-load provider breadth so the planner has the best editors to route to. Added **Qwen Image Edit** and **Wan** (Nano
       Banana Pro `fal-ai/nano-banana-pro/edit` is **already registered + enabled**); each same-shape model
       (`{prompt, image_urls}`) is a *single registry line* via the payload-kind abstraction — confirm each
       model's request shape first (a different shape = a small new `payloadKind` in `fal.ts`). Build a
@@ -268,23 +268,40 @@ Model Registry are all kept; LoRA/PuLID/InstantID become optional tools, not the
       until M26**, then auto-scored on the *same stored cells* → becomes a real internal eval suite. Every
       future model (FLUX 3, GPT Image 3, Seedream 5) plugs into the same harness. **Cost:** each run is real
       Fal spend, user-driven.
-- [ ] **Milestone 25 — Transformation Planner** — reframe generation as an *edit*: split each
+**M25 expanded → "Transformation Intelligence" (Decision 062).** The benchmark showed the models cluster
+(all usable, none perfect) → the moat is the ORCHESTRATION layer, not model choice. M25 becomes a sub-sequence
+that decides *everything before the model is called*. See [CHARACTER_TRANSFORMATION.md](./CHARACTER_TRANSFORMATION.md) §11.
+
+- [ ] **Milestone 25.1 — Transformation Planner** ← **next** — reframe generation as an *edit*: split each
       request into `preserve {face, body, tattoos, piercings, scars, proportions}` vs `change {location,
-      outfit, pose, lighting, hair, expression}` and build an explicit preserve-vs-change instruction for
-      the edit model. Make source selection **transformation-aware** (pick the right single source — e.g.
-      full-body for a full-body shot — building on `src/lib/selection/`). No schema, no eval; immediate
-      consistency win. Start here.
+      outfit, pose, lighting, hair, expression}` and build an explicit preserve-vs-change instruction (+ a
+      negative prompt where the model supports it). Sits above the Creative Director compiler. No schema, no
+      eval; immediate consistency win. Start here.
+- [ ] **Milestone 25.2 — Reference Intelligence** ⭐ — **typed Character References** derived from persisted
+      Vision knowledge (`FacePortrait`/`FaceSmile`/`FullBodyFront`/`FullBodyBack`/`{Left,Right}ArmTattoo`/
+      `ChestTattoo`/`LegTattoo`/`Hair`/`Eyes`; `BestTransform` lights up only at M28). The planner then picks
+      the **best image per needed type** for the transformation (not 15 photos). Evolves `src/lib/selection/`
+      + the im-2 metadata (tattoo regions, `FaceExpression`/smiling, body regions). Likely the biggest single
+      quality win — bigger than swapping models.
+- [ ] **Milestone 25.3 — Model Intelligence** — auto-pick the model by **transformation type** (identity→GPT,
+      creative→FLUX, tattoo-preserving→Kontext, speed→Nano Banana). **HEURISTIC now** (capability tags +
+      the human benchmark observations); becomes **data-driven at M26**. (This is the early form of the old
+      standalone "Adaptive Provider Routing".)
+- [ ] **Milestone 25.4 — Retry Strategy** — targeted retry with the *specific* reference that fixes the
+      defect (lost tattoos → +tattoo ref; face drift → +portrait; body change → +body ref). **MANUAL /
+      user-directed now**; becomes **automatic drift-detection at M26** (the detector *is* the evaluator).
 - [ ] **Milestone 25.5 — Character Image Ranking** — **heuristic/manual** ranking of a character's images
       (human stars + cheap signals: resolution, recency, face-detected). *Quality* ranking is deliberately
       deferred to M26 — you cannot rank by quality without the evaluator.
 - [ ] **Milestone 26 — Identity Evaluation** *(the keystone)* — implement `IdentityEvaluator` for real:
       face similarity (InsightFace embeddings) + region-aware tattoo/hair/body comparison against persisted
       knowledge; fill the reserved `IdentityEvaluation` metrics (face/tattoos/body/hands/composition/overall).
-      Everything below depends on trustworthy scores. Folds in **Face Embeddings (ex-M19B)** behind a
-      provider-neutral `FaceEmbeddingProvider`. See [research/RESEARCH_03_FACE_EMBEDDINGS.md](./research/RESEARCH_03_FACE_EMBEDDINGS.md).
-- [ ] **Milestone 27 — Adaptive Provider Routing** — route edits by *transformation type* (face-edit vs
-      scene-transform vs style-transfer), driven by **measured M26 eval data**, not asserted. Extends the
-      Model Registry's capability routing.
+      **Turns three M25 heuristics automatic + data-driven:** M25.3 model routing (measured, not asserted),
+      M25.4 retry (automatic drift-detection), M25.5 quality ranking. Auto-scores the M24.8 benchmark grid.
+      Folds in **Face Embeddings (ex-M19B)** behind a provider-neutral `FaceEmbeddingProvider`. See
+      [research/RESEARCH_03_FACE_EMBEDDINGS.md](./research/RESEARCH_03_FACE_EMBEDDINGS.md).
+      *(The old standalone M27 "Adaptive Provider Routing" is absorbed: its heuristic form = M25.3, its
+      data-driven form = this milestone.)*
 - [ ] **Milestone 28 — Character Library + Auto-Promote** — store generated images alongside originals,
       tag them from `MediaVisionKnowledge`, rank by score, and promote the best as reusable sources.
       **Guardrail (Decision 060 §6):** originals are sacred; generated sources are `generated`-tagged

@@ -2459,3 +2459,45 @@ on).
 Status
 Accepted — design only, no code. `CHARACTER_TRANSFORMATION.md` §8 + ROADMAP updated. **Cost:** benchmark
 runs are real Fal spend, user-driven. Implementation starts at M24.8 (add Qwen/Wan + harness).
+
+# Decision 062
+
+Date
+2026-07-31
+
+Decision
+**Expand M25 into "Transformation Intelligence" (a sub-sequence).** After a live M24.8 benchmark run
+showed the edit models **cluster** — all usable, none perfect (only Qwen erred, on its endpoint) — the
+differentiator is confirmed to be the **orchestration layer**, not model choice. M25 becomes the layer that
+decides *everything before the model is called*. New sequence (full design in
+`CHARACTER_TRANSFORMATION.md` §11):
+
+- **M25.1 Transformation Planner** — preserve-vs-change instruction (+ negative prompt). Cheap, no schema.
+- **M25.2 Reference Intelligence** ⭐ — **typed Character References** (`FacePortrait`/`FaceSmile`/
+  `FullBodyFront`/`FullBodyBack`/`{Left,Right}ArmTattoo`/`ChestTattoo`/`LegTattoo`/`Hair`/`Eyes`;
+  `BestTransform` forward-refs M28) **derived** from persisted Vision knowledge, + best-image-per-type
+  selection. Evolves `src/lib/selection/` + im-2 metadata (~60% already exists).
+- **M25.3 Model Intelligence** — auto-pick model by transformation type. HEURISTIC now → data-driven at M26.
+- **M25.4 Retry Strategy** — targeted retry with the specific fixing reference. MANUAL now → automatic
+  drift-detection at M26.
+- **M25.5 Character Ranking** — heuristic/manual (unchanged) → quality-ranking at M26.
+- **M26 Identity Evaluation** — keystone; makes 25.3/25.4/25.5 automatic + data-driven; auto-scores the
+  M24.8 grid. The old standalone **M27 Adaptive Routing is absorbed** (heuristic = M25.3, data-driven = M26).
+
+Reason
+The benchmark is evidence: image models will keep improving and converging, so betting on "the best model"
+is a treadmill. A pipeline that knows *which typed references to send, what to preserve vs change, and which
+model fits the transformation* compounds with every model added — the OpenArt-style moat. Typed references
+are the highest-leverage new primitive and are mostly derivable from metadata we already persist, so this is
+an evolution of the selection engine, not a rebuild.
+
+Alternatives
+Keep M25 as a single "prompt rewrite" step (rejected — under-scopes the biggest current opportunity). Chase
+a better identity model (rejected — the benchmark shows diminishing returns vs orchestration). Put Model
+Intelligence (25.3) / Retry (25.4) before Evaluation as *automatic* features (rejected — dependency
+inversion: both need scores; they ship heuristic/manual and become data-driven at M26).
+
+Status
+Accepted — design only, no code. `CHARACTER_TRANSFORMATION.md` §11 + §8 table + ROADMAP updated. **▶ Next =
+M25.1 Transformation Planner.** Follow-up: investigate the live Qwen failure (likely endpoint tier/param —
+`-2509` image_urls vs `fal-ai/qwen-image-edit` single `image_url`); Wan succeeded live (endpoint guess held).

@@ -24,8 +24,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 > the `debug/benchmark` grid page (`src/app/(protected)/debug/benchmark`, `components/debug/benchmark-view.tsx`)
 > — pick project → identity → pin source images → prompt → check models → run. The loop is **client-driven**
 > (one `runBenchmarkCellAction` per model) so it's timeout-safe and the grid **fills in progressively**; run
-> history via `listBenchmarkRuns`. tsc + build green (`/debug/benchmark` route). **M24.8 complete → Next =
-> M25 Transformation Planner** (preserve-vs-change instruction + transformation-aware source selection).
+> history via `listBenchmarkRuns`. tsc + build green (`/debug/benchmark` route). Offline `verify-benchmark.ts`
+> (20/20) validates the `params.benchmark` contract against the DB — no Fal spend. **M24.8 complete.** Live
+> run: models cluster (all usable, none perfect; only Qwen erred on its endpoint) → **M25 expanded to
+> "Transformation Intelligence"** (Decision 062): M25.1 Transformation Planner → M25.2 Reference Intelligence
+> (typed Character References) ⭐ → M25.3 Model Intelligence (heuristic) → M25.4 Retry (manual) → M25.5
+> Ranking → M26 Evaluation (makes 25.3/25.4/25.5 automatic). **Next = M25.1 Transformation Planner.**
 
 > **▶ Prior (2026-07-21, build + tsc + verify-identity-engine[44/44] + verify-training-infrastructure[30/30] +
 > verify-selection green):** **Milestone 24.5 — Identity Adapter Research + PuLID module** (Decisions 058, 059).
