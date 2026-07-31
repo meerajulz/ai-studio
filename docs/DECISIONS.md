@@ -2369,3 +2369,93 @@ Accepted — implemented. `tsc` + `npm run build` pass; `verify-identity-engine.
 opt-in PuLID) + `verify-training-infrastructure.ts` (30 — incl. faceId routing) + `verify-selection.ts`
 green. **Live A/B is user-run** (needs FAL_KEY balance): Generate → strategy selector → Reference vs
 Reference+LoRA vs PuLID on the same prompt. Next = InfiniteYou (Replicate) / M25 evaluation.
+
+# Decision 060
+
+Date
+2026-07-31
+
+Decision
+**Transform-first pivot (Character Transformation Architecture).** Reframe the layer *above* the Identity
+Engine from *"generate a character"* to *"transform a known character into a new context."* The models we
+use are editors, not generators; the architecture should match. Full design in
+**`docs/CHARACTER_TRANSFORMATION.md`** (the load-bearing doc). Nothing below the reframe is discarded — the
+Identity Engine, Vision layer, Selection engine, and Model Registry are all kept and reused.
+
+1. **New pipeline** — user → Character Engine → **Source Image Selector** (transformation-aware) →
+   **Transformation Planner** (preserve-vs-change) → Edit Provider → **Identity Evaluation** → **Character
+   Library** (promote good outputs back as reusable, tagged sources).
+2. **The core asset becomes the character's image library**, not a model checkpoint. Every generated image
+   that measurably preserved identity becomes another usable source — a compounding advantage.
+3. **LoRA/PuLID/InstantID become optional tools, not the center.** The planner may reach for them; the
+   system is no longer organized around them.
+4. **Resequenced M25–M28** (supersedes Evaluation→Retry→PuLID→InstantID): **M25 Transformation Planner**
+   (cheap, no schema, immediate consistency win) → **M26 Identity Evaluation** (the keystone) → **M27
+   Adaptive Provider Routing** (driven by *measured* eval data) → **M28 Character Library + Auto-Promote**
+   (highest risk, last).
+
+Reason
+Every identity experiment taught the same lesson — the providers transform an existing person rather than
+synthesize one. Organizing the top of the stack around that (a) matches reality, (b) turns each successful
+edit into a durable asset, and (c) is mostly a reframe + gap-fill (~70% already exists: selection, model
+registry, reserved evaluator) rather than a rewrite. It makes AI Studio a professional creative tool whose
+moat is the character library, not the current best model.
+
+Two structural corrections to the original proposal, baked into the design:
+- **Evaluation is the keystone, sequenced 2nd not 4th** — provider routing and auto-promote both depend on
+  trustworthy scores; asserting "best-at" without measurement is vibes.
+- **Auto-promote must not photocopy a photocopy** — generated images are lossy/drifted. Guardrail:
+  originals are sacred (never evicted as the identity source); generated images are *convenience* sources
+  tagged `generated`; promote only when an output beats the originals on identity axes (face+tattoos) with
+  a margin; track source-chain provenance and force a reset to an original when a chain gets too deep.
+  Without this, the loop drifts *with confidence* — worse than no loop.
+
+Alternatives
+Continue chasing another identity model (InfiniteYou/InstantID) — rejected as the *center*; they remain
+optional tools. Rename the `Identity` Prisma model → `Character` — deferred (high churn, zero functional
+gain); "Character" is a UI relabel, `Identity` stays the internal model name. Keep the original M25–M28
+order — rejected (dependency inversion: routing + promote need eval first).
+
+Status
+Design accepted; no code yet (design-first, user's call). `docs/CHARACTER_TRANSFORMATION.md` shipped;
+ROADMAP updated. Implementation starts at **M24.8 — Edit Provider Expansion** (see Decision 061).
+
+# Decision 061
+
+Date
+2026-07-31
+
+Decision
+**Front-load provider breadth + a permanent benchmark harness before the Transformation Planner
+(Milestone 24.8).** Insert M24.8 ahead of M25 so the planner is designed with the best editors already
+available to route to. Add **Qwen Image Edit** and **Wan** (Nano Banana Pro is already registered +
+enabled); each *same-shape* model (`{prompt, image_urls}`) is a single `MODEL_REGISTRY` line via the
+existing payload-kind abstraction — confirm each model's request shape first (a different shape = a small
+new `payloadKind` in `fal.ts`). Build a **permanent, model-pluggable benchmark harness** that persists
+source/prompt/**output** grids (same source + prompt → Kontext · GPT · Nano Banana · Qwen · Wan · … side by
+side); every future model plugs into the same harness. Also insert **M25.5 — Character Image Ranking**
+(heuristic/manual only). New order: **M24.8 → M25 → M25.5 → M26 → M27 → M28**.
+
+Reason
+Adding a same-shape editor is nearly free (the registry/payload-kind design already proved this — Nano
+Banana, Seedream, GPT Image, Gemini are all one-line entries), and having real models in hand de-risks the
+planner + provider-routing design instead of building it around whatever was integrated first. The
+benchmark, run on our *actual* use case (identity/tattoo/body-preserving transformation), compounds into an
+internal eval suite most teams lack.
+
+Two corrections folded in (both avoid dependency inversions):
+- **A benchmark is only an "eval suite" once auto-scored.** M24.8 ships the *harness* (persisted grid),
+  human-judged until **M26** attaches scores to the *same stored cells*. A manual side-by-side page alone
+  doesn't accumulate.
+- **You can't rank by quality without the evaluator.** M25.5 ranking is heuristic/manual (stars +
+  resolution/recency/face-detected); *quality* ranking arrives with M26.
+
+Alternatives
+Go straight to M25 (rejected — planner + M27 routing are better designed against real models; provider
+adds are cheap so the delay is small). Treat the benchmark as a throwaway page (rejected — persisting the
+grid is what lets M26 auto-score it retroactively). Put ranking before eval (rejected — no score to rank
+on).
+
+Status
+Accepted — design only, no code. `CHARACTER_TRANSFORMATION.md` §8 + ROADMAP updated. **Cost:** benchmark
+runs are real Fal spend, user-driven. Implementation starts at M24.8 (add Qwen/Wan + harness).

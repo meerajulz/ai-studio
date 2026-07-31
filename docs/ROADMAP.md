@@ -219,7 +219,10 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       `add_identity_engine` (versioned, never-overwritten trained models). Read-only Dataset/Models UI.
       Reference flow byte-for-byte unchanged (`verify-identity-engine.ts`). **Architecture only — no
       LoRA/PuLID/ML.** [IDENTITY_ENGINE.md](./IDENTITY_ENGINE.md).
-**Confirmed identity sequence (do not reorder):** M22 ✅ → M23 ✅ → M24 ✅ → M25 → M26 → M27 → M28 → future modules.
+**Sequence:** M22 ✅ → M23 ✅ → M24 ✅ → M24.5 ✅ → **transform-first pivot (Decisions 060, 061)** →
+**M24.8** (Edit Provider Expansion + Benchmark Harness) → M25 (Transformation Planner) → M25.5 (Character
+Image Ranking) → M26 (Identity Evaluation) → M27 (Adaptive Routing) → M28 (Character Library). See below +
+[CHARACTER_TRANSFORMATION.md](./CHARACTER_TRANSFORMATION.md).
 
 - [x] **Milestone 23 — Fal Training Infrastructure** (Decision 056) — taught the Identity Engine *how to
       train* (not how to evaluate). **Training Registry** (`identity-engine/training/registry.ts`) — the
@@ -250,15 +253,49 @@ Fal Kontext ✓ → Identity Preservation MVP ✓ → [Identity Intelligence · 
       (reference / reference+lora). Dev **strategy benchmark** on Generate (Auto·Reference·Reference+LoRA·
       PuLID). Keeps LoRA. `verify-identity-engine.ts` (44). **Next:** InfiniteYou via a Replicate provider
       if PuLID's face is insufficient; automatic scoring in M25.
-- [ ] **Milestone 25 — Identity Evaluation Engine** ← **next** — implement `IdentityEvaluator` (InsightFace face
-      similarity + embeddings for tattoos/hair/etc.); fill the reserved `IdentityEvaluation` metrics.
-- [ ] **Milestone 26 — Automatic Retry & Best-Candidate Selection** — use evaluation to retry/rank
-      generations and pick the best.
-- [ ] **Milestone 27 — PuLID** — first adapter (non-trainable) identity module.
-- [ ] **Milestone 28 — InstantID** — second adapter module. Future identity modules become plug-ins.
-- [ ] **Milestone 19B — Face Embeddings** — folds into M25 (InsightFace behind a provider-neutral
-      `FaceEmbeddingProvider`, fed to the selector/anchor via `SelectionCandidate.signals` and the
-      `IdentityEvaluator`). See [research/RESEARCH_03_FACE_EMBEDDINGS.md](./research/RESEARCH_03_FACE_EMBEDDINGS.md).
+**Transform-first pivot (Decision 060):** the layer *above* the Identity Engine is reframed from *"generate
+a character"* to *"transform a known character."* M25–M28 are resequenced accordingly — see
+[CHARACTER_TRANSFORMATION.md](./CHARACTER_TRANSFORMATION.md). The Identity Engine, Vision, Selection, and
+Model Registry are all kept; LoRA/PuLID/InstantID become optional tools, not the center.
+
+- [ ] **Milestone 24.8 — Edit Provider Expansion + Benchmark Harness** ← **next** — front-load provider
+      breadth so the planner has the best editors to route to. Add **Qwen Image Edit** and **Wan** (Nano
+      Banana Pro `fal-ai/nano-banana-pro/edit` is **already registered + enabled**); each same-shape model
+      (`{prompt, image_urls}`) is a *single registry line* via the payload-kind abstraction — confirm each
+      model's request shape first (a different shape = a small new `payloadKind` in `fal.ts`). Build a
+      **permanent, model-pluggable benchmark harness** that persists source/prompt/**output** grids (same
+      source + same prompt → Kontext · GPT · Nano Banana · Qwen · Wan · … side by side). **Human-judged
+      until M26**, then auto-scored on the *same stored cells* → becomes a real internal eval suite. Every
+      future model (FLUX 3, GPT Image 3, Seedream 5) plugs into the same harness. **Cost:** each run is real
+      Fal spend, user-driven.
+- [ ] **Milestone 25 — Transformation Planner** — reframe generation as an *edit*: split each
+      request into `preserve {face, body, tattoos, piercings, scars, proportions}` vs `change {location,
+      outfit, pose, lighting, hair, expression}` and build an explicit preserve-vs-change instruction for
+      the edit model. Make source selection **transformation-aware** (pick the right single source — e.g.
+      full-body for a full-body shot — building on `src/lib/selection/`). No schema, no eval; immediate
+      consistency win. Start here.
+- [ ] **Milestone 25.5 — Character Image Ranking** — **heuristic/manual** ranking of a character's images
+      (human stars + cheap signals: resolution, recency, face-detected). *Quality* ranking is deliberately
+      deferred to M26 — you cannot rank by quality without the evaluator.
+- [ ] **Milestone 26 — Identity Evaluation** *(the keystone)* — implement `IdentityEvaluator` for real:
+      face similarity (InsightFace embeddings) + region-aware tattoo/hair/body comparison against persisted
+      knowledge; fill the reserved `IdentityEvaluation` metrics (face/tattoos/body/hands/composition/overall).
+      Everything below depends on trustworthy scores. Folds in **Face Embeddings (ex-M19B)** behind a
+      provider-neutral `FaceEmbeddingProvider`. See [research/RESEARCH_03_FACE_EMBEDDINGS.md](./research/RESEARCH_03_FACE_EMBEDDINGS.md).
+- [ ] **Milestone 27 — Adaptive Provider Routing** — route edits by *transformation type* (face-edit vs
+      scene-transform vs style-transfer), driven by **measured M26 eval data**, not asserted. Extends the
+      Model Registry's capability routing.
+- [ ] **Milestone 28 — Character Library + Auto-Promote** — store generated images alongside originals,
+      tag them from `MediaVisionKnowledge`, rank by score, and promote the best as reusable sources.
+      **Guardrail (Decision 060 §6):** originals are sacred; generated sources are `generated`-tagged
+      convenience sources; promote only when an output beats the originals on identity axes (face+tattoos)
+      with a margin; track source-chain provenance and reset to an original when a chain gets too deep.
+      First schema work of the refactor (generated-as-source, per Decision 026's input/output split).
+      Highest risk → last, gated on trustworthy M26 scores.
+
+*Adapter modules (InstantID, InfiniteYou, …) are no longer milestones — they become optional plug-in tools
+the Transformation Planner may reach for. InfiniteYou (Replicate) is still the fallback if PuLID's face
+proves insufficient.*
 
 ### Future — documented, NOT scheduled (research first)
 
