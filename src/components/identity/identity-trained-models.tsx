@@ -42,6 +42,7 @@ export function IdentityTrainedModels({ identityId }: Props) {
   const jobs = data?.trainingJobs ?? [];
   const caps = data?.capabilities;
   const trainingState = data?.trainingState;
+  const staleness = data?.staleness;
 
   // Client-driven polling: while a job is active, reconcile it against Fal every few seconds.
   const activeJob = jobs.find((j) => ACTIVE_JOB_STATUS.includes(j.status)) ?? null;
@@ -96,6 +97,21 @@ export function IdentityTrainedModels({ identityId }: Props) {
                 ? `Training available via: ${caps.training.providers.join(", ")}`
                 : "Training unavailable"}
             </span>
+            {staleness?.outdated ? (
+              <p className="basis-full text-xs text-amber-600 dark:text-amber-500">
+                {staleness.newImageCount
+                  ? `${staleness.newImageCount} newer curated image${
+                      staleness.newImageCount === 1 ? "" : "s"
+                    } since ${staleness.modelLabel}`
+                  : `Dataset changed since ${staleness.modelLabel}`}{" "}
+                <span className="text-muted-foreground">
+                  ({staleness.modelLabel} trained on dataset v{staleness.trainedDatasetVersion} ·{" "}
+                  {staleness.trainedImageCount ?? "?"} images; dataset is now v
+                  {staleness.currentDatasetVersion} · {staleness.currentTrainableCount ?? "?"}{" "}
+                  curated). Retrain to include them.
+                </span>
+              </p>
+            ) : null}
             <div className="ml-auto flex items-center gap-2">
               {isTraining ? (
                 <span className="text-muted-foreground flex items-center gap-1.5 text-xs">

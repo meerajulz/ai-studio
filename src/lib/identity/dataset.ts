@@ -93,10 +93,26 @@ export type TrainingJobView = {
   createdAt: Date;
 };
 
+/**
+ * How the newest trained model compares to the CURRENT curated dataset — the "is my LoRA stale?" signal.
+ * Lets the UI say "N newer images since LoRA v1" at a glance instead of the user having to reason about
+ * dataset versions. Derived from data already loaded; null when there's no trained model to compare.
+ */
+export type TrainingStaleness = {
+  outdated: boolean; // dataset revision moved past the model's (mirrors trainingState === "OUTDATED")
+  modelLabel: string; // e.g. "lora v1"
+  trainedDatasetVersion: number | null; // dataset revision the model was trained on
+  currentDatasetVersion: number | null; // dataset revision now
+  trainedImageCount: number | null; // images the model actually trained on (from provenance)
+  currentTrainableCount: number | null; // curated/recommended images available to a retrain now
+  newImageCount: number | null; // max(0, current − trained) — the "N newer images" number
+};
+
 export type IdentityEngineOverview = {
   capabilities: IdentityCapabilities; // what this identity can do now — UI adapts off this
   trainingState: TrainingState; // user-oriented lifecycle (M23) — UI reasons about this, not job status
   dataset: DatasetReadinessView | null;
+  staleness: TrainingStaleness | null; // newest model vs. current dataset (retrain hint)
   trainedModels: TrainedModelSummary[];
   trainingJobs: TrainingJobView[];
 };
@@ -122,7 +138,7 @@ export async function getIdentityEngineOverview(
       orderBy: { version: "desc" },
       select: {
         id: true, engine: true, version: true, triggerWord: true, artifactRef: true,
-        modelCompatibility: true, datasetVersion: true,
+        modelCompatibility: true, datasetVersion: true, params: true,
       },
     }),
     prisma.identityArtifact.findMany({
@@ -168,6 +184,30 @@ export async function getIdentityEngineOverview(
       : null,
   });
 
+  // Staleness (retrain hint): compare the newest READY model to the current curated dataset. The model's
+  // trained image count lives in its provenance (`params.imageCount`, written at persist time); the
+  // current trainable count is the dataset's recommended set. `newImageCount` answers "how many curated
+  // images would a retrain add?" — the at-a-glance signal that new photos aren't in the LoRA yet.
+  let staleness: TrainingStaleness | null = null;
+  if (latestReady) {
+    const trainedImageCount =
+      (latestReady.params as { imageCount?: number } | null)?.imageCount ?? null;
+    const currentTrainableCount = row?.recommendedImageIds.length ?? null;
+    const newImageCount =
+      currentTrainableCount != null && trainedImageCount != null
+        ? Math.max(0, currentTrainableCount - trainedImageCount)
+        : null;
+    staleness = {
+      outdated: trainingState === "OUTDATED",
+      modelLabel: `${latestReady.engine} v${latestReady.version}`,
+      trainedDatasetVersion: latestReady.datasetVersion ?? null,
+      currentDatasetVersion: row?.datasetVersion ?? null,
+      trainedImageCount,
+      currentTrainableCount,
+      newImageCount,
+    };
+  }
+
   let dataset: DatasetReadinessView | null = null;
   if (row) {
     const metrics = row.metrics as unknown as DatasetMetrics;
@@ -202,6 +242,7 @@ export async function getIdentityEngineOverview(
     capabilities,
     trainingState,
     dataset,
+    staleness,
     trainedModels: assets.trainedModels,
     trainingJobs: jobs.map((j) => ({
       id: j.id,
