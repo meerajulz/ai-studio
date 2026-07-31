@@ -40,3 +40,26 @@ export type {
   SelectionCandidate,
   SelectionResult,
 } from "./types";
+
+// Reference Intelligence — the Identity Package (Milestone 25.2).
+export { heuristicRoleScorer } from "./roles";
+export {
+  buildCharacterPackage,
+  deriveNeededRoles,
+  resolvePackage,
+  renderPackageForModel,
+  exposureRank,
+  type ReferenceSchema,
+  type RenderedReference,
+} from "./package";
+export {
+  ANCHOR_ROLES,
+  type AnchorRole,
+  type CharacterPackage,
+  type FaceAnchorSource,
+  type IdentityAnchor,
+  type IdentityFacet,
+  type IdentityPackage,
+  type ReferenceProfile,
+  type RoleScorer,
+} from "./types";

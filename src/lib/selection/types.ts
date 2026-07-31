@@ -7,6 +7,7 @@
  */
 import type { IdentityImageScore } from "@/lib/vision";
 import type { IdentityMetadata } from "@/lib/vision";
+import type { ExposureLevel } from "@/lib/vision/exposure";
 
 /** Every requirement the selector understands (the deterministic PromptRequirements interface). */
 export type RequirementId =
@@ -94,4 +95,70 @@ export type SelectionResult = {
   package: SelectedReference[]; // the chosen, ordered set (best-first for the provider)
   warnings: string[]; // hard requirements with no suitable reference
   orderedReferenceUrls: string[]; // package URLs — provider-ready
+};
+
+// ── Identity Package (Milestone 25.2) — see docs/REFERENCE_INTELLIGENCE.md ────────────────────────
+//
+// The provider-AGNOSTIC internal representation of WHO a character is + how to reference them. A
+// provider only ever consumes a PROJECTION of this (`renderPackageForModel`). Every score is produced
+// by a pluggable `RoleScorer` (heuristic today; the M26 Identity Evaluator tomorrow) so evaluator
+// similarity drops into `ReferenceProfile.signals` with no redesign.
+
+/** What an anchor is FOR in a generation (distinct from a raw image "type"). */
+export type AnchorRole = "face" | "body" | "tattoo" | "hair" | "canonical" | "pose";
+
+export const ANCHOR_ROLES: AnchorRole[] = ["face", "body", "tattoo", "hair", "canonical", "pose"];
+
+/** The unit of channel arbitration — a facet an anchor can carry so the PROMPT need not describe it. */
+export type IdentityFacet = "face" | "tattoos" | "hair" | "piercings" | "body";
+
+/** How well one candidate serves each anchor role, with the reasons + the raw signals behind them. */
+export type ReferenceProfile = {
+  mediaId: string;
+  url: string;
+  fitness: Record<AnchorRole, number>; // 0..100 per role
+  reasons: Record<AnchorRole, string[]>;
+  signals: Record<string, number>; // raw scoring inputs — M26 evaluator similarity plugs in here
+  exposure: ExposureLevel;
+};
+
+/** A pluggable role scorer (Milestone 25.2 heuristic; Milestone 26 evaluator). */
+export type RoleScorer = {
+  id: string;
+  profile: (candidate: SelectionCandidate) => ReferenceProfile;
+};
+
+/** One chosen anchor. `roles` holds EVERY role this one image fills (coverage > uniqueness). */
+export type IdentityAnchor = {
+  role: AnchorRole; // the primary / highest-importance role
+  roles: AnchorRole[]; // all roles this image is the anchor for (merge-by-image)
+  mediaId: string;
+  url: string;
+  score: number; // fitness for the primary role
+  importance: number; // ordering weight for THIS request (face is highest)
+  reasons: string[];
+  coversFacets: IdentityFacet[];
+};
+
+/** The character's STABLE default anchors over the whole library (persistable later — Phase D). */
+export type CharacterPackage = {
+  identityId: string;
+  anchors: IdentityAnchor[]; // best per role across all analyzed images
+  scorerId: string; // which RoleScorer produced it (heuristic | evaluator)
+  computedFrom: { mediaCount: number; analyzedCount: number };
+};
+
+/** How the Face-Anchor invariant resolved. `none` → the transformation must be refused. */
+export type FaceAnchorSource = "face" | "hero" | "none";
+
+/** The per-REQUEST projection of the character package (needed roles + overrides + cap). */
+export type IdentityPackage = {
+  anchors: IdentityAnchor[]; // importance-ordered; face is anchors[0] (invariant)
+  neededRoles: AnchorRole[];
+  filledRoles: AnchorRole[];
+  missingRoles: AnchorRole[]; // → the prompt must describe these facets (channel arbitration)
+  facetsCoveredByReference: IdentityFacet[];
+  exposureCeiling: ExposureLevel;
+  faceAnchorSource: FaceAnchorSource;
+  reason: string;
 };

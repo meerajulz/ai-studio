@@ -632,6 +632,47 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
           </DebugStage>
         ) : null}
 
+        {debug.identityPackage ? (
+          <DebugStage title="4.6 · Identity Package (shadow — not sent yet)">
+            <DebugRow
+              label="Face anchor"
+              value={
+                debug.identityPackage.faceAnchorSource === "none"
+                  ? "⚠ none (would refuse)"
+                  : `via ${debug.identityPackage.faceAnchorSource}`
+              }
+            />
+            <DebugRow label="Needed roles" value={debug.identityPackage.neededRoles.join(", ")} />
+            <DebugRow
+              label="Missing roles"
+              value={debug.identityPackage.missingRoles.length ? debug.identityPackage.missingRoles.join(", ") : "—"}
+            />
+            <DebugRow
+              label="Facets covered by reference"
+              value={debug.identityPackage.facetsCovered.length ? debug.identityPackage.facetsCovered.join(", ") : "—"}
+            />
+            <DebugRow
+              label="Anchors (ordered)"
+              value={
+                <div className="grid gap-1">
+                  {debug.identityPackage.anchors.map((a, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <img src={a.url} alt="" className="size-10 rounded object-cover" />
+                      <div className="font-mono text-[11px]">
+                        <span className="text-foreground font-semibold">
+                          {i === 0 ? "★ " : ""}
+                          {a.roles.join("/")} · {a.score}
+                        </span>
+                        <div className="text-muted-foreground">{a.reasons.join(" · ")}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              }
+            />
+          </DebugStage>
+        ) : null}
+
         <DebugStage title="Provider & routing">
           <DebugRow label="Chosen provider" value={debug.provider} />
           <DebugRow label="Chosen model" value={debug.model} />

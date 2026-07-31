@@ -27,7 +27,13 @@ import {
   getIdentityVisualPackage,
 } from "@/lib/identity/server";
 import type { IdentityVisualPackage } from "@/lib/identity/types";
-import { type SelectionCandidate } from "@/lib/selection";
+import {
+  allowedExposureForPrompt,
+  buildCharacterPackage,
+  deriveNeededRoles,
+  resolvePackage,
+  type SelectionCandidate,
+} from "@/lib/selection";
 import { synthesizeIdentityAppearance } from "@/lib/vision";
 import { composeTransformationPrompt, planTransformation } from "@/lib/transform";
 import { createGeneratedMedia, getGeneratedMediaByIds } from "@/lib/media/server";
@@ -180,6 +186,27 @@ async function runImageGeneration(
   });
   const promptForProvider = composeTransformationPrompt(basePrompt, transformation);
 
+  // Reference Intelligence — Identity Package (Milestone 25.2, PHASE A = SHADOW MODE): build the typed
+  // anchor package (face/body/tattoo/hair/canonical/pose) ALONGSIDE the current selector and surface it
+  // in Debug ONLY. It does NOT drive the references sent yet — Phase B switches the image channel over.
+  // See docs/REFERENCE_INTELLIGENCE.md.
+  const shadowCandidates = opts.candidates ?? [];
+  let identityPackage: ReturnType<typeof resolvePackage> | null = null;
+  if (opts.identityId && hasReferences && shadowCandidates.length) {
+    const characterPackage = buildCharacterPackage(opts.identityId, shadowCandidates);
+    identityPackage = resolvePackage({
+      characterPackage,
+      neededRoles: deriveNeededRoles({
+        preserve: transformation.preserve,
+        change: transformation.change,
+        available: new Set(characterPackage.anchors.flatMap((a) => a.roles)),
+      }),
+      maxReferences: routedModel?.model.maxReferences ?? 4,
+      exposureCeiling: allowedExposureForPrompt(directive),
+      heroUrl: opts.visualPackage?.heroImageUrl ?? null,
+    });
+  }
+
   const params: Prisma.InputJsonValue = {
     ...(opts.lineage ?? {}),
     creative: {
@@ -289,6 +316,23 @@ async function runImageGeneration(
                 change: transformation.change,
                 instruction: transformation.instruction,
                 negativePrompt: transformation.negativePrompt,
+              }
+            : null,
+          identityPackage: identityPackage
+            ? {
+                faceAnchorSource: identityPackage.faceAnchorSource,
+                reason: identityPackage.reason,
+                neededRoles: identityPackage.neededRoles,
+                filledRoles: identityPackage.filledRoles,
+                missingRoles: identityPackage.missingRoles,
+                facetsCovered: identityPackage.facetsCoveredByReference,
+                anchors: identityPackage.anchors.map((a) => ({
+                  role: a.role,
+                  roles: a.roles,
+                  score: Math.round(a.score),
+                  url: a.url,
+                  reasons: a.reasons,
+                })),
               }
             : null,
           modelRouting: routedModel?.decision ?? null,

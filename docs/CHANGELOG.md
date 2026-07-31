@@ -33,8 +33,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 > `src/lib/transform/` builds a GROUNDED preserve-vs-change instruction (preserve = what the character has
 > from im-2 knowledge; change = only what the idea introduces from the analyzed Scene) and prepends it on
 > the identity+reference edit path (text-to-image untouched). Debug shows a "4.5 · Transformation" stage;
-> negative prompt computed, not sent yet. `verify-transform.ts` (19/19), tsc + build green. **Next = M25.2
-> Reference Intelligence** (typed Character References).
+> negative prompt computed, not sent yet. `verify-transform.ts` (19/19), tsc + build green. **M25.2
+> Reference Intelligence — the Identity Package (Decision 063):** design in `docs/REFERENCE_INTELLIGENCE.md`
+> — a provider-agnostic package of typed anchors (face/body/tattoo/hair/canonical/pose), pluggable
+> `RoleScorer` (heuristic now → InsightFace evaluator at M26), sacred Face Anchor invariant, coverage >
+> uniqueness. **Phase A (shadow mode) shipped:** `src/lib/selection/{roles,package}.ts` build the package
+> ALONGSIDE the current selector, surfaced in a "4.6 · Identity Package" debug stage — zero behavior change
+> (does NOT drive refs sent yet). `verify-reference-package.ts` (19/19) + verify-selection (no regression) +
+> build green. **Next = M25.2 Phase B** (switch the image channel to the rendered package).
 
 > **▶ Prior (2026-07-21, build + tsc + verify-identity-engine[44/44] + verify-training-infrastructure[30/30] +
 > verify-selection green):** **Milestone 24.5 — Identity Adapter Research + PuLID module** (Decisions 058, 059).
