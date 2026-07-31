@@ -131,6 +131,35 @@ export const MODEL_REGISTRY: ModelSpec[] = [
     note: "fal-ai/bytedance/seedream/v4.5/edit is the newer tier — swap the id to try it",
   },
   {
+    // Qwen Image Edit (Milestone 24.8). The 2509/2511 tiers take an `image_urls` array (multi-image
+    // edit, strong text editing) → maps to the generic image_urls body, no adapter change.
+    id: "fal-ai/qwen-image-edit-2509",
+    provider: "fal",
+    vendor: "Qwen",
+    label: "Qwen Image Edit",
+    capabilities: [...EDIT, "realism", "typography"],
+    maxReferences: 4,
+    payloadKind: "image_urls",
+    priority: 78, // benchmark candidate — retune once it's scored
+    enabled: true,
+    note: "Qwen 2509/2511 take image_urls; -2511 is the newer tier (swap the id to try it)",
+  },
+  {
+    // Wan image-to-image (Milestone 24.8). v2.6 is the current i2i tier (1–3 reference images; style
+    // transfer + subject consistency). Multi-image → image_urls (confirm the exact param + tier live —
+    // fal.ai was rate-limiting at scoping time; a wrong id/param surfaces as a clean Fal 4xx).
+    id: "wan/v2.6/image-to-image",
+    provider: "fal",
+    vendor: "Wan",
+    label: "Wan v2.6 Edit",
+    capabilities: [...EDIT, "realism"],
+    maxReferences: 3,
+    payloadKind: "image_urls",
+    priority: 76, // benchmark candidate
+    enabled: true,
+    note: "VERIFY at first run: exact endpoint id + image param (image_urls assumed; 1–3 refs)",
+  },
+  {
     // Reference + trained LoRA (Milestone 24). Kontext image-to-image that ALSO applies a trained
     // LoRA — the only Fal endpoint that does reference + LoRA together. Single reference (image_url).
     // Chosen by the model router only when the conditioning strategy includes a LoRA.

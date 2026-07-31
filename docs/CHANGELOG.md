@@ -7,7 +7,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> **▶ Resume (2026-07-21, build + tsc + verify-identity-engine[44/44] + verify-training-infrastructure[30/30] +
+> **▶ Resume (2026-07-31, tsc + verify-model-routing[9/9] green):** **Transform-first pivot** (Decisions 060,
+> 061) — reframed the layer above the Identity Engine from *"generate a character"* to *"transform a known
+> character"*; new **`docs/CHARACTER_TRANSFORMATION.md`** is the load-bearing design. Roadmap resequenced
+> **M24.8 → M25 → M25.5 → M26 → M27 → M28** (LoRA/PuLID/InstantID become optional tools, not the center).
+> **Milestone 24.8 Phase 1 shipped:** registered **Qwen Image Edit** (`fal-ai/qwen-image-edit-2509`) and
+> **Wan v2.6 Edit** (`wan/v2.6/image-to-image`) — both map to the existing `image_urls` payload kind, so each
+> is a single `MODEL_REGISTRY` line (no adapter change). Auto default unchanged (still Kontext Max Multi);
+> they're manual/benchmark picks. New **`docs/MODEL_BENCHMARK.md`** documents the permanent, model-pluggable
+> benchmark harness (Phases 2–3 next: runner + persisted grid + `debug/benchmark` page; auto-scored at M26).
+> Also shipped: a **stale-LoRA indicator** on the identity Models tab ("N newer curated images since vX").
+> **Next = M24.8 Phase 2 (benchmark runner + persistence).**
+
+> **▶ Prior (2026-07-21, build + tsc + verify-identity-engine[44/44] + verify-training-infrastructure[30/30] +
 > verify-selection green):** **Milestone 24.5 — Identity Adapter Research + PuLID module** (Decisions 058, 059).
 > Researched the identity ecosystem → new **`docs/IDENTITY_TECHNOLOGIES.md`** (living reference; face adapters
 > are face-only, LoRA still best for tattoos/body, hosted APIs can't stack them; PuLID best on Fal, InfiniteYou
