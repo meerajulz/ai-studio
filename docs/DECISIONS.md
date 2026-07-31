@@ -2501,3 +2501,54 @@ Status
 Accepted — design only, no code. `CHARACTER_TRANSFORMATION.md` §11 + §8 table + ROADMAP updated. **▶ Next =
 M25.1 Transformation Planner.** Follow-up: investigate the live Qwen failure (likely endpoint tier/param —
 `-2509` image_urls vs `fal-ai/qwen-image-edit` single `image_url`); Wan succeeded live (endpoint guess held).
+
+# Decision 063
+
+Date
+2026-07-31
+
+Decision
+**The Identity Package — Reference Intelligence as the project's long-term abstraction (Milestone 25.2).**
+Full design in **`docs/REFERENCE_INTELLIGENCE.md`**. Replace the flat, unlabeled `image_urls[]` reference
+channel with a first-class, provider-agnostic **Identity Package** of typed anchors, each with a reason.
+The intelligence largely exists (`selection/` already tags picks with role + reason) but is destroyed at the
+provider boundary; we promote + unify it. Layers: pluggable **RoleScorer** → **buildCharacterPackage**
+(stable default anchors) → **resolvePackage** (per-request, transformation-driven) → **renderPackageForModel**
+(the only provider-aware step).
+
+Seven refinements agreed with the user, baked into the design:
+1. **Face Anchor is a pipeline invariant** — always `anchors[0]`, never dropped by a model cap; no confident
+   face → fall back to Hero → else **refuse** (`NO_IDENTITY_ANCHOR`), never a silent weak reference.
+2. **"Style Anchor" → "Canonical Anchor"** (highest-quality image that best represents the character).
+3. **Persistence-ready** — `CharacterPackage` (default anchors) is shaped to become a persisted table behind
+   `getCharacterPackage()` (mirrors `IdentityDataset`), no caller refactor. Not built in M25.2.
+4. **Transformation-driven roles** — `resolvePackage` consumes M25.1 preserve/change; changing hair → no Hair
+   Anchor slot; tattoos not preserved/visible → no Tattoo Anchor. Not "best of everything".
+5. **Providers fully separate** — the package is internal truth; only `renderPackageForModel` knows a
+   provider's shape (`image_urls` today; `named` face_reference/controlnet/ip_adapter/mask future). The
+   planner never names a provider.
+6. **Coverage > uniqueness** — one image may fill multiple roles (merge-by-image, frees slots); pick a
+   distinct image for a role only when it is meaningfully better.
+7. **M26-ready** — role fitness is a swappable `RoleScorer`; today `heuristicRoleScorer` (im-2), tomorrow
+   `evaluatorRoleScorer` (InsightFace similarity) fills `ReferenceProfile.signals`. Same interface.
+
+Prompt de-duplication (channel arbitration): each identity fact appears once, on its best channel — the
+appearance paragraph becomes gap-filling for facets NOT covered by a reference anchor.
+
+Reason
+The benchmark showed the models cluster; the differentiator is orchestration. A semantic, provider-agnostic
+Identity Package — with a sacred Face Anchor and evaluator-ready scoring — is the abstraction that compounds
+as better identity models arrive (they just render more of the package). It also removes the prompt
+duplication M25.1 exposed. Designed NOT to optimize around today's `image_urls`-only providers.
+
+Alternatives
+Keep improving prompt engineering (rejected — the reference channel is the bottleneck now). Discrete
+per-image type labels (rejected — continuous role fitness is more flexible; one image can be a good face AND
+body). Force reference diversity (rejected — coverage > uniqueness, refinement 6). Big-bang swap (rejected —
+load-bearing; phased with a zero-risk shadow mode).
+
+Status
+Accepted — design only. `REFERENCE_INTELLIGENCE.md` shipped; ROADMAP updated. **▶ Building Phase A (shadow
+mode): types + RoleScorer + package builder computed alongside the current selector, surfaced in Debug only,
+zero behavior change, + `verify-reference-package.ts`.** Phases B (switch image channel) / C (channel
+arbitration) / D (persistence + roled providers) follow, each A/B'd on the M24.8 benchmark.

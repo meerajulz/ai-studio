@@ -281,12 +281,16 @@ that decides *everything before the model is called*. See [CHARACTER_TRANSFORMAT
       byte-identical. Debug panel shows a "4.5 · Transformation" stage; negative prompt computed but not sent
       yet (no model advertises support). `verify-transform.ts` (19/19). Live quality is user-verified via the
       M24.8 benchmark. **NOT M25.1:** typed references (M25.2), model/retry intelligence (M25.3/25.4).
-- [ ] **Milestone 25.2 — Reference Intelligence** ⭐ — **typed Character References** derived from persisted
-      Vision knowledge (`FacePortrait`/`FaceSmile`/`FullBodyFront`/`FullBodyBack`/`{Left,Right}ArmTattoo`/
-      `ChestTattoo`/`LegTattoo`/`Hair`/`Eyes`; `BestTransform` lights up only at M28). The planner then picks
-      the **best image per needed type** for the transformation (not 15 photos). Evolves `src/lib/selection/`
-      + the im-2 metadata (tattoo regions, `FaceExpression`/smiling, body regions). Likely the biggest single
-      quality win — bigger than swapping models.
+- [ ] **Milestone 25.2 — Reference Intelligence (the Identity Package)** ⭐ ← **next** (Decision 063) — the
+      project's long-term abstraction. Replace flat `image_urls[]` with a provider-agnostic **Identity
+      Package** of typed anchors (`face`/`body`/`tattoo`/`hair`/`canonical`/`pose`), each with a reason.
+      Layers: pluggable **RoleScorer** (heuristic now → InsightFace evaluator at M26) → **buildCharacterPackage**
+      (stable default anchors, persistable later) → **resolvePackage** (per-request, driven by the M25.1
+      preserve/change plan) → **renderPackageForModel** (the ONLY provider-aware step). **Face Anchor is a
+      sacred invariant** (always first, never dropped; no confident face → Hero → else refuse). Coverage >
+      uniqueness (one image can fill many roles). Enables prompt de-duplication (channel arbitration). See
+      [REFERENCE_INTELLIGENCE.md](./REFERENCE_INTELLIGENCE.md). **Phased:** A shadow (zero behavior change) →
+      B switch image channel → C channel arbitration → D persistence + roled providers.
 - [ ] **Milestone 25.3 — Model Intelligence** — auto-pick the model by **transformation type** (identity→GPT,
       creative→FLUX, tattoo-preserving→Kontext, speed→Nano Banana). **HEURISTIC now** (capability tags +
       the human benchmark observations); becomes **data-driven at M26**. (This is the early form of the old
