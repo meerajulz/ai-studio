@@ -29,6 +29,19 @@ export type RunBenchmarkInput = {
   sourceLabel?: string;
 };
 
+/** Run ONE cell (one model) of a run the CLIENT drives — client-driven loop avoids one long, timeout-prone
+ * server action when comparing many models. The client mints `runId` once and reuses it per cell. */
+export type RunBenchmarkCellInput = {
+  runId: string;
+  identityId: string;
+  prompt: string;
+  sourceMediaIds: string[];
+  modelId: string;
+  cellIndex: number;
+  maxReferences?: number;
+  sourceLabel?: string;
+};
+
 /** Immediate outcome of one cell from `runBenchmark` (the grid read-model is the source of truth). */
 export type BenchmarkCellOutcome = {
   modelId: string;

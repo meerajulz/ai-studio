@@ -6,11 +6,14 @@ import {
   listBenchmarkRuns,
   listBenchmarkableModels,
   runBenchmark,
+  runBenchmarkCell,
 } from "@/lib/benchmark/server";
 import type {
   BenchmarkableModel,
+  BenchmarkCellOutcome,
   BenchmarkRunSummary,
   BenchmarkRunView,
+  RunBenchmarkCellInput,
   RunBenchmarkInput,
   RunBenchmarkResult,
 } from "@/lib/benchmark/types";
@@ -31,6 +34,15 @@ export async function runBenchmarkAction(
 ): Promise<RunBenchmarkResult> {
   const userId = await requireUserId();
   return runBenchmark(userId, projectId, input);
+}
+
+/** Run ONE model cell — the client drives the loop (one call per model) to stay timeout-safe. */
+export async function runBenchmarkCellAction(
+  projectId: string,
+  cell: RunBenchmarkCellInput,
+): Promise<BenchmarkCellOutcome> {
+  const userId = await requireUserId();
+  return runBenchmarkCell(userId, projectId, cell);
 }
 
 export async function getBenchmarkRunAction(

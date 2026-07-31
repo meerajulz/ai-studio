@@ -20,8 +20,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 > (`src/lib/benchmark/`, `src/actions/benchmark.ts`) — `runBenchmark` reuses the tested `generateImage`
 > path with `modelOverride` (force model) + `manualReferenceMediaIds` (pin one source across all models),
 > tags each `Generation` in `params.benchmark` (schema-free); `getBenchmarkRun` / `listBenchmarkRuns`
-> reassemble the grid; failed cells are persisted + shown. tsc + build green. **Next = M24.8 Phase 3
-> (`debug/benchmark` grid page).**
+> reassemble the grid; failed cells are persisted + shown. **M24.8 Phase 3 shipped (milestone complete):**
+> the `debug/benchmark` grid page (`src/app/(protected)/debug/benchmark`, `components/debug/benchmark-view.tsx`)
+> — pick project → identity → pin source images → prompt → check models → run. The loop is **client-driven**
+> (one `runBenchmarkCellAction` per model) so it's timeout-safe and the grid **fills in progressively**; run
+> history via `listBenchmarkRuns`. tsc + build green (`/debug/benchmark` route). **M24.8 complete → Next =
+> M25 Transformation Planner** (preserve-vs-change instruction + transformation-aware source selection).
 
 > **▶ Prior (2026-07-21, build + tsc + verify-identity-engine[44/44] + verify-training-infrastructure[30/30] +
 > verify-selection green):** **Milestone 24.5 — Identity Adapter Research + PuLID module** (Decisions 058, 059).

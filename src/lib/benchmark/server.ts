@@ -21,6 +21,7 @@ import type {
   BenchmarkCellView,
   BenchmarkRunSummary,
   BenchmarkRunView,
+  RunBenchmarkCellInput,
   RunBenchmarkInput,
   RunBenchmarkResult,
 } from "./types";
@@ -60,20 +61,12 @@ function readBenchmarkTag(params: Prisma.JsonValue | null): BenchmarkCellTag | n
 }
 
 /** Run ONE benchmark cell (one model). Never throws — a provider failure becomes a FAILED outcome so
- * one bad model doesn't abort the whole run. The generation is persisted+tagged either way. */
-async function runBenchmarkCell(
+ * one bad model doesn't abort the whole run. The generation is persisted+tagged either way. Exported so
+ * the UI can drive the loop client-side (one cell per request), avoiding a long, timeout-prone action. */
+export async function runBenchmarkCell(
   userId: string,
   projectId: string,
-  cell: {
-    runId: string;
-    identityId: string;
-    prompt: string;
-    sourceMediaIds: string[];
-    modelId: string;
-    cellIndex: number;
-    maxReferences?: number;
-    sourceLabel?: string;
-  },
+  cell: RunBenchmarkCellInput,
 ): Promise<BenchmarkCellOutcome> {
   const modelLabel = getModel(cell.modelId)?.label ?? cell.modelId;
   try {
