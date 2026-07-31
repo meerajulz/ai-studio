@@ -392,6 +392,8 @@ export async function generateImage(
     modelOverride: input.modelOverride,
     modelMode: input.modelMode,
     strategyOverride: input.strategyOverride,
+    // Benchmark cell tag (M24.8) → merged into params as `params.benchmark` (schema-free).
+    lineage: input.benchmark ? { benchmark: input.benchmark } : undefined,
   });
 }
 

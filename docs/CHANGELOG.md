@@ -15,9 +15,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 > **Wan v2.6 Edit** (`wan/v2.6/image-to-image`) — both map to the existing `image_urls` payload kind, so each
 > is a single `MODEL_REGISTRY` line (no adapter change). Auto default unchanged (still Kontext Max Multi);
 > they're manual/benchmark picks. New **`docs/MODEL_BENCHMARK.md`** documents the permanent, model-pluggable
-> benchmark harness (Phases 2–3 next: runner + persisted grid + `debug/benchmark` page; auto-scored at M26).
-> Also shipped: a **stale-LoRA indicator** on the identity Models tab ("N newer curated images since vX").
-> **Next = M24.8 Phase 2 (benchmark runner + persistence).**
+> benchmark harness. Also shipped: a **stale-LoRA indicator** on the identity Models tab ("N newer curated
+> images since vX"). **M24.8 Phase 2 shipped:** the benchmark **runner + read-models + actions**
+> (`src/lib/benchmark/`, `src/actions/benchmark.ts`) — `runBenchmark` reuses the tested `generateImage`
+> path with `modelOverride` (force model) + `manualReferenceMediaIds` (pin one source across all models),
+> tags each `Generation` in `params.benchmark` (schema-free); `getBenchmarkRun` / `listBenchmarkRuns`
+> reassemble the grid; failed cells are persisted + shown. tsc + build green. **Next = M24.8 Phase 3
+> (`debug/benchmark` grid page).**
 
 > **▶ Prior (2026-07-21, build + tsc + verify-identity-engine[44/44] + verify-training-infrastructure[30/30] +
 > verify-selection green):** **Milestone 24.5 — Identity Adapter Research + PuLID module** (Decisions 058, 059).

@@ -55,6 +55,23 @@ export type GenerateImageInput = {
    * engine picks. Ignored in prod.
    */
   strategyOverride?: "reference" | "lora" | "pulid";
+  /**
+   * Model Benchmark (Milestone 24.8): tag this generation as one CELL of a benchmark run so the
+   * side-by-side grid can be reassembled (schema-free — stored in `Generation.params.benchmark`).
+   * The harness pins `manualReferenceMediaIds` + `modelOverride` so every cell shares one source.
+   */
+  benchmark?: BenchmarkCellTag;
+};
+
+/** Provenance tag written to `Generation.params.benchmark` for a benchmark cell (Milestone 24.8). */
+export type BenchmarkCellTag = {
+  runId: string;
+  /** The model this cell ran — kept in the tag so a FAILED cell (empty `model` column) still resolves. */
+  modelId: string;
+  /** A label for the pinned source (e.g. "portrait_01") — display only. */
+  sourceLabel?: string;
+  /** Position of this model in the run, for stable grid ordering. */
+  cellIndex?: number;
 };
 
 /**
