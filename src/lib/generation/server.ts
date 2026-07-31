@@ -29,6 +29,7 @@ import {
 import type { IdentityVisualPackage } from "@/lib/identity/types";
 import { type SelectionCandidate } from "@/lib/selection";
 import { synthesizeIdentityAppearance } from "@/lib/vision";
+import { composeTransformationPrompt, planTransformation } from "@/lib/transform";
 import { createGeneratedMedia, getGeneratedMediaByIds } from "@/lib/media/server";
 import type {
   GenerateImageInput,
@@ -162,10 +163,22 @@ async function runImageGeneration(
     : null;
 
   // The LoRA activates via its trigger phrase — prepend it to the compiled prompt when present.
-  const promptForProvider =
+  const basePrompt =
     hasLora && plan.loraTriggerWord
       ? `${plan.loraTriggerWord}, ${directive.prompt}`
       : directive.prompt;
+
+  // Transformation Planner (Milestone 25.1): when editing a KNOWN character into a new context, lead
+  // with an explicit preserve-vs-change instruction (grounded in the identity's Vision knowledge + the
+  // analyzed scene). Only fires on the identity+reference edit path with analyzed knowledge; the
+  // no-identity / text-to-image path is untouched. See docs/CHARACTER_TRANSFORMATION.md §11.
+  const transformation = planTransformation({
+    hasIdentity: opts.identityId != null,
+    hasReferences,
+    metadatas: (opts.candidates ?? []).map((c) => c.metadata),
+    directive,
+  });
+  const promptForProvider = composeTransformationPrompt(basePrompt, transformation);
 
   const params: Prisma.InputJsonValue = {
     ...(opts.lineage ?? {}),
@@ -268,6 +281,15 @@ async function runImageGeneration(
           // Identity Engine conditioning strategy (Milestone 22) — `reference` today.
           conditioning: plan.debug
             ? { strategy: plan.strategy, engines: plan.engines, engineNotes: plan.debug.engineNotes }
+            : null,
+          transformation: transformation.applies
+            ? {
+                applies: true,
+                preserve: transformation.preserve,
+                change: transformation.change,
+                instruction: transformation.instruction,
+                negativePrompt: transformation.negativePrompt,
+              }
             : null,
           modelRouting: routedModel?.decision ?? null,
           responseMetadata: result.metadata ?? null,

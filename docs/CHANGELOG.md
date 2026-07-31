@@ -29,7 +29,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 > run: models cluster (all usable, none perfect; only Qwen erred on its endpoint) → **M25 expanded to
 > "Transformation Intelligence"** (Decision 062): M25.1 Transformation Planner → M25.2 Reference Intelligence
 > (typed Character References) ⭐ → M25.3 Model Intelligence (heuristic) → M25.4 Retry (manual) → M25.5
-> Ranking → M26 Evaluation (makes 25.3/25.4/25.5 automatic). **Next = M25.1 Transformation Planner.**
+> Ranking → M26 Evaluation (makes 25.3/25.4/25.5 automatic). **M25.1 Transformation Planner shipped:**
+> `src/lib/transform/` builds a GROUNDED preserve-vs-change instruction (preserve = what the character has
+> from im-2 knowledge; change = only what the idea introduces from the analyzed Scene) and prepends it on
+> the identity+reference edit path (text-to-image untouched). Debug shows a "4.5 · Transformation" stage;
+> negative prompt computed, not sent yet. `verify-transform.ts` (19/19), tsc + build green. **Next = M25.2
+> Reference Intelligence** (typed Character References).
 
 > **▶ Prior (2026-07-21, build + tsc + verify-identity-engine[44/44] + verify-training-infrastructure[30/30] +
 > verify-selection green):** **Milestone 24.5 — Identity Adapter Research + PuLID module** (Decisions 058, 059).

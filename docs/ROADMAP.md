@@ -272,11 +272,15 @@ Model Registry are all kept; LoRA/PuLID/InstantID become optional tools, not the
 (all usable, none perfect) → the moat is the ORCHESTRATION layer, not model choice. M25 becomes a sub-sequence
 that decides *everything before the model is called*. See [CHARACTER_TRANSFORMATION.md](./CHARACTER_TRANSFORMATION.md) §11.
 
-- [ ] **Milestone 25.1 — Transformation Planner** ← **next** — reframe generation as an *edit*: split each
-      request into `preserve {face, body, tattoos, piercings, scars, proportions}` vs `change {location,
-      outfit, pose, lighting, hair, expression}` and build an explicit preserve-vs-change instruction (+ a
-      negative prompt where the model supports it). Sits above the Creative Director compiler. No schema, no
-      eval; immediate consistency win. Start here.
+- [x] **Milestone 25.1 — Transformation Planner** (Decision 062) — reframes generation as an *edit*.
+      `src/lib/transform/` `planTransformation` builds a GROUNDED preserve-vs-change instruction: `preserve`
+      reflects what the character actually has (tattoos/piercings/facial hair only when present, from im-2
+      knowledge), `change` reflects only what the idea introduces (setting/pose/outfit/hair/expression/
+      lighting, from the analyzed Scene). `composeTransformationPrompt` prepends the imperative to the scene
+      prompt. Fires ONLY on the identity+reference edit path with analyzed knowledge — text-to-image is
+      byte-identical. Debug panel shows a "4.5 · Transformation" stage; negative prompt computed but not sent
+      yet (no model advertises support). `verify-transform.ts` (19/19). Live quality is user-verified via the
+      M24.8 benchmark. **NOT M25.1:** typed references (M25.2), model/retry intelligence (M25.3/25.4).
 - [ ] **Milestone 25.2 — Reference Intelligence** ⭐ — **typed Character References** derived from persisted
       Vision knowledge (`FacePortrait`/`FaceSmile`/`FullBodyFront`/`FullBodyBack`/`{Left,Right}ArmTattoo`/
       `ChestTattoo`/`LegTattoo`/`Hair`/`Eyes`; `BestTransform` lights up only at M28). The planner then picks

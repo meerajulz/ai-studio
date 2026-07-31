@@ -620,6 +620,18 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
           <DebugRow label="Compiled prompt" value={debug.compiledPrompt} />
         </DebugStage>
 
+        {debug.transformation ? (
+          <DebugStage title="4.5 · Transformation (preserve vs change)">
+            <DebugRow label="Preserve" value={debug.transformation.preserve.join(", ")} />
+            <DebugRow label="Change" value={debug.transformation.change.join(", ")} />
+            <DebugRow label="Instruction" value={debug.transformation.instruction} />
+            <DebugRow
+              label="Negative prompt (computed; not sent yet)"
+              value={debug.transformation.negativePrompt ?? "—"}
+            />
+          </DebugStage>
+        ) : null}
+
         <DebugStage title="Provider & routing">
           <DebugRow label="Chosen provider" value={debug.provider} />
           <DebugRow label="Chosen model" value={debug.model} />

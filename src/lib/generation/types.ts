@@ -11,6 +11,7 @@ import type {
   SceneGraph,
 } from "@/lib/creative";
 import type { MediaAsset } from "@/lib/media/types";
+import type { TransformationDebug } from "@/lib/transform";
 
 /** Debug-safe summary of an Identity Visual Package (no signed URLs). */
 export type VisualPackageSummary = {
@@ -99,6 +100,7 @@ export type GenerationDebug = {
   referenceSelection: ReferenceSelectionDebug | null; // Smart Reference Selection trace (Milestone 20)
   anchorRanking: AnchorScore[]; // top identity-anchor candidates + face scoring breakdown (Milestone 20)
   conditioning: ConditioningDebugSummary | null; // Identity Engine strategy + engines (Milestone 22)
+  transformation: TransformationDebug | null; // preserve-vs-change plan (Milestone 25.1); null when not an edit
   modelRouting: ModelRoutingDecision | null; // capability model routing: chosen model + why (Milestone 21)
   responseMetadata: Record<string, unknown> | null; // provider response metadata (seed/timings/…)
   payload: Record<string, unknown>; // secret-free echo of the provider request
