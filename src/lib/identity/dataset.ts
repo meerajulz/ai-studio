@@ -111,7 +111,7 @@ export type TrainingStaleness = {
 
 /** The character's persisted default Identity Package, shaped for the read-only UI (Milestone 25.2 Phase D). */
 export type CharacterPackageView = {
-  anchors: { role: string; roles: string[]; url: string; reasons: string[]; exposure: string }[];
+  anchors: { role: string; roles: string[]; url: string; score: number; reasons: string[]; exposure: string }[];
   analyzedCount: number;
   scorerId: string;
 };
@@ -142,6 +142,7 @@ export async function getIdentityEngineOverview(
           role: a.role,
           roles: a.roles,
           url: a.url,
+          score: Math.round(a.score),
           reasons: a.reasons,
           exposure: a.exposure,
         })),

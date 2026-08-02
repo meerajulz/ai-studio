@@ -10,6 +10,16 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+/** Anchor-role glyphs for the Identity Package visualization (Milestone 25.2). */
+const ROLE_EMOJI: Record<string, string> = {
+  face: "👤",
+  body: "💪",
+  tattoo: "🖋",
+  hair: "💇",
+  canonical: "⭐",
+  pose: "🧍",
+};
+
 type Props = { identityId: string };
 
 const RATING_LABEL: Record<string, string> = {
@@ -130,13 +140,16 @@ export function IdentityDatasetReadiness({ identityId }: Props) {
                 <img src={a.url} alt="" className="size-12 shrink-0 rounded object-cover" />
                 <div className="grid gap-0.5 text-xs">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-medium">{a.roles.join(" · ")}</span>
+                    <span className="font-medium">
+                      {a.roles.map((r) => `${ROLE_EMOJI[r] ?? "•"} ${r}`).join(" · ")}
+                    </span>
                     {a.exposure !== "clothed" ? (
                       <Badge variant="secondary" className="text-[10px]">
                         {a.exposure}
                       </Badge>
                     ) : null}
                   </div>
+                  <p className="text-muted-foreground font-mono">confidence {a.score}</p>
                   <p className="text-muted-foreground">{a.reasons.join(", ")}</p>
                 </div>
               </div>

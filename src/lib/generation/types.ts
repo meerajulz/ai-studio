@@ -113,6 +113,7 @@ export type IdentityPackageDebug = {
   faceAnchorSource: string; // "face" | "hero" | "none"
   reason: string;
   neededRoles: string[];
+  availableRoles: string[]; // every role the character has an anchor for (needs vs doesn't-need)
   filledRoles: string[];
   missingRoles: string[];
   facetsCovered: string[]; // facets a reference now carries → the prompt could stop describing them

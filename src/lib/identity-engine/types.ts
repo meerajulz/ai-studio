@@ -116,6 +116,7 @@ export type IdentityPackageTrace = {
   faceAnchorSource: FaceAnchorSource; // "face" | "hero" | "none" — "none" → the request must refuse
   reason: string;
   neededRoles: AnchorRole[];
+  availableRoles: AnchorRole[]; // every role the character HAS an anchor for (needs vs doesn't-need)
   filledRoles: AnchorRole[];
   missingRoles: AnchorRole[]; // → the prompt must still describe these facets (channel arbitration)
   facetsCovered: IdentityFacet[];

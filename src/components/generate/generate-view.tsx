@@ -35,6 +35,26 @@ import { MODEL_REGISTRY } from "@/lib/ai/model-registry";
 
 const MAX_PROMPT = 1000;
 
+/** Anchor-role glyphs for the Identity Package visualization (Milestone 25.2). */
+const ROLE_EMOJI: Record<string, string> = {
+  face: "👤",
+  body: "💪",
+  tattoo: "🖋",
+  hair: "💇",
+  canonical: "⭐",
+  pose: "🧍",
+};
+const roleEmoji = (role: string) => ROLE_EMOJI[role] ?? "•";
+/** Filename-ish label from a signed URL (best-effort) so anchors read like "IMG_9762". */
+const shortLabel = (url: string) => {
+  try {
+    const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+    return name.replace(/\.[a-z0-9]+$/i, "").slice(0, 24) || "reference";
+  } catch {
+    return "reference";
+  }
+};
+
 /** Compact badges for the manual reference picker, derived from the persisted knowledge summary. */
 function badgesFor(k: MediaKnowledgeSummary, isAnchor: boolean): string[] {
   const b: string[] = [];
@@ -642,31 +662,48 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
                   : `via ${debug.identityPackage.faceAnchorSource}`
               }
             />
-            <DebugRow label="Needed roles" value={debug.identityPackage.neededRoles.join(", ")} />
-            <DebugRow
-              label="Missing roles"
-              value={debug.identityPackage.missingRoles.length ? debug.identityPackage.missingRoles.join(", ") : "—"}
-            />
-            <DebugRow
-              label="Facets covered by reference"
-              value={debug.identityPackage.facetsCovered.length ? debug.identityPackage.facetsCovered.join(", ") : "—"}
-            />
             <DebugRow
               label="Anchors (ordered)"
               value={
-                <div className="grid gap-1">
+                <div className="grid gap-1.5">
                   {debug.identityPackage.anchors.map((a, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <img src={a.url} alt="" className="size-10 rounded object-cover" />
-                      <div className="font-mono text-[11px]">
-                        <span className="text-foreground font-semibold">
+                      <div className="text-[11px] leading-tight">
+                        <div className="text-foreground font-semibold">
                           {i === 0 ? "★ " : ""}
-                          {a.roles.join("/")} · {a.score}
-                        </span>
+                          {a.roles.map((r) => `${roleEmoji(r)} ${r}`).join(" · ")}
+                        </div>
+                        <div className="font-mono text-muted-foreground">
+                          {shortLabel(a.url)} · confidence {a.score}
+                        </div>
                         <div className="text-muted-foreground">{a.reasons.join(" · ")}</div>
                       </div>
                     </div>
                   ))}
+                </div>
+              }
+            />
+            <DebugRow
+              label="Transformation"
+              value={
+                <div className="grid gap-0.5 text-[11px]">
+                  <div className="text-emerald-600 dark:text-emerald-400">
+                    Needs:{" "}
+                    {debug.identityPackage.neededRoles.map((r) => `✓ ${roleEmoji(r)} ${r}`).join("  ") || "—"}
+                  </div>
+                  <div className="text-muted-foreground">
+                    Doesn&apos;t need:{" "}
+                    {debug.identityPackage.availableRoles
+                      .filter((r) => !debug.identityPackage!.neededRoles.includes(r))
+                      .map((r) => `✗ ${roleEmoji(r)} ${r}`)
+                      .join("  ") || "—"}
+                  </div>
+                  {debug.identityPackage.missingRoles.length ? (
+                    <div className="text-amber-600 dark:text-amber-400">
+                      Needed but no anchor: {debug.identityPackage.missingRoles.join(", ")}
+                    </div>
+                  ) : null}
                 </div>
               }
             />

@@ -42,11 +42,12 @@ function anchorRoleToRef(role: AnchorRole): ReferenceImage["role"] {
 }
 
 /** Build the provider-neutral trace Generation uses to refuse (faceAnchorSource) + show in Debug. */
-function toPackageTrace(pkg: IdentityPackage): IdentityPackageTrace {
+function toPackageTrace(pkg: IdentityPackage, availableRoles: AnchorRole[]): IdentityPackageTrace {
   return {
     faceAnchorSource: pkg.faceAnchorSource,
     reason: pkg.reason,
     neededRoles: pkg.neededRoles,
+    availableRoles,
     filledRoles: pkg.filledRoles,
     missingRoles: pkg.missingRoles,
     facetsCovered: pkg.facetsCoveredByReference,
@@ -116,7 +117,11 @@ export function selectReferences(req: ConditioningRequest): ConditioningContribu
       const neededRoles = req.transformation
         ? deriveNeededRoles({ ...req.transformation, available })
         : ANCHOR_ROLES.filter((r) => available.has(r) || r === "face");
-      return { neededRoles, pkg: resolvePackage({ characterPackage: cp, neededRoles, maxReferences: max, exposureCeiling }) };
+      return {
+        neededRoles,
+        availableRoles: ANCHOR_ROLES.filter((r) => available.has(r)),
+        pkg: resolvePackage({ characterPackage: cp, neededRoles, maxReferences: max, exposureCeiling }),
+      };
     };
 
     let source = "persisted default";
@@ -126,7 +131,7 @@ export function selectReferences(req: ConditioningRequest): ConditioningContribu
       resolved = resolveFrom(buildCharacterPackage(req.identityId ?? "", exposure.safe));
     }
     const { neededRoles, pkg } = resolved;
-    identityPackage = toPackageTrace(pkg);
+    identityPackage = toPackageTrace(pkg, resolved.availableRoles);
 
     // Render the package for the provider (image_urls today; face #0 by invariant). Face → the anchor
     // slot (reuses the adapter's proven [anchor, ...scene] merge/cap); the rest → scene references.

@@ -346,6 +346,7 @@ async function runImageGeneration(
                 faceAnchorSource: identityPackage.faceAnchorSource,
                 reason: identityPackage.reason,
                 neededRoles: identityPackage.neededRoles,
+                availableRoles: identityPackage.availableRoles,
                 filledRoles: identityPackage.filledRoles,
                 missingRoles: identityPackage.missingRoles,
                 facetsCovered: identityPackage.facetsCovered,
