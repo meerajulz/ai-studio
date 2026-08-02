@@ -507,7 +507,7 @@ function IdentityEvaluationPanel({
     pct == null ? "text-muted-foreground" : pct >= 75 ? "text-emerald-600 dark:text-emerald-400" : pct >= 55 ? "text-amber-600 dark:text-amber-400" : "text-destructive";
   const note =
     evaluation?.method === "not-configured"
-      ? "Not configured — set REPLICATE_API_TOKEN + REPLICATE_FACE_EMBED_MODEL to measure identity drift."
+      ? "No face-similarity provider wired yet (M26 Phase 2) — the evaluation pipeline ran and returned no score."
       : evaluation?.face == null && !evaluating
         ? `No face score (${evaluation?.method ?? "unavailable"}).`
         : null;
