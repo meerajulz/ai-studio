@@ -57,7 +57,8 @@ export const auraFaceProvider: FaceSimilarityProvider = {
       res = await fetch(url, {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ image: imageUrl }),
+        // HF's inference toolkit requires an `inputs` key; the handler unwraps it back to { image }.
+        body: JSON.stringify({ inputs: { image: imageUrl } }),
         signal: controller.signal,
       });
     } catch (e) {
