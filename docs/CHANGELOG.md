@@ -7,6 +7,18 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Milestone 25.2 Phase B — Identity Package drives generation (Decision 064, 2026-08-02)
+
+- **The Identity Package now DRIVES the references sent** (was Debug-only shadow in Phase A). The Reference
+  Engine builds → resolves → renders the role-based package (face/body/tattoo/hair/canonical/pose) and returns
+  provider-neutral `referenceImages` + `identityAnchor`; needed roles are transformation-driven (M25.1).
+- **Face-Anchor invariant = identity-confidence policy.** Every face anchor must clear `FACE_ANCHOR_MIN_SCORE`
+  (0.40). No confident analyzed face → the Hero is analyzed on demand + cached (scored by the same system, no
+  special-case); still none → generation refuses with the new `NO_IDENTITY_ANCHOR` error ("won't generate a
+  different person"). LoRA/PuLID/manual/no-candidate paths unchanged.
+- tsc + `next build` green; `verify-reference-package` 22/22 (adds confidence-policy + byte-parity),
+  `verify-identity-engine` 46/46. See `docs/REFERENCE_INTELLIGENCE.md`. **Next = Phase C (channel arbitration).**
+
 > **▶ Resume (2026-07-31, tsc + verify-model-routing[9/9] green):** **Transform-first pivot** (Decisions 060,
 > 061) — reframed the layer above the Identity Engine from *"generate a character"* to *"transform a known
 > character"*; new **`docs/CHARACTER_TRANSFORMATION.md`** is the load-bearing design. Roadmap resequenced

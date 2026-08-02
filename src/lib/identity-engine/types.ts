@@ -10,7 +10,13 @@
  */
 import type { ReferenceImage } from "@/lib/ai";
 import type { CreativeDirective } from "@/lib/creative";
-import type { AnchorScore, SelectionCandidate } from "@/lib/selection";
+import type {
+  AnchorRole,
+  AnchorScore,
+  FaceAnchorSource,
+  IdentityFacet,
+  SelectionCandidate,
+} from "@/lib/selection";
 import type { IdentityVisualPackage } from "@/lib/identity/types";
 
 /** Every identity-conditioning module we know about. Neutral ids — not tied to one technique. */
@@ -54,6 +60,12 @@ export type ConditioningRequest = {
    * benchmark (`lora` vs `pulid`). Undefined = the engine picks the highest-priority available one.
    */
   preferEngine?: EngineId;
+  /**
+   * The Transformation Plan (Milestone 25.1) — what this request PRESERVES vs CHANGES. The Reference
+   * Engine consumes it to pick which anchor roles the Identity Package needs (e.g. changing hair → no
+   * Hair Anchor). Absent → the package keeps every available role. See docs/REFERENCE_INTELLIGENCE.md.
+   */
+  transformation?: { preserve: string[]; change: string[] };
 };
 
 /**
@@ -88,11 +100,28 @@ export type ArtifactRef = {
 /** Availability of a module for the current identity + request. */
 export type ModuleAvailability = { available: boolean; reason: string };
 
+/**
+ * The resolved Identity Package for THIS request (Milestone 25.2 Phase B) — the provider-neutral trace
+ * the Reference Engine returns so Generation can (a) refuse when `faceAnchorSource === "none"` and
+ * (b) surface the REAL package in Debug. `anchors` is importance-ordered, face first (the invariant).
+ */
+export type IdentityPackageTrace = {
+  faceAnchorSource: FaceAnchorSource; // "face" | "hero" | "none" — "none" → the request must refuse
+  reason: string;
+  neededRoles: AnchorRole[];
+  filledRoles: AnchorRole[];
+  missingRoles: AnchorRole[]; // → the prompt must still describe these facets (channel arbitration)
+  facetsCovered: IdentityFacet[];
+  anchors: { role: AnchorRole; roles: AnchorRole[]; score: number; url: string; reasons: string[] }[];
+};
+
 /** One module's contribution to the plan. The engine merges contributions into a `ConditioningPlan`. */
 export type ConditioningContribution = {
   part: EngineId;
   referenceImages?: ReferenceImage[];
   identityAnchor?: ReferenceImage;
+  /** The resolved Identity Package (Milestone 25.2 Phase B) — set by the Reference Engine. */
+  identityPackage?: IdentityPackageTrace | null;
   loraModelId?: string | null;
   /** Trained-LoRA weights URL + trigger phrase (Milestone 24) — set by the LoRA module. */
   loraWeightsUrl?: string | null;
@@ -147,6 +176,8 @@ export type ConditioningPlan = {
   pulidReferenceUrl: string | null;
   pulidIdWeight: number | null;
   adapterInputs: Record<string, unknown> | null;
+  /** The resolved Identity Package (Milestone 25.2 Phase B) — `faceAnchorSource: "none"` → refuse. */
+  identityPackage: IdentityPackageTrace | null;
   reason: string;
   debug?: ConditioningDebug;
 };

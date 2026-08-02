@@ -311,6 +311,7 @@ export async function getIdentityVisualPackage(
 
   return {
     heroImageUrl,
+    heroMediaId: identity.displayImageId ?? null,
     // No explicit "full body" role exists yet — approximate from roles (prep only).
     bestPortraitUrl: urlForRole("PRIMARY") ?? heroImageUrl,
     bestFullBodyUrl: urlForRole("POSE"),

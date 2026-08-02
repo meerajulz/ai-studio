@@ -29,6 +29,8 @@ export type IdentityContextInfo = {
  */
 export type IdentityVisualPackage = {
   heroImageUrl: string | null;
+  /** The Hero's media id (displayImageId) — lets generation analyze it on demand for the Face Anchor. */
+  heroMediaId: string | null;
   bestPortraitUrl: string | null;
   bestFullBodyUrl: string | null;
   referenceImageUrls: string[];

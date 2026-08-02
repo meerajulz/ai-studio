@@ -10,32 +10,53 @@
 import type { ReferenceImage } from "@/lib/ai";
 import type { IdentityVisualPackage } from "@/lib/identity/types";
 import {
-  buildReferencePackage,
+  ANCHOR_ROLES,
+  allowedExposureForPrompt,
+  buildCharacterPackage,
+  deriveNeededRoles,
   filterCandidatesByExposure,
-  pickIdentityAnchor,
   rankIdentityAnchors,
-  type SelectedReference,
+  renderPackageForModel,
+  resolvePackage,
+  type AnchorRole,
+  type IdentityPackage,
   type SelectionCandidate,
 } from "@/lib/selection";
 import type { IdentityModule } from "../../modules/IdentityModule";
 import type {
   ConditioningContribution,
   ConditioningRequest,
+  IdentityPackageTrace,
   SelectionTrace,
 } from "../../types";
 
-/** Map a Smart Reference Selection role onto the provider-neutral `ReferenceImage` role vocabulary. */
-function toReferenceRole(role: SelectedReference["role"]): ReferenceImage["role"] {
-  switch (role) {
-    case "hero":
-      return "hero";
-    case "face":
-      return "portrait";
-    case "body":
-      return "fullBody";
-    default:
-      return "reference";
-  }
+/** Default reference cap when the model's real max is unknown at engine time (the adapter re-caps). */
+const DEFAULT_MAX_REFERENCES = 4;
+
+/** Map an Identity Package anchor role onto the provider-neutral `ReferenceImage` role vocabulary. */
+function anchorRoleToRef(role: AnchorRole): ReferenceImage["role"] {
+  if (role === "face") return "portrait";
+  if (role === "body") return "fullBody";
+  return "reference";
+}
+
+/** Build the provider-neutral trace Generation uses to refuse (faceAnchorSource) + show in Debug. */
+function toPackageTrace(pkg: IdentityPackage): IdentityPackageTrace {
+  return {
+    faceAnchorSource: pkg.faceAnchorSource,
+    reason: pkg.reason,
+    neededRoles: pkg.neededRoles,
+    filledRoles: pkg.filledRoles,
+    missingRoles: pkg.missingRoles,
+    facetsCovered: pkg.facetsCoveredByReference,
+    anchors: pkg.anchors.map((a) => ({
+      role: a.role,
+      roles: a.roles,
+      score: Math.round(a.score),
+      url: a.url,
+      reasons: a.reasons,
+    })),
+  };
 }
 
 /** Flatten an Identity Visual Package into provider-neutral reference images (deduped by url). */
@@ -65,15 +86,14 @@ export function selectReferences(req: ConditioningRequest): ConditioningContribu
   const manualIds = req.manualReferenceMediaIds?.filter(Boolean) ?? [];
 
   let referenceImages: ReferenceImage[];
+  let identityAnchor: ReferenceImage | undefined;
+  let identityPackage: IdentityPackageTrace | null = null;
   let reason: string;
   let selection: SelectionTrace | null = null;
   let manual = false;
-  // Reference Safety filter: drop nude/lingerie references for non-explicit prompts (applied to BOTH
-  // the scene selection AND the Identity Anchor below).
-  let safeCandidates = candidates;
 
   if (manualIds.length && candidates.length) {
-    // DEV manual override: EXACTLY these images, in THIS order — no selector, no anchor, no safety.
+    // DEV manual override: EXACTLY these images, in THIS order — no package, no anchor, no safety.
     manual = true;
     const byId = new Map(candidates.map((c) => [c.mediaId, c] as const));
     referenceImages = manualIds
@@ -81,20 +101,47 @@ export function selectReferences(req: ConditioningRequest): ConditioningContribu
       .filter((c): c is SelectionCandidate => c != null)
       .map((c) => ({ url: c.url, role: "reference" as const }));
     reason = `MANUAL reference selection (dev): ${referenceImages.length} image(s), exact order`;
-    safeCandidates = []; // no auto-anchor in manual mode
   } else if (candidates.length) {
+    // Identity Package (Milestone 25.2 Phase B): the role-based anchor package DRIVES the references.
     const exposure = filterCandidatesByExposure(directive, candidates);
-    safeCandidates = exposure.safe;
-    const sel = buildReferencePackage(directive, exposure.safe);
-    referenceImages = sel.package.map((p) => ({ url: p.url, role: toReferenceRole(p.role) }));
-    reason = referenceImages.length
-      ? `smart selection: ${sel.package.map((p) => `${p.role} — ${p.reason}`).join("; ")}`
-      : "no suitable references selected";
+    const characterPackage = buildCharacterPackage(req.identityId ?? "", exposure.safe);
+    const available = new Set(characterPackage.anchors.flatMap((a) => a.roles));
+    // Transformation-driven roles (M25.1). Without a plan, keep every available role (coverage).
+    const neededRoles = req.transformation
+      ? deriveNeededRoles({ ...req.transformation, available })
+      : ANCHOR_ROLES.filter((r) => available.has(r) || r === "face");
+    const pkg = resolvePackage({
+      characterPackage,
+      neededRoles,
+      maxReferences: req.maxReferences ?? DEFAULT_MAX_REFERENCES,
+      exposureCeiling: allowedExposureForPrompt(directive),
+    });
+    identityPackage = toPackageTrace(pkg);
+
+    // Render the package for the provider (image_urls today; face #0 by invariant). Face → the anchor
+    // slot (reuses the adapter's proven [anchor, ...scene] merge/cap); the rest → scene references.
+    const rendered = renderPackageForModel(pkg, {
+      kind: "image_urls",
+      max: req.maxReferences ?? DEFAULT_MAX_REFERENCES,
+    });
+    if (pkg.faceAnchorSource === "none") {
+      // No confident face anchor → Generation refuses (NO_IDENTITY_ANCHOR). Send nothing.
+      referenceImages = [];
+      reason = pkg.reason;
+    } else {
+      identityAnchor = { url: rendered[0].url, role: "anchor" };
+      referenceImages = rendered.slice(1).map((r) => ({ url: r.url, role: anchorRoleToRef(r.role) }));
+      reason = `identity package: ${pkg.reason}`;
+    }
     selection = {
-      requirements: sel.requirements.active.map((r) => r.label),
-      selected: sel.package.map((p) => ({ role: p.role, reason: p.reason, satisfies: p.satisfies })),
-      warnings: sel.warnings,
-      allowedExposure: exposure.allowed,
+      requirements: neededRoles,
+      selected: pkg.anchors.map((a) => ({
+        role: a.roles.join("/"),
+        reason: a.reasons.join(", "),
+        satisfies: a.coversFacets,
+      })),
+      warnings: pkg.missingRoles.map((r) => `no anchor for ${r}`),
+      allowedExposure: pkg.exposureCeiling,
       excludedForSafety: exposure.excluded.length,
     };
   } else {
@@ -106,17 +153,11 @@ export function selectReferences(req: ConditioningRequest): ConditioningContribu
       : "no reference images available";
   }
 
-  // Identity Anchor — chosen INDEPENDENTLY of the scene selector ("who is this person?"); only when we
-  // have analyzed candidates (it needs face knowledge). Never enters the selector's reasoning.
-  const anchorCandidate = !manual && safeCandidates.length ? pickIdentityAnchor(safeCandidates) : null;
-  const identityAnchor: ReferenceImage | undefined = anchorCandidate
-    ? { url: anchorCandidate.url, role: "anchor" }
-    : undefined;
-
   return {
     part: "reference",
     referenceImages,
     identityAnchor,
+    identityPackage,
     reason,
     debug: {
       selection,

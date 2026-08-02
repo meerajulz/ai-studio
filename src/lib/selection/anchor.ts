@@ -46,6 +46,20 @@ export type AnchorScore = {
 /** Face prominence from resolution: a close-up is worth ~1.6× a full-body of equal face quality. */
 const prominenceOf = (resolution: number): number => 0.4 + 0.6 * resolution;
 
+/**
+ * Identity-confidence policy (Milestone 25.2 Phase B): the minimum anchor `score` a face must reach to
+ * be trusted as the Face Anchor. Below this we won't anchor identity on it (→ analyze the Hero on
+ * demand, else refuse with NO_IDENTITY_ANCHOR). ONE tunable knob for the whole invariant — raise it to
+ * be stricter about "who is this person" once the M26 evaluator provides real face similarity.
+ */
+export const FACE_ANCHOR_MIN_SCORE = 0.4;
+
+/** Whether any candidate is a CONFIDENT face anchor (eligible AND score ≥ the confidence threshold). */
+export function hasConfidentFace(candidates: SelectionCandidate[]): boolean {
+  const best = pickIdentityAnchor(candidates);
+  return best != null && scoreAnchor(best).score >= FACE_ANCHOR_MIN_SCORE;
+}
+
 /** Score ONE candidate as an identity anchor — FACE quality × frontality × confidence × prominence. */
 export function scoreAnchor(c: SelectionCandidate): AnchorScore {
   const face = c.metadata.face;

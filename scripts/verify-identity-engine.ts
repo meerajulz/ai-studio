@@ -3,8 +3,9 @@
  *
  * Fully OFFLINE — no DB, no Blob, no Vision/generation API. Builds mocked candidates through the REAL
  * vision pipeline, then checks:
- *   1. PARITY — `planConditioning` reproduces the exact references + anchor the previous inline path
- *      produced (exposure filter → reference package → Identity Anchor). No regression.
+ *   1. IDENTITY PACKAGE (M25.2 Phase B) — `planConditioning` drives references from the role-based
+ *      Identity Package: a resolved package with faceAnchorSource, the Face Anchor byte-identical to
+ *      `pickIdentityAnchor`, and the face carried in the anchor slot (not duplicated in the scene refs).
  *   2. STRATEGY — the plan is `reference` today (only the Reference module is enabled).
  *   3. REGISTRY — reference is enabled; lora / pulid / instantid are registered but disabled.
  *   4. DATASET — `assembleDataset` returns a readiness score + rating + metrics for a mock library.
@@ -13,7 +14,6 @@
  */
 import { directCreative } from "../src/lib/creative";
 import {
-  buildReferencePackage,
   filterCandidatesByExposure,
   pickIdentityAnchor,
   type SelectionCandidate,
@@ -82,24 +82,25 @@ const library = [FACE, SMILE, FULLBODY, LEGTATTOO];
 async function main() {
   console.log("Identity Engine — verification\n");
 
-  // 1. PARITY — reconstruct the OLD inline path and compare to the engine's plan.
-  console.log("Parity with the previous inline reference path:");
+  // 1. IDENTITY PACKAGE (M25.2 Phase B) — the engine drives references from the role-based package.
+  console.log("Identity Package drives references (Phase B):");
   const idea = "Walking on the beach in a bikini";
   const directive = directCreative({ idea });
 
   const exposure = filterCandidatesByExposure(directive, library);
-  const oldSelection = buildReferencePackage(directive, exposure.safe);
-  const oldUrls = oldSelection.package.map((p) => p.url);
-  const oldAnchor = pickIdentityAnchor(exposure.safe);
+  const anchor = pickIdentityAnchor(exposure.safe);
 
   const plan = await planConditioning({ identityId: "id_mock", directive, candidates: library });
   const newUrls = plan.referenceImages.map((r) => r.url);
 
-  check("reference URLs + order identical", JSON.stringify(newUrls) === JSON.stringify(oldUrls),
-    `${JSON.stringify(newUrls)} vs ${JSON.stringify(oldUrls)}`);
-  check("Identity Anchor identical", (plan.identityAnchor?.url ?? null) === (oldAnchor?.url ?? null),
-    `${plan.identityAnchor?.url} vs ${oldAnchor?.url}`);
+  check("resolved an Identity Package", plan.identityPackage != null);
+  check("faceAnchorSource === 'face' (verified anchor)", plan.identityPackage?.faceAnchorSource === "face",
+    plan.identityPackage?.faceAnchorSource);
+  check("Face Anchor byte-identical to pickIdentityAnchor", (plan.identityAnchor?.url ?? null) === (anchor?.url ?? null),
+    `${plan.identityAnchor?.url} vs ${anchor?.url}`);
   check("anchor role is 'anchor'", !plan.identityAnchor || plan.identityAnchor.role === "anchor");
+  check("face NOT duplicated in the scene references", !newUrls.includes(plan.identityAnchor?.url ?? "__none__"),
+    JSON.stringify(newUrls));
 
   // 2. STRATEGY — reference only today.
   console.log("\nStrategy:");

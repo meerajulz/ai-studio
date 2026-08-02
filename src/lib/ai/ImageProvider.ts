@@ -78,6 +78,7 @@ export type ProviderErrorCode =
   | "PROVIDER_UNAVAILABLE"
   | "GENERATION_FAILED"
   | "CONTENT_MODERATED" // the model's safety filter blocked it (often a black/blank placeholder image)
+  | "NO_IDENTITY_ANCHOR" // no verified face anchor for the character — refuse rather than draw a stranger
   | "TIMEOUT";
 
 /** Provider-neutral error. Providers map their SDK failures to these codes. */

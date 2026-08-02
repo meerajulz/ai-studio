@@ -9,7 +9,7 @@
  */
 import { classifyExposure } from "@/lib/vision/exposure";
 
-import { scoreAnchor } from "./anchor";
+import { FACE_ANCHOR_MIN_SCORE, scoreAnchor } from "./anchor";
 import type { AnchorRole, ReferenceProfile, RoleScorer, SelectionCandidate } from "./types";
 
 const clamp = (n: number) => Math.max(0, Math.min(100, n));
@@ -19,13 +19,17 @@ const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.le
 function faceRole(c: SelectionCandidate): { fitness: number; reasons: string[]; anchor: ReturnType<typeof scoreAnchor> } {
   const a = scoreAnchor(c);
   const reasons: string[] = [];
+  // Identity-confidence policy: only a face at or above the trust threshold may anchor identity. Below
+  // it, fitness is 0 so this image is NOT picked as the Face Anchor (→ Hero-on-demand, else refuse).
+  const confident = a.eligible && a.score >= FACE_ANCHOR_MIN_SCORE;
   if (!a.eligible) reasons.push(a.faceVisible ? "face not frontal / cropped" : "face not visible");
+  else if (!confident) reasons.push(`face below confidence threshold (${a.score.toFixed(2)})`);
   else {
     reasons.push(`${a.orientation} face`, `conf ${a.confidence.toFixed(2)}`);
     if (a.eyeVisibility > 0.5) reasons.push("eyes visible");
     reasons.push(a.prominence > 0.85 ? "close-up" : a.prominence > 0.6 ? "mid-shot" : "small in frame");
   }
-  return { fitness: clamp(a.score * 100), reasons, anchor: a };
+  return { fitness: confident ? clamp(a.score * 100) : 0, reasons, anchor: a };
 }
 
 /** Body role — full-body visibility + share of body in frame + sharpness, penalized when cropped. */

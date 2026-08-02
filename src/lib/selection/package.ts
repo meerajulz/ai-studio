@@ -121,17 +121,20 @@ export function deriveNeededRoles(input: {
 
 /**
  * Project the character package onto ONE request: keep the needed roles, enforce the Face-Anchor
- * invariant (face → hero → refuse), drop refs over the model's cap (never the face), and report which
- * facets a reference now carries (so the prompt can stop describing them).
+ * invariant (a confident face anchor must exist, else refuse), drop refs over the model's cap (never
+ * the face), and report which facets a reference now carries (so the prompt can stop describing them).
+ *
+ * Identity-confidence policy (Phase B): the Hero is NOT a special case here — it is folded into
+ * `candidates` (analyzed on demand upstream), so it either qualifies as a normal face anchor or it
+ * doesn't. `faceAnchorSource` is therefore `face` (a confident anchor exists) or `none` (→ refuse).
  */
 export function resolvePackage(input: {
   characterPackage: CharacterPackage;
   neededRoles: AnchorRole[];
   maxReferences: number;
   exposureCeiling: ExposureLevel;
-  heroUrl?: string | null;
 }): IdentityPackage {
-  const { characterPackage, neededRoles, maxReferences, exposureCeiling, heroUrl } = input;
+  const { characterPackage, neededRoles, maxReferences, exposureCeiling } = input;
   const needed = new Set(neededRoles);
 
   // Anchors serving at least one needed role, ordered by importance.
@@ -139,28 +142,10 @@ export function resolvePackage(input: {
     .filter((a) => a.roles.some((r) => needed.has(r)))
     .sort((a, b) => b.importance - a.importance);
 
-  // Face-Anchor invariant.
-  let faceAnchorSource: IdentityPackage["faceAnchorSource"] = "none";
-  const faceAnchor = kept.find((a) => a.roles.includes("face"));
-  if (faceAnchor) {
-    faceAnchorSource = "face";
-  } else if (heroUrl) {
-    faceAnchorSource = "hero";
-    kept = [
-      {
-        role: "face",
-        roles: ["face"],
-        mediaId: "hero",
-        url: heroUrl,
-        score: 0,
-        importance: ROLE_IMPORTANCE.face,
-        reasons: ["fallback: Hero image (no confident face anchor)"],
-        coversFacets: ROLE_FACETS.face,
-      },
-      ...kept,
-    ];
-  }
-  // else faceAnchorSource stays "none" → the caller MUST refuse the transformation.
+  // Face-Anchor invariant: a confident face anchor must be present, else the caller MUST refuse.
+  const faceAnchorSource: IdentityPackage["faceAnchorSource"] = kept.some((a) => a.roles.includes("face"))
+    ? "face"
+    : "none";
 
   // Ensure the face anchor is position 0.
   kept.sort((a, b) => (a.roles.includes("face") ? -1 : b.roles.includes("face") ? 1 : b.importance - a.importance));

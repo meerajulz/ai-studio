@@ -3,14 +3,18 @@
  *
  * Validates the Reference Intelligence core: role scoring, best-per-role selection, MERGE-BY-IMAGE
  * (one photo filling several roles — coverage > uniqueness), transformation-driven needed roles, the
- * Face-Anchor invariant (face → hero → refuse), the reference cap (never drops the face), and the
- * provider projection. Run:  npx tsx scripts/verify-reference-package.ts
+ * Face-Anchor invariant as an IDENTITY-CONFIDENCE policy (a face must clear FACE_ANCHOR_MIN_SCORE or
+ * the request refuses), byte-parity with pickIdentityAnchor on a face-only request, the reference cap
+ * (never drops the face), and the provider projection. Run:  npx tsx scripts/verify-reference-package.ts
  */
 import type { IdentityMetadata } from "../src/lib/vision";
 import type { SelectionCandidate } from "../src/lib/selection";
 import {
   buildCharacterPackage,
   deriveNeededRoles,
+  FACE_ANCHOR_MIN_SCORE,
+  hasConfidentFace,
+  pickIdentityAnchor,
   renderPackageForModel,
   resolvePackage,
 } from "../src/lib/selection";
@@ -93,13 +97,24 @@ function main() {
   const capped = resolvePackage({ characterPackage: pkg, neededRoles: needed, maxReferences: 1, exposureCeiling: "clothed" });
   assert(capped.anchors.length === 1 && capped.anchors[0].roles.includes("face"), "cap=1 keeps ONLY the face anchor");
 
-  // Face invariant fallbacks: no eligible face in the library.
+  // Byte-parity: a face-only request yields exactly the same single ref as pickIdentityAnchor picks.
+  const faceOnly = resolvePackage({ characterPackage: pkg, neededRoles: ["face"], maxReferences: 4, exposureCeiling: "clothed" });
+  const faceUrls = renderPackageForModel(faceOnly, { kind: "image_urls", max: 4 });
+  assert(faceUrls.length === 1 && faceUrls[0].url === pickIdentityAnchor([A, B, C])!.url, "BYTE-PARITY: face-only request = the pickIdentityAnchor image");
+
+  // Identity-confidence policy: no eligible face at all → refuse.
   const back = cand("D", mkMeta({ face: { visible: false, orientation: "back" }, quality: { overall: 55 } }));
+  assert(!hasConfidentFace([back]), "back-only library has NO confident face");
   const noFacePkg = buildCharacterPackage("id2", [back]);
-  const hero = resolvePackage({ characterPackage: noFacePkg, neededRoles: ["face"], maxReferences: 4, exposureCeiling: "clothed", heroUrl: "https://x/hero.jpg" });
-  assert(hero.faceAnchorSource === "hero" && hero.anchors[0].url === "https://x/hero.jpg", "no face → falls back to Hero image");
   const refuse = resolvePackage({ characterPackage: noFacePkg, neededRoles: ["face"], maxReferences: 4, exposureCeiling: "clothed" });
-  assert(refuse.faceAnchorSource === "none", "no face + no hero → faceAnchorSource none (caller must refuse)");
+  assert(refuse.faceAnchorSource === "none", "no confident face → faceAnchorSource none (caller must refuse)");
+
+  // Identity-confidence policy: a VISIBLE but weak face (score < threshold) is NOT trusted → refuse.
+  const weak = cand("E", mkMeta({ face: { orientation: "three-quarter", confidence: 0.4, q: 0.4, res: 0.3 }, quality: { overall: 55 } }));
+  assert(!hasConfidentFace([weak]), `weak face below FACE_ANCHOR_MIN_SCORE (${FACE_ANCHOR_MIN_SCORE}) is not confident`);
+  const weakPkg = buildCharacterPackage("id3", [weak]);
+  const weakResolved = resolvePackage({ characterPackage: weakPkg, neededRoles: ["face"], maxReferences: 4, exposureCeiling: "clothed" });
+  assert(weakResolved.faceAnchorSource === "none", "below-threshold face → refuse (no silent wrong-person)");
 
   // Provider projection.
   const urls = renderPackageForModel(resolved, { kind: "image_urls", max: 2 });

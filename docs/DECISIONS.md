@@ -2552,3 +2552,47 @@ Accepted — design only. `REFERENCE_INTELLIGENCE.md` shipped; ROADMAP updated. 
 mode): types + RoleScorer + package builder computed alongside the current selector, surfaced in Debug only,
 zero behavior change, + `verify-reference-package.ts`.** Phases B (switch image channel) / C (channel
 arbitration) / D (persistence + roled providers) follow, each A/B'd on the M24.8 benchmark.
+
+# Decision 064
+
+Date
+2026-08-02
+
+Decision
+**Identity Package drives generation + the Face-Anchor invariant becomes an identity-confidence policy
+(Milestone 25.2 Phase B).** The role-based Identity Package (Decision 063) now DRIVES the references sent, not
+just Debug. The Reference Engine (`identity-engine/engines/reference/reference-engine.ts` `selectReferences`)
+builds → resolves → renders the package and returns provider-neutral `referenceImages` + `identityAnchor`
+(face carried in the anchor slot; the Fal adapter's proven `[anchor, ...scene]` merge/cap stays the renderer,
+so providers stay pure). Needed anchor roles are transformation-driven — `planTransformation` (M25.1) now runs
+*before* `planConditioning` and its preserve/change flow in via `ConditioningRequest.transformation`
+(changing hair → no Hair Anchor, etc.); absent → keep every available role (coverage).
+
+**Face-Anchor invariant, refined by the user into an identity-confidence policy:** every Face Anchor must have
+a confidence score ≥ `FACE_ANCHOR_MIN_SCORE` (0.40, `selection/anchor.ts`, the single tunable knob).
+Resolution order: (1) strongest analyzed face ≥ threshold → (2) if none, analyze the Hero (`displayImageId`)
+on demand and cache it in `MediaVisionKnowledge` so it's scored by the SAME system (no Hero special-case,
+`ensureConfidentFace` in `generation/server.ts`) → (3) still none → refuse. `resolvePackage` reports
+`faceAnchorSource: "face" | "none"`; `runImageGeneration` throws the new `ProviderError("NO_IDENTITY_ANCHOR")`
+before hitting the provider — "I'd rather fail than silently generate a different person." Surfaced via the
+existing `toFriendlyError` path (like `CONTENT_MODERATED`).
+
+Scope: reference / Kontext edit path only. LoRA (`reference+lora`), PuLID (`faceId`), the manual dev picker,
+and the no-analyzed-candidates fallback are byte-for-byte unchanged (they set no `identityPackage`, so the
+refusal never fires on them). `renderPackageForModel`'s `named` schema stays the seam for future
+face_reference/controlnet/mask slots (Phase D). Byte-parity verified on the face-only case (single ref ===
+`pickIdentityAnchor`).
+
+Verification: tsc + `next build` green; `verify-reference-package` 22/22 (adds confidence-policy + byte-parity),
+`verify-identity-engine` 46/46 (parity block rewritten to assert package-driven refs), `verify-selection` /
+`verify-transform` / `verify-training-infrastructure` / `verify-model-routing` unchanged-green.
+
+Alternatives
+Switch inside `runImageGeneration` instead of the Reference Engine (rejected — the Identity Engine must own
+"how identity is conditioned"; server stays dumb). Trust the Hero unverified (rejected by the user — no silent
+fallbacks). Route LoRA/PuLID through the package now (deferred — lowest-risk scope first).
+
+Status
+Accepted — SHIPPED on `feat/lora-trainer-m24`. **▶ NEXT = Phase C (channel arbitration / prompt de-dup in
+`compile.ts` + transform: stop describing facets a reference already carries), then Phase D (persist the
+package + roled providers).** LIVE A/B on the M24.8 benchmark is user-driven (needs FAL_KEY).

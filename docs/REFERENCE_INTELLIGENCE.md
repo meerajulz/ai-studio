@@ -1,6 +1,6 @@
 # Reference Intelligence — the Identity Package (Milestone 25.2)
 
-> **Status:** Design accepted (Decision 063). Building in phases; Phase A (shadow mode) first.
+> **Status:** Design accepted (Decision 063). Phase A (shadow) + **Phase B (image channel switched, Decision 064) SHIPPED.** Next = Phase C (channel arbitration).
 > **This is the long-term abstraction of the project.** The Identity Package is the internal,
 > provider-agnostic representation of *who a character is and how to reference them*. Providers
 > render a **projection** of it into whatever API they support. Nothing above the renderer knows
@@ -226,9 +226,17 @@ character package is a *later* additive table behind `getCharacterPackage()`.
 - **Phase A — Shadow mode (zero behavior change).** Build `ReferenceProfile` + `CharacterPackage` +
   `IdentityPackage` *alongside* the current selector; surface in Debug only. Current refs still drive
   generation. Validate scoring on real libraries at zero risk. `verify-reference-package.ts`.
-- **Phase B — Switch the image channel.** Generation consumes `renderPackageForModel(...)` instead of
-  `buildReferencePackage`. Enforce exposure + the Face-Anchor invariant; assert byte-parity on the
-  face-only case. A/B on the M24.8 benchmark.
+- **Phase B — Switch the image channel. ✅ SHIPPED (Decision 064).** The Reference Engine
+  (`selectReferences`) now builds → resolves → renders the Identity Package and returns it as
+  provider-neutral `referenceImages` + `identityAnchor` (face carried in the anchor slot; the adapter's
+  proven `[anchor, ...scene]` merge/cap is the renderer). Needed roles are transformation-driven
+  (`req.transformation` from M25.1). The **Face-Anchor invariant is an identity-confidence policy**:
+  every face anchor must clear `FACE_ANCHOR_MIN_SCORE` (0.40, `selection/anchor.ts`); when the analyzed
+  library has none, the Hero (`displayImageId`) is analyzed on demand + cached (`ensureConfidentFace` in
+  `generation/server.ts`) so it's scored by the same system — no Hero special-case. Still none →
+  `faceAnchorSource: "none"` → `runImageGeneration` throws `NO_IDENTITY_ANCHOR` (refuse, never a
+  stranger). Scope: reference/Kontext path only — LoRA/PuLID/manual/no-candidate paths unchanged.
+  Byte-parity on the face-only case (verified against `pickIdentityAnchor`).
 - **Phase C — Channel arbitration.** Filter the appearance paragraph by covered facets; the 3-layer
   prompt. Riskiest (prompt change) → measured last.
 - **Phase D — Persistence + roled providers.** `IdentityPackage` table behind `getCharacterPackage`;

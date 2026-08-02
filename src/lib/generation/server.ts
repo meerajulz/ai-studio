@@ -10,6 +10,7 @@
 import {
   chooseModel,
   isProviderError,
+  ProviderError,
   routeImageProvider,
   type ProviderCapability,
 } from "@/lib/ai";
@@ -28,13 +29,11 @@ import {
 } from "@/lib/identity/server";
 import type { IdentityVisualPackage } from "@/lib/identity/types";
 import {
-  allowedExposureForPrompt,
-  buildCharacterPackage,
-  deriveNeededRoles,
-  resolvePackage,
+  hasConfidentFace,
   type SelectionCandidate,
 } from "@/lib/selection";
 import { synthesizeIdentityAppearance } from "@/lib/vision";
+import { analyzeAndPersistMedia } from "@/lib/vision/persist";
 import { composeTransformationPrompt, planTransformation } from "@/lib/transform";
 import { createGeneratedMedia, getGeneratedMediaByIds } from "@/lib/media/server";
 import type {
@@ -106,22 +105,51 @@ async function runImageGeneration(
   },
 ): Promise<GenerationResult> {
   const directive = directCreative(opts.brief);
+  const analyzedCandidates = opts.candidates ?? [];
+
+  // Transformation Planner (Milestone 25.1): what this request PRESERVES vs CHANGES about a known
+  // character. Computed BEFORE conditioning so the Reference Engine can pick anchor roles from it
+  // (M25.2 Phase B — e.g. changing hair → no Hair Anchor). `applies` is true only on the real edit
+  // path (identity WITH analyzed knowledge); otherwise it's inert and the package keeps every role.
+  const transformation = planTransformation({
+    hasIdentity: opts.identityId != null,
+    hasReferences: analyzedCandidates.length > 0,
+    metadatas: analyzedCandidates.map((c) => c.metadata),
+    directive,
+  });
 
   // Identity Engine (Milestone 22): Generation asks the engine HOW to condition this identity for
-  // this request and receives a provider-neutral ConditioningPlan. The only enabled module today is
-  // the Reference Engine (Smart Reference Selection + Identity Anchor, exposure-filtered), so the plan
-  // is `reference` and output is unchanged; LoRA/PuLID/InstantID layer on here later WITHOUT touching
-  // this call site. The Creative Director never sees references — text only.
+  // this request and receives a provider-neutral ConditioningPlan. The enabled Reference Engine drives
+  // references from the role-based Identity Package (M25.2 Phase B); LoRA/PuLID layer on here later
+  // WITHOUT touching this call site. The Creative Director never sees references — text only.
   const plan = await planConditioning({
     identityId: opts.identityId,
     directive,
-    candidates: opts.candidates ?? [],
+    candidates: analyzedCandidates,
     visualPackage: opts.visualPackage,
     trainedModels: opts.trainedModels,
     manualReferenceMediaIds: opts.manualReferenceMediaIds,
     maxReferences: opts.maxReferences,
     preferEngine: opts.strategyOverride ?? undefined,
+    transformation: transformation.applies
+      ? { preserve: transformation.preserve, change: transformation.change }
+      : undefined,
   });
+
+  // Face-Anchor invariant (M25.2 Phase B): on the identity edit path with analyzed knowledge, refuse
+  // rather than silently generate a different person when no verified face anchor exists. (LoRA/PuLID
+  // paths carry their own face handling and set no identityPackage, so they're unaffected.)
+  if (
+    opts.identityId &&
+    analyzedCandidates.length > 0 &&
+    plan.identityPackage?.faceAnchorSource === "none"
+  ) {
+    throw new ProviderError(
+      "NO_IDENTITY_ANCHOR",
+      "No verified identity anchor for this character — add a clear, front-facing photo, then " +
+        "re-analyze the library. (We won't generate a different person.)",
+    );
+  }
   let referenceImages = plan.referenceImages;
   let identityAnchor = plan.identityAnchor;
   const referenceSelectionReason = plan.reason;
@@ -174,38 +202,13 @@ async function runImageGeneration(
       ? `${plan.loraTriggerWord}, ${directive.prompt}`
       : directive.prompt;
 
-  // Transformation Planner (Milestone 25.1): when editing a KNOWN character into a new context, lead
-  // with an explicit preserve-vs-change instruction (grounded in the identity's Vision knowledge + the
-  // analyzed scene). Only fires on the identity+reference edit path with analyzed knowledge; the
-  // no-identity / text-to-image path is untouched. See docs/CHARACTER_TRANSFORMATION.md §11.
-  const transformation = planTransformation({
-    hasIdentity: opts.identityId != null,
-    hasReferences,
-    metadatas: (opts.candidates ?? []).map((c) => c.metadata),
-    directive,
-  });
+  // Transformation Planner (Milestone 25.1): lead the prompt with the preserve-vs-change instruction
+  // (computed above, before conditioning). Inert on the no-identity / text-to-image path.
   const promptForProvider = composeTransformationPrompt(basePrompt, transformation);
 
-  // Reference Intelligence — Identity Package (Milestone 25.2, PHASE A = SHADOW MODE): build the typed
-  // anchor package (face/body/tattoo/hair/canonical/pose) ALONGSIDE the current selector and surface it
-  // in Debug ONLY. It does NOT drive the references sent yet — Phase B switches the image channel over.
-  // See docs/REFERENCE_INTELLIGENCE.md.
-  const shadowCandidates = opts.candidates ?? [];
-  let identityPackage: ReturnType<typeof resolvePackage> | null = null;
-  if (opts.identityId && hasReferences && shadowCandidates.length) {
-    const characterPackage = buildCharacterPackage(opts.identityId, shadowCandidates);
-    identityPackage = resolvePackage({
-      characterPackage,
-      neededRoles: deriveNeededRoles({
-        preserve: transformation.preserve,
-        change: transformation.change,
-        available: new Set(characterPackage.anchors.flatMap((a) => a.roles)),
-      }),
-      maxReferences: routedModel?.model.maxReferences ?? 4,
-      exposureCeiling: allowedExposureForPrompt(directive),
-      heroUrl: opts.visualPackage?.heroImageUrl ?? null,
-    });
-  }
+  // The resolved Identity Package (M25.2 Phase B) — the Reference Engine built + rendered it; here we
+  // only surface it in Debug (it already DROVE the references above).
+  const identityPackage = plan.identityPackage;
 
   const params: Prisma.InputJsonValue = {
     ...(opts.lineage ?? {}),
@@ -325,14 +328,8 @@ async function runImageGeneration(
                 neededRoles: identityPackage.neededRoles,
                 filledRoles: identityPackage.filledRoles,
                 missingRoles: identityPackage.missingRoles,
-                facetsCovered: identityPackage.facetsCoveredByReference,
-                anchors: identityPackage.anchors.map((a) => ({
-                  role: a.role,
-                  roles: a.roles,
-                  score: Math.round(a.score),
-                  url: a.url,
-                  reasons: a.reasons,
-                })),
+                facetsCovered: identityPackage.facetsCovered,
+                anchors: identityPackage.anchors,
               }
             : null,
           modelRouting: routedModel?.decision ?? null,
@@ -471,6 +468,30 @@ export async function generateImage(
  *  - the static Visual Package as a FALLBACK when nothing is analyzed yet.
  * The provider never sees any of this — the Director reasons over it and emits only a prompt.
  */
+/**
+ * Identity-confidence policy (Milestone 25.2 Phase B): every Face Anchor must have a confidence score.
+ * When the analyzed training library has no CONFIDENT face, analyze the Hero (displayImageId) ON DEMAND
+ * and cache it — then it's just another candidate scored by the same system (no Hero special-case). If
+ * that still doesn't clear the threshold, `selectReferences` reports `faceAnchorSource === "none"` and
+ * generation refuses (NO_IDENTITY_ANCHOR). Best-effort: analysis failure is swallowed (→ refusal, never a crash).
+ */
+async function ensureConfidentFace(
+  userId: string,
+  candidates: SelectionCandidate[],
+  visualPackage: IdentityVisualPackage | null,
+): Promise<SelectionCandidate[]> {
+  if (hasConfidentFace(candidates)) return candidates;
+  const heroMediaId = visualPackage?.heroMediaId;
+  const heroUrl = visualPackage?.heroImageUrl;
+  if (!heroMediaId || !heroUrl || candidates.some((c) => c.mediaId === heroMediaId)) return candidates;
+  try {
+    const k = await analyzeAndPersistMedia(userId, heroMediaId);
+    return [...candidates, { mediaId: heroMediaId, url: heroUrl, metadata: k.metadata, score: k.score }];
+  } catch {
+    return candidates; // couldn't analyze the Hero → let the Face-Anchor invariant decide (likely refuse)
+  }
+}
+
 async function loadIdentityInputs(
   userId: string,
   identityId: string | null,
@@ -481,13 +502,14 @@ async function loadIdentityInputs(
   trainedModels: TrainedModelRef[];
 }> {
   if (!identityId) return { identity: null, candidates: [], visualPackage: null, trainedModels: [] };
-  const [info, candidates, visualPackage, trainedModels] = await Promise.all([
+  const [info, loaded, visualPackage, trainedModels] = await Promise.all([
     getIdentityContext(userId, identityId),
     getIdentitySelectionCandidates(userId, identityId),
     getIdentityVisualPackage(userId, identityId),
     // READY trained models (LoRA) so the Identity Engine can offer `reference+lora` automatically (M24).
     getIdentityTrainedModelRefs(userId, identityId),
   ]);
+  const candidates = await ensureConfidentFace(userId, loaded, visualPackage);
   const identity: IdentityContext | null = info
     ? {
         id: info.id,
@@ -674,6 +696,8 @@ function toFriendlyError(error: unknown): Error {
         return new Error("Generation timed out — please try again.");
       case "CONTENT_MODERATED":
         return new Error(error.message); // already user-facing + specific (safety filter / blank image)
+      case "NO_IDENTITY_ANCHOR":
+        return new Error(error.message); // already user-facing (M25.2 Phase B Face-Anchor invariant)
       case "GENERATION_FAILED":
         // Now carries the model + HTTP status (e.g. a 403 model-access problem) — show it, don't mask it.
         return new Error(error.message || "Generation failed — try a different prompt or try again.");

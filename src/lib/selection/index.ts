@@ -24,7 +24,14 @@ export function buildReferencePackage(
 export { extractPromptRequirements } from "./requirements";
 export { matchImage } from "./match";
 export { selectReferencePackage } from "./select";
-export { pickIdentityAnchor, rankIdentityAnchors, scoreAnchor, type AnchorScore } from "./anchor";
+export {
+  FACE_ANCHOR_MIN_SCORE,
+  hasConfidentFace,
+  pickIdentityAnchor,
+  rankIdentityAnchors,
+  scoreAnchor,
+  type AnchorScore,
+} from "./anchor";
 export {
   allowedExposureForPrompt,
   filterCandidatesByExposure,

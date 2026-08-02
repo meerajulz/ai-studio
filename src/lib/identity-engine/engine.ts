@@ -122,6 +122,7 @@ export async function planConditioning(
     pulidReferenceUrl,
     pulidIdWeight,
     adapterInputs,
+    identityPackage: base.identityPackage ?? null,
     reason: base.reason,
     debug: {
       strategy,
