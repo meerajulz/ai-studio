@@ -7,7 +7,7 @@
  */
 import type { CreativeDirective } from "../src/lib/creative";
 import type { IdentityMetadata } from "../src/lib/vision";
-import { composeTransformationPrompt, planTransformation } from "../src/lib/transform";
+import { composeTransformationPrompt, facetsChangedBy, planTransformation } from "../src/lib/transform";
 
 let passed = 0;
 function assert(cond: boolean, msg: string) {
@@ -78,6 +78,11 @@ function main() {
   // 5) References absent (pure t2i) → out of the way.
   const p5 = planTransformation({ hasIdentity: true, hasReferences: false, metadatas: tattooed, directive: beach });
   assert(!p5.applies, "no references (text-to-image) → does not apply");
+
+  // 6) Channel arbitration (M25.2 Phase C) — which appearance facets the transformation changes.
+  assert(facetsChangedBy(["blonde bob hairstyle"]).includes("hair"), "facetsChangedBy: hairstyle change → hair");
+  assert(facetsChangedBy(["the setting and background"]).length === 0, "facetsChangedBy: scene change → no appearance facet");
+  assert(!facetsChangedBy(["a new outfit"]).includes("hair"), "facetsChangedBy: outfit change → not hair");
 
   console.log(`\nAll ${passed} checks passed.`);
 }

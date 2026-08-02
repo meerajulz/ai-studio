@@ -7,6 +7,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Milestone 25.2 Phase C — Channel arbitration / prompt de-dup (Decision 065, 2026-08-02)
+
+- **Information-budget rule:** every identity fact lives once, in its strongest channel — transformation
+  instruction (if changing) > reference image (if preserving) > appearance text (fallback). The synthesized
+  appearance paragraph now DROPS any facet the transformation changes (`facetsChangedBy`) or a selected
+  reference carries (`facetsCoveredByReference`), via `synthesizeIdentityAppearance(metadatas, { omitFacets })`.
+- Fixes the old-vs-new conflict (appearance asserting "pink long hair" while the instruction says "blonde
+  bob") and shortens prompts by not re-describing what a reference already shows.
+- Byte-parity when nothing is omitted (every non-arbitrated path unchanged); pure string splice preserves
+  prompt order. Debug: "4.7 · Channel Arbitration". tsc + build green; verify-selection (+arbitration/parity),
+  verify-transform 22/22 (+`facetsChangedBy`), verify-reference-package 22/22, verify-identity-engine 46/46.
+  **Next = Phase D (persist package + roled providers).**
+
 ### Milestone 25.2 Phase B — Identity Package drives generation (Decision 064, 2026-08-02)
 
 - **The Identity Package now DRIVES the references sent** (was Debug-only shadow in Phase A). The Reference

@@ -1,6 +1,6 @@
 # Reference Intelligence — the Identity Package (Milestone 25.2)
 
-> **Status:** Design accepted (Decision 063). Phase A (shadow) + **Phase B (image channel switched, Decision 064) SHIPPED.** Next = Phase C (channel arbitration).
+> **Status:** Design accepted (Decision 063). Phase A (shadow) + **Phase B (image channel, Decision 064) + Phase C (channel arbitration, Decision 065) SHIPPED.** Next = Phase D (persist package + roled providers).
 > **This is the long-term abstraction of the project.** The Identity Package is the internal,
 > provider-agnostic representation of *who a character is and how to reference them*. Providers
 > render a **projection** of it into whatever API they support. Nothing above the renderer knows
@@ -237,8 +237,17 @@ character package is a *later* additive table behind `getCharacterPackage()`.
   `faceAnchorSource: "none"` → `runImageGeneration` throws `NO_IDENTITY_ANCHOR` (refuse, never a
   stranger). Scope: reference/Kontext path only — LoRA/PuLID/manual/no-candidate paths unchanged.
   Byte-parity on the face-only case (verified against `pickIdentityAnchor`).
-- **Phase C — Channel arbitration.** Filter the appearance paragraph by covered facets; the 3-layer
-  prompt. Riskiest (prompt change) → measured last.
+- **Phase C — Channel arbitration. ✅ SHIPPED (Decision 065).** The **information-budget rule**: every
+  identity fact lives once, in its STRONGEST channel — transformation instruction (if changing) >
+  reference image (if preserving) > appearance text (fallback). One rule, no special cases: drop a facet
+  from the synthesized appearance paragraph when the transformation CHANGES it OR a selected reference
+  CARRIES it. `synthesizeIdentityAppearance(metadatas, { omitFacets })` (`vision/synthesize.ts`) skips the
+  hair/piercings/tattoo clause; `facetsChangedBy(change)` (`transform/planner.ts`) maps the change list to
+  facets; `runImageGeneration` computes `omitFacets = changed ∪ facetsCoveredByReference` and splices the
+  filtered appearance into the compiled prompt (`applyChannelArbitration`, pure string swap, order
+  preserved). Byte-parity when `omitFacets` is empty (every non-arbitrated path unchanged). Transformation
+  instructions themselves are untouched — only the descriptive layout leaves the text. Debug: "4.7 ·
+  Channel Arbitration".
 - **Phase D — Persistence + roled providers.** `IdentityPackage` table behind `getCharacterPackage`;
   `named` `ReferenceSchema` + renderer mapping when a roled provider lands.
 

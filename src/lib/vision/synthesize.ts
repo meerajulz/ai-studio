@@ -157,33 +157,52 @@ function tattooDescription(all: TattooKnowledge[]): string | null {
 }
 
 /**
- * Synthesize a provider-neutral appearance paragraph from an identity's analyzed images. Returns
- * `null` when there's nothing meaningful to say — callers fall back to the static description.
+ * Channel arbitration (Milestone 25.2 Phase C): omit an appearance facet when a stronger channel
+ * already carries it — a reference image (preserving) or the transformation instruction (changing). See
+ * docs/REFERENCE_INTELLIGENCE.md. `omitFacets` values are the `IdentityFacet` strings; only `hair`,
+ * `piercings` and `tattoos` appear in the appearance text (face/body are never described here).
  */
-export function synthesizeIdentityAppearance(metadatas: IdentityMetadata[]): string | null {
+export type SynthesizeOptions = { omitFacets?: readonly string[] };
+
+/**
+ * Synthesize a provider-neutral appearance paragraph from an identity's analyzed images. Returns
+ * `null` when there's nothing meaningful to say — callers fall back to the static description. With no
+ * options the output is unchanged; `omitFacets` drops the facets a stronger channel already carries.
+ */
+export function synthesizeIdentityAppearance(
+  metadatas: IdentityMetadata[],
+  opts: SynthesizeOptions = {},
+): string | null {
   if (metadatas.length === 0) return null;
+  const omit = new Set(opts.omitFacets ?? []);
 
   const clauses: string[] = [];
 
   // Hair (majority-voted across images where hair is visible).
-  const visibleHair = metadatas.filter((m) => m.hair.visible);
-  const color = mode(visibleHair.map((m) => m.hair.color));
-  const length = mode(visibleHair.map((m) => (m.hair.length !== "unknown" ? m.hair.length : null)));
-  const texture = mode(visibleHair.map((m) => (m.hair.texture !== "unknown" ? m.hair.texture : null)));
-  const hairWords = [color, length, texture].filter((x): x is string => Boolean(x));
-  if (hairWords.length) clauses.push(`${hairWords.join(" ")} hair`);
+  if (!omit.has("hair")) {
+    const visibleHair = metadatas.filter((m) => m.hair.visible);
+    const color = mode(visibleHair.map((m) => m.hair.color));
+    const length = mode(visibleHair.map((m) => (m.hair.length !== "unknown" ? m.hair.length : null)));
+    const texture = mode(visibleHair.map((m) => (m.hair.texture !== "unknown" ? m.hair.texture : null)));
+    const hairWords = [color, length, texture].filter((x): x is string => Boolean(x));
+    if (hairWords.length) clauses.push(`${hairWords.join(" ")} hair`);
+  }
 
   // Accessories / piercings (union across images), deduplicated.
-  const accessories = dedupePhrases(metadatas.flatMap((m) => m.accessories));
-  clauses.push(...accessories.slice(0, 6));
+  if (!omit.has("piercings")) {
+    const accessories = dedupePhrases(metadatas.flatMap((m) => m.accessories));
+    clauses.push(...accessories.slice(0, 6));
+  }
 
-  // Facial hair (majority).
+  // Facial hair (majority) — no anchor carries it and it's rarely a change target, so always kept.
   const facialHair = mode(metadatas.map((m) => m.facialHair));
   if (facialHair) clauses.push(facialHair);
 
   // Tattoo layout (region-based, descriptive — never imagery). NO inferred age.
-  const tattoos = tattooDescription(metadatas.flatMap((m) => m.tattoos));
-  if (tattoos) clauses.push(tattoos);
+  if (!omit.has("tattoos")) {
+    const tattoos = tattooDescription(metadatas.flatMap((m) => m.tattoos));
+    if (tattoos) clauses.push(tattoos);
+  }
 
   const deduped = dedupePhrases(clauses);
   return deduped.length ? deduped.join(", ") : null;

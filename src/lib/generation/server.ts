@@ -34,7 +34,7 @@ import {
 } from "@/lib/selection";
 import { synthesizeIdentityAppearance } from "@/lib/vision";
 import { analyzeAndPersistMedia } from "@/lib/vision/persist";
-import { composeTransformationPrompt, planTransformation } from "@/lib/transform";
+import { composeTransformationPrompt, facetsChangedBy, planTransformation } from "@/lib/transform";
 import { createGeneratedMedia, getGeneratedMediaByIds } from "@/lib/media/server";
 import type {
   GenerateImageInput,
@@ -196,11 +196,26 @@ async function runImageGeneration(
       })
     : null;
 
-  // The LoRA activates via its trigger phrase — prepend it to the compiled prompt when present.
+  // Channel arbitration (M25.2 Phase C): every identity fact should live once, in its STRONGEST channel
+  // — the transformation instruction (if changing) > a reference image (if preserving) > the appearance
+  // text (fallback). So drop from the synthesized appearance paragraph any facet the transformation is
+  // changing OR a selected reference already carries — the text stops fighting the stronger channel.
+  const omitFacets =
+    opts.identityId && analyzedCandidates.length
+      ? [...new Set([...facetsChangedBy(transformation.change), ...(plan.identityPackage?.facetsCovered ?? [])])]
+      : [];
+  const fullAppearance = directive.meta.identity.appearance;
+  const filteredAppearance =
+    fullAppearance && omitFacets.length
+      ? synthesizeIdentityAppearance(analyzedCandidates.map((c) => c.metadata), { omitFacets })
+      : fullAppearance;
+  const arbitratedPrompt = applyChannelArbitration(directive.prompt, fullAppearance, filteredAppearance);
+
+  // The LoRA activates via its trigger phrase — prepend it to the (arbitrated) prompt when present.
   const basePrompt =
     hasLora && plan.loraTriggerWord
-      ? `${plan.loraTriggerWord}, ${directive.prompt}`
-      : directive.prompt;
+      ? `${plan.loraTriggerWord}, ${arbitratedPrompt}`
+      : arbitratedPrompt;
 
   // Transformation Planner (Milestone 25.1): lead the prompt with the preserve-vs-change instruction
   // (computed above, before conditioning). Inert on the no-identity / text-to-image path.
@@ -332,6 +347,10 @@ async function runImageGeneration(
                 anchors: identityPackage.anchors,
               }
             : null,
+          channelArbitration:
+            omitFacets.length && fullAppearance
+              ? { omittedFacets: omitFacets, appearanceBefore: fullAppearance, appearanceAfter: filteredAppearance }
+              : null,
           modelRouting: routedModel?.decision ?? null,
           responseMetadata: result.metadata ?? null,
           payload: result.requestPayload ?? { prompt: directive.prompt },
@@ -681,6 +700,24 @@ function buildGeneratedFilename(prompt: string, contentType: string): string {
       .replace(/^-+|-+$/g, "")
       .slice(0, 40) || "generated";
   return `${slug}-${Date.now()}.${extensionFor(contentType)}`;
+}
+
+/**
+ * Splice the channel-arbitrated appearance into the compiled prompt (M25.2 Phase C). `full` is the exact
+ * appearance substring `compile.ts` baked in (a pure, deterministic string); we swap it for the filtered
+ * form — or drop the segment entirely when nothing remains. Untouched if the appearance isn't present
+ * (enrich skips it when the idea already said it), so non-arbitrated prompts stay byte-for-byte identical.
+ */
+function applyChannelArbitration(prompt: string, full: string | null, filtered: string | null): string {
+  if (!full || filtered === full || !prompt.includes(full)) return prompt;
+  if (!filtered) {
+    return prompt
+      .replace(`, ${full}`, "")
+      .replace(`${full}, `, "")
+      .replace(full, "")
+      .trim();
+  }
+  return prompt.replace(full, filtered);
 }
 
 function toFriendlyError(error: unknown): Error {

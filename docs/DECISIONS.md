@@ -2596,3 +2596,47 @@ Status
 Accepted — SHIPPED on `feat/lora-trainer-m24`. **▶ NEXT = Phase C (channel arbitration / prompt de-dup in
 `compile.ts` + transform: stop describing facets a reference already carries), then Phase D (persist the
 package + roled providers).** LIVE A/B on the M24.8 benchmark is user-driven (needs FAL_KEY).
+
+# Decision 065
+
+Date
+2026-08-02
+
+Decision
+**Channel arbitration + the information-budget principle (Milestone 25.2 Phase C).** Every identity fact
+should exist ONCE, in its STRONGEST representation. Priority: **transformation instruction (if changing) >
+reference image (if preserving) > appearance text (fallback only).** Before Phase C the synthesized appearance
+paragraph (`synthesizeIdentityAppearance` — hair/piercings/tattoo-layout) was baked into every prompt even
+when a reference carried the facet (redundant, and it fought the image) or the transformation was changing it
+(the old value contradicted the new intent, e.g. "pink long hair" vs "change to a blonde bob").
+
+One arbitration rule, no special cases — for each appearance facet: **IF the transformation changes it → drop
+from the text; ELSE IF a selected reference carries it → drop from the text; ELSE keep.** Implementation:
+`synthesizeIdentityAppearance(metadatas, { omitFacets })` (`vision/synthesize.ts`) skips the hair / piercings /
+tattoo clause groups; `facetsChangedBy(change)` (`transform/planner.ts`) maps the change list to
+`IdentityFacet`s (hair/tattoos/piercings); `runImageGeneration` computes `omitFacets = facetsChangedBy(change)
+∪ plan.identityPackage.facetsCovered` and splices the filtered appearance into the compiled prompt via
+`applyChannelArbitration` (pure string swap of the exact baked appearance substring — prompt ORDER preserved,
+no Creative Director restructure). Transformation instructions are untouched — only the descriptive layout
+leaves the appearance text (e.g. "remove shirt so both sleeves are visible" stays; "full blackout sleeve…"
+goes, because the Tattoo Anchor carries it). Debug adds "4.7 · Channel Arbitration" (`GenerationDebug.
+channelArbitration`).
+
+**Byte-parity:** the prompt only changes when `omitFacets` is non-empty (identity edit path with analyzed
+knowledge + a resolved package); `synthesizeIdentityAppearance` with no options is unchanged, so `compile.ts`
+and every no-identity / text-to-image / no-analyzed-candidates / manual path is byte-for-byte identical.
+
+Verification: tsc + `next build` green; `verify-selection` (adds omit-tattoos/omit-hair/byte-parity/omit-all →
+null), `verify-transform` 22/22 (adds `facetsChangedBy`), `verify-reference-package` 22/22 + `verify-identity-
+engine` 46/46 unchanged-green.
+
+Alternatives
+Cut appearance from `compile.ts` and re-compose it as a final layer (rejected — changes prompt order → breaks
+byte-parity on every identity gen, forces a full re-benchmark). Only drop reference-covered facets, not changed
+ones (rejected by the user — the old-vs-new conflict is the worse failure). Binary keep/drop without the
+priority ordering (rejected — the information-budget framing generalizes to face/body/future channels).
+
+Status
+Accepted — SHIPPED on `feat/lora-trainer-m24`. **▶ NEXT = Phase D** (persist the character package behind
+`getCharacterPackage` + an `IdentityPackage` table; `named` `ReferenceSchema` + renderer mapping when a roled
+provider — face_reference/controlnet/mask — lands). LIVE A/B on the M24.8 benchmark is user-driven (FAL_KEY).

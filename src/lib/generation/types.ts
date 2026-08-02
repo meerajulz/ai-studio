@@ -101,7 +101,8 @@ export type GenerationDebug = {
   anchorRanking: AnchorScore[]; // top identity-anchor candidates + face scoring breakdown (Milestone 20)
   conditioning: ConditioningDebugSummary | null; // Identity Engine strategy + engines (Milestone 22)
   transformation: TransformationDebug | null; // preserve-vs-change plan (Milestone 25.1); null when not an edit
-  identityPackage: IdentityPackageDebug | null; // typed anchor package (Milestone 25.2 shadow); null when no identity
+  identityPackage: IdentityPackageDebug | null; // typed anchor package (Milestone 25.2); null when no identity
+  channelArbitration: ChannelArbitrationDebug | null; // prompt de-dup (Milestone 25.2 Phase C); null when nothing omitted
   modelRouting: ModelRoutingDecision | null; // capability model routing: chosen model + why (Milestone 21)
   responseMetadata: Record<string, unknown> | null; // provider response metadata (seed/timings/…)
   payload: Record<string, unknown>; // secret-free echo of the provider request
@@ -116,6 +117,13 @@ export type IdentityPackageDebug = {
   missingRoles: string[];
   facetsCovered: string[]; // facets a reference now carries → the prompt could stop describing them
   anchors: { role: string; roles: string[]; score: number; url: string; reasons: string[] }[];
+};
+
+/** Which appearance facets were de-duped out of the prompt, and the before/after text (Milestone 25.2 Phase C). */
+export type ChannelArbitrationDebug = {
+  omittedFacets: string[]; // facets dropped from the appearance text (carried by a reference or being changed)
+  appearanceBefore: string | null;
+  appearanceAfter: string | null;
 };
 
 /** Which Identity Engine strategy conditioned this generation (Milestone 22). `reference` today. */

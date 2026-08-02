@@ -633,7 +633,7 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
         ) : null}
 
         {debug.identityPackage ? (
-          <DebugStage title="4.6 · Identity Package (shadow — not sent yet)">
+          <DebugStage title="4.6 · Identity Package (drives references)">
             <DebugRow
               label="Face anchor"
               value={
@@ -669,6 +669,23 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
                   ))}
                 </div>
               }
+            />
+          </DebugStage>
+        ) : null}
+
+        {debug.channelArbitration ? (
+          <DebugStage title="4.7 · Channel Arbitration (prompt de-dup)">
+            <DebugRow
+              label="Omitted from text"
+              value={debug.channelArbitration.omittedFacets.join(", ")}
+            />
+            <DebugRow
+              label="Appearance before"
+              value={debug.channelArbitration.appearanceBefore ?? "—"}
+            />
+            <DebugRow
+              label="Appearance after"
+              value={debug.channelArbitration.appearanceAfter ?? "— (fully carried by references)"}
             />
           </DebugStage>
         ) : null}

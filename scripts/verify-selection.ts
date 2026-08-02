@@ -146,6 +146,18 @@ checks.push(["synthesis: dedups ear gauge(s)", (richAppearance.match(/gauge/g) ?
 checks.push(["synthesis: collapses arm into a sleeve", /left sleeve/i.test(richAppearance)]);
 checks.push(["synthesis: rich chest descriptor", /large floral chest piece/i.test(richAppearance)]);
 
+// 4b) Channel arbitration (M25.2 Phase C) — omitFacets drops a facet the strongest channel carries.
+const omitTattoos = synthesizeIdentityAppearance([rich], { omitFacets: ["tattoos"] }) ?? "";
+checks.push(["arbitration: omit tattoos drops the layout", !/sleeve|chest piece|thigh/i.test(omitTattoos)]);
+checks.push(["arbitration: omit tattoos keeps hair", /pink/i.test(omitTattoos)]);
+const omitHair = synthesizeIdentityAppearance([rich], { omitFacets: ["hair"] }) ?? "";
+checks.push(["arbitration: omit hair drops hair", !/pink|hair/i.test(omitHair)]);
+checks.push(["arbitration: omit hair keeps tattoos", /sleeve|chest piece/i.test(omitHair)]);
+checks.push(["arbitration: byte-parity when nothing omitted",
+  synthesizeIdentityAppearance([rich], { omitFacets: [] }) === richAppearance]);
+checks.push(["arbitration: omitting every present facet → null",
+  synthesizeIdentityAppearance([rich], { omitFacets: ["hair", "piercings", "tattoos"] }) === null]);
+
 // 5) Reference Safety — nude/lingerie references filtered out for non-explicit prompts.
 const NUDE = candidate("nude", {
   hairColor: "pink", hairLength: "long", hairVisible: true,

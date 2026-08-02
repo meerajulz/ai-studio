@@ -119,3 +119,18 @@ export function composeTransformationPrompt(basePrompt: string, plan: Transforma
   if (!plan.applies) return basePrompt;
   return `${plan.instruction} ${basePrompt}`;
 }
+
+/**
+ * Channel arbitration (Milestone 25.2 Phase C): which appearance FACETS the transformation is changing,
+ * so Generation can drop them from the appearance text (a changed facet must be defined once, by the
+ * transformation instruction — not contradicted by the old value). Returns `IdentityFacet` strings.
+ * See docs/REFERENCE_INTELLIGENCE.md.
+ */
+export function facetsChangedBy(change: string[]): string[] {
+  const text = change.join(" ").toLowerCase();
+  const facets: string[] = [];
+  if (/hair|hairstyle|haircut|bangs|fringe/.test(text)) facets.push("hair");
+  if (/tattoo/.test(text)) facets.push("tattoos");
+  if (/piercing/.test(text)) facets.push("piercings");
+  return facets;
+}
