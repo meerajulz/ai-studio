@@ -137,14 +137,39 @@ export async function evaluateGeneration(
   if (!asset) return persist(userId, emptyEvaluation(gen.identityId, generationId, "no-output"));
 
   const provider = getFaceSimilarityProvider();
+  const startedAt = Date.now();
+  let cacheHits = 0;
+  let cacheMisses = 0;
+  let providerError: string | null = null;
+
+  // Provider-neutral, instrumented capabilities. Errors degrade to null (one bad image / a flaky endpoint
+  // never throws to the user); the embed wrapper tallies cache hit/miss for debug.
   const ctx: EvalContext = {
     identityId: gen.identityId,
     generated: { mediaId: output.id, url: asset.url, role: "generated" },
     references: await evaluationAnchors(userId, gen.identityId),
     embed: supportsEmbed(provider)
-      ? (img, source) => getOrComputeEmbedding(userId, img.mediaId, img.url, source)
+      ? async (img, source) => {
+          try {
+            const { embedding, cached } = await getOrComputeEmbedding(userId, img.mediaId, img.url, source);
+            if (embedding) cached ? (cacheHits += 1) : (cacheMisses += 1);
+            return embedding;
+          } catch (e) {
+            providerError = e instanceof Error ? e.message : "embed failed";
+            return null;
+          }
+        }
       : undefined,
-    compare: supportsCompare(provider) ? (a, b) => provider.compare(a, b) : undefined,
+    compare: supportsCompare(provider)
+      ? async (a, b) => {
+          try {
+            return await provider.compare(a, b);
+          } catch (e) {
+            providerError = e instanceof Error ? e.message : "compare failed";
+            return null;
+          }
+        }
+      : undefined,
   };
 
   const results: (EvalResult & { weight: number })[] = [];
@@ -152,13 +177,63 @@ export async function evaluateGeneration(
     results.push({ ...(await e.evaluate(ctx)), weight: e.weight });
   }
 
+  const method = providerError ? "provider-error" : provider.version;
   const metrics = {
     provider: provider.id,
     version: provider.version,
+    evalMs: Date.now() - startedAt,
+    cache: { hits: cacheHits, misses: cacheMisses },
+    error: providerError,
     dimensions: results.map((r) => ({ dimension: r.dimension, score: r.score, confidence: r.confidence, details: r.details ?? null })),
   } as unknown as Prisma.InputJsonValue;
 
-  return persist(userId, composeEvaluation(gen.identityId, generationId, provider.version, results), metrics);
+  return persist(userId, composeEvaluation(gen.identityId, generationId, method, results), metrics);
+}
+
+/** The UI-facing evaluation, flattened from the persisted row + its metrics (Milestone 26 Phase 2). */
+export type EvaluationView = {
+  face: number | null;
+  overall: number | null;
+  confidence: number | null;
+  method: string;
+  provider: string | null;
+  evalMs: number | null;
+  cacheHits: number | null;
+  cacheMisses: number | null;
+  anchors: { role: string; mediaId: string; sim: number }[];
+};
+
+type PersistedMetrics = {
+  provider?: string;
+  evalMs?: number;
+  cache?: { hits?: number; misses?: number };
+  dimensions?: { dimension: string; score: number | null; confidence: number | null; details?: { anchorSims?: { role: string; mediaId: string; sim: number }[] } }[];
+};
+
+/** Read the latest evaluation for a generation as the UI view (score + confidence + provider + timing +
+ * cache + per-anchor). Owner-scoped; `null` if not evaluated. */
+export async function getGenerationEvaluationView(
+  userId: string,
+  generationId: string,
+): Promise<EvaluationView | null> {
+  const row = await prisma.identityEvaluation.findFirst({
+    where: { generationId, userId },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!row) return null;
+  const m = (row.metrics as unknown as PersistedMetrics) ?? {};
+  const faceDim = m.dimensions?.find((d) => d.dimension === "face");
+  return {
+    face: row.face,
+    overall: row.overallIdentityScore,
+    confidence: faceDim?.confidence ?? null,
+    method: row.method,
+    provider: m.provider ?? null,
+    evalMs: m.evalMs ?? null,
+    cacheHits: m.cache?.hits ?? null,
+    cacheMisses: m.cache?.misses ?? null,
+    anchors: faceDim?.details?.anchorSims ?? [],
+  };
 }
 
 /** Read the latest persisted evaluation for a generation (owner-scoped). */

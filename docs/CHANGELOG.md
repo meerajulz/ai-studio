@@ -7,6 +7,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Milestone 26 Phase 2 — Wire one real face provider (Decision 068, 2026-08-02)
+
+- Wired the first concrete `FaceSimilarityProvider` (**AuraFace**, embed path) behind the unchanged
+  interface, so the evaluation pipeline now returns a **live face-similarity score**. The provider knows
+  only the interface + a generic HTTP contract — **not Hugging Face**; the endpoint is host-neutral config
+  (`FACE_EMBED_ENDPOINT_URL` / `FACE_EMBED_API_KEY` / `FACE_EMBED_VERSION`), so moving AuraFace to Fal /
+  Replicate / AWS / self-hosted is a one-file (or env-only) change.
+- Instrumented for the acceptance criteria: the Generate "Identity Evaluation" panel shows **face % ·
+  confidence · provider · eval time · cache hit/miss · per-anchor similarity (Face/Canonical)**. Embeddings
+  are cached (hit/miss reported); a runtime endpoint failure degrades to `provider-error`, `not-configured`
+  when unset — never a user-facing throw. Engine/Identity Package/registry pattern/DB/interfaces unchanged.
+- tsc + build green; verify-evaluation 18/18, all prior verifiers unchanged. Needs the Neon migration
+  `add_media_embedding` + an AuraFace endpoint to see live numbers. See `docs/IDENTITY_EVALUATION.md`.
+  **Next = provider benchmark + `evaluatorRoleScorer` → M27 routing.**
+
 ### Milestone 26 Phase 1 — Identity Evaluation Engine (face drift) (Decision 067, 2026-08-02)
 
 - **The keystone: we now MEASURE identity preservation.** New provider-neutral Identity Evaluation Engine

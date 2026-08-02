@@ -89,7 +89,9 @@ export {
 export {
   evaluateGeneration,
   getGenerationEvaluation,
+  getGenerationEvaluationView,
   composeEvaluation,
+  type EvaluationView,
 } from "./evaluation/engine";
 export { cosine, toSimilarity } from "./evaluation/cosine";
 export { EVALUATORS, enabledEvaluators } from "./evaluation/evaluators/registry";

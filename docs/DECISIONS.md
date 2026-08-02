@@ -2731,3 +2731,43 @@ Status
 Accepted — SHIPPED on `feat/lora-trainer-m24` (pending the Neon migration + provider key). **▶ NEXT = M26
 Phase 2** (`evaluatorRoleScorer` fills `ReferenceProfile.signals` → data-driven reference ranking/selection) →
 **M27 Adaptive Routing** (route by MEASURED identity preservation). See docs/IDENTITY_EVALUATION.md.
+
+# Decision 068
+
+Date
+2026-08-02
+
+Decision
+**M26 Phase 2 — wire ONE real face provider (AuraFace), scope-locked.** The evaluation pipeline now returns a
+live face-similarity score. First concrete `FaceSimilarityProvider` = `providers/auraface.ts` (embed path),
+which knows ONLY the interface + a generic HTTP contract (POST `{image}` → `{embedding: number[] | null}`) —
+**deliberately NOT Hugging Face-specific**: the endpoint is host-neutral env config
+(`FACE_EMBED_ENDPOINT_URL`/`FACE_EMBED_API_KEY`/`FACE_EMBED_VERSION`), so moving AuraFace to Fal/Replicate/AWS/
+self-hosted is a one-file-or-env change and nothing else in the system moves. Registered as the single entry in
+the provider registry.
+
+Instrumentation to meet the acceptance criteria (all additive; engine composition, Identity Package, registry
+pattern, DB schema, and the `FaceSimilarityProvider` interface unchanged): `getOrComputeEmbedding` now reports
+cache hit/miss; the engine times the eval, counts cache hits/misses, and catches provider errors → graceful
+`method: "provider-error"` (never throws to the user); `metrics` JSON carries provider/version/evalMs/cache/
+per-anchor sims; a new UI view `getGenerationEvaluationView` + `EvaluationView` flattens the row+metrics; the
+Generate "Identity Evaluation" panel shows **face % · confidence · provider · time · cache hit/miss · per-anchor
+similarity (Face/Canonical)**. Face score compares the generated face against the Identity Package's Face +
+Canonical anchors, embeddings cached (only new generated images cost a call).
+
+Scope explicitly held (user): ONE provider only; no tattoo/body/hair evaluators, no provider benchmark, no
+routing — those are later milestones.
+
+Verification: tsc + `next build` green; `verify-evaluation` 18/18; all prior verifiers unchanged-green. Needs
+the Neon migration `add_media_embedding` + a deployed AuraFace endpoint to produce live numbers (user-driven).
+
+Alternatives
+Bake in Hugging Face specifics (rejected — the endpoint must be swappable; provider knows only the interface).
+Change the engine/interface to carry richer results (rejected — kept `IdentityEvaluation` + engine unchanged;
+added a separate `EvaluationView` for the UI). Block generation on evaluation (rejected — client-driven, non-
+blocking).
+
+Status
+Accepted — SHIPPED on `feat/lora-trainer-m24` (pending the Neon migration + an AuraFace endpoint). **▶ NEXT =
+Evaluation Benchmark (A/B AuraFace vs Rekognition vs Azure) + `evaluatorRoleScorer` (feeds selection) → M27
+Adaptive Routing by measured preservation.** See docs/IDENTITY_EVALUATION.md.

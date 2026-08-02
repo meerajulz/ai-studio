@@ -3,23 +3,25 @@
 import { requireUserId } from "@/lib/auth/session";
 import {
   evaluateGeneration,
-  getGenerationEvaluation,
-  type IdentityEvaluation,
+  getGenerationEvaluationView,
+  type EvaluationView,
 } from "@/lib/identity-engine";
 
 /**
- * Identity Evaluation (Milestone 26) — score a generation against its identity. Client-driven so it never
- * adds latency to generation: the Generate view calls this AFTER the image is shown. Owner-scoped.
+ * Identity Evaluation (Milestone 26) — score a generation against its identity, then return the UI view
+ * (face similarity + confidence + provider + timing + cache + per-anchor). Client-driven so it never adds
+ * latency to generation: the Generate view calls this AFTER the image is shown. Owner-scoped.
  */
-export async function evaluateGenerationAction(generationId: string): Promise<IdentityEvaluation> {
+export async function evaluateGenerationAction(generationId: string): Promise<EvaluationView | null> {
   const userId = await requireUserId();
-  return evaluateGeneration(userId, generationId);
+  await evaluateGeneration(userId, generationId);
+  return getGenerationEvaluationView(userId, generationId);
 }
 
-/** Read a generation's persisted evaluation (owner-scoped); `null` if not evaluated yet. */
+/** Read a generation's persisted evaluation view (owner-scoped); `null` if not evaluated yet. */
 export async function getGenerationEvaluationAction(
   generationId: string,
-): Promise<IdentityEvaluation | null> {
+): Promise<EvaluationView | null> {
   const userId = await requireUserId();
-  return getGenerationEvaluation(userId, generationId);
+  return getGenerationEvaluationView(userId, generationId);
 }

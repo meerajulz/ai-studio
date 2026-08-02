@@ -1,8 +1,9 @@
 # Identity Evaluation Engine (Milestone 26)
 
-> **Status:** Backbone + abstraction SHIPPED (Decision 067, refined). Face evaluator + capability-based
-> provider interface are in; the **concrete provider is deliberately POSTPONED** (validate before
-> optimizing). Phase 2 = wire a provider + `evaluatorRoleScorer`; Phase 3 = routing/auto-promote inputs.
+> **Status:** Phase 2 SHIPPED (Decision 068) — ONE real provider wired (AuraFace, embed path) behind the
+> unchanged interface; the pipeline returns a live face-similarity score with confidence + per-anchor +
+> timing + cache hit/miss. Next: provider benchmark (AuraFace vs Rekognition vs Azure) + `evaluatorRoleScorer`
+> (Phase 2b) → M27 routing.
 
 ## Why — the feedback loop
 
@@ -74,10 +75,30 @@ caching). Not yet wired.
 `source`, `kind` ("face"), `provider`, `version`, `vector` (JSON float[]), `dim`, `userId`.
 `@@unique(mediaId, kind, version)`. Cosine in JS; **pgvector deferred** until ANN/clustering is needed.
 
+## The AuraFace provider (Phase 2 — host-neutral)
+
+`providers/auraface.ts` is the first concrete `FaceSimilarityProvider` (embed path). It knows ONLY the
+interface + a generic HTTP contract — **not Hugging Face**. The hosted endpoint is pure config, so if
+AuraFace later moves to Fal / Replicate / AWS / self-hosted you change env (or, at most, this one file) and
+nothing else. Deploy AuraFace/InsightFace behind this contract:
+
+```
+POST {FACE_EMBED_ENDPOINT_URL}
+  Authorization: Bearer {FACE_EMBED_API_KEY}
+  Content-Type: application/json
+  { "image": "<signed image url>" }
+→ 200 { "embedding": number[] }   // 512-d face vector
+→ 200 { "embedding": null }       // no face (not an error)
+```
+(bare `[...]`, `{vector:[...]}`, `[{embedding:[...]}]` are also parsed defensively.)
+
 ## Config
 
-`FACE_SIMILARITY_PROVIDER` forces a provider once the registry is non-empty. No provider configured →
-evaluation returns `not-configured` and everything else keeps working.
+- `FACE_EMBED_ENDPOINT_URL` + `FACE_EMBED_API_KEY` — the AuraFace endpoint (any host). `FACE_EMBED_VERSION`
+  overrides the cache-key version (default `auraface-v1`).
+- `FACE_SIMILARITY_PROVIDER` forces a specific provider once more than one is registered.
+- Nothing configured → evaluation returns `not-configured`; a runtime endpoint failure → `provider-error`;
+  both degrade gracefully and everything else keeps working.
 
 ## Verification
 

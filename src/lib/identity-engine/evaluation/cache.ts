@@ -12,9 +12,12 @@ import { getFaceSimilarityProvider, supportsEmbed, type Embedding } from "./prov
 
 export type EmbeddingKind = "face"; // future: "tattoo" | "body" | …
 
+/** An embedding lookup + whether it came from the Neon cache (for debug hit/miss reporting). */
+export type CachedEmbedding = { embedding: Embedding | null; cached: boolean };
+
 /**
  * Cached embedding for an image at the CURRENT provider version, computing + storing it on a miss.
- * Returns `null` when the provider can't embed, or found no face.
+ * `embedding` is `null` when the provider can't embed or found no face; `cached` reports a hit.
  */
 export async function getOrComputeEmbedding(
   userId: string,
@@ -22,19 +25,19 @@ export async function getOrComputeEmbedding(
   imageUrl: string,
   source: "uploaded" | "generated",
   kind: EmbeddingKind = "face",
-): Promise<Embedding | null> {
+): Promise<CachedEmbedding> {
   const provider = getFaceSimilarityProvider();
-  if (!supportsEmbed(provider)) return null;
+  if (!supportsEmbed(provider)) return { embedding: null, cached: false };
   const version = provider.version;
 
   const cached = await prisma.mediaEmbedding.findUnique({
     where: { mediaId_kind_version: { mediaId, kind, version } },
     select: { vector: true, dim: true },
   });
-  if (cached) return { vector: cached.vector as number[], dim: cached.dim, version };
+  if (cached) return { embedding: { vector: cached.vector as number[], dim: cached.dim, version }, cached: true };
 
   const embedding = await provider.embed(imageUrl);
-  if (!embedding) return null;
+  if (!embedding) return { embedding: null, cached: false };
 
   await prisma.mediaEmbedding.upsert({
     where: { mediaId_kind_version: { mediaId, kind, version } },
@@ -51,5 +54,5 @@ export async function getOrComputeEmbedding(
     },
     update: {}, // a concurrent writer already cached it — keep theirs
   });
-  return embedding;
+  return { embedding, cached: false };
 }

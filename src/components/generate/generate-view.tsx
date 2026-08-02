@@ -20,7 +20,7 @@ import {
   type CreativeStyle,
 } from "@/lib/creative";
 import { evaluateGenerationAction } from "@/actions/evaluation";
-import type { IdentityEvaluation } from "@/lib/identity-engine";
+import type { EvaluationView } from "@/lib/identity-engine";
 import type { GenerationDebug } from "@/lib/generation/types";
 import type { MediaAsset } from "@/lib/media/types";
 import { cn } from "@/lib/utils";
@@ -86,7 +86,7 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   const [identityId, setIdentityId] = useState<string>("");
   const [viewing, setViewing] = useState<MediaAsset | null>(null);
   const [debug, setDebug] = useState<GenerationDebug | null>(null);
-  const [evaluation, setEvaluation] = useState<IdentityEvaluation | null>(null);
+  const [evaluation, setEvaluation] = useState<EvaluationView | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   // DEV identity-benchmark controls (not shown in prod).
   const [maxReferences, setMaxReferences] = useState<number | undefined>(undefined);
@@ -500,7 +500,7 @@ function IdentityEvaluationPanel({
   evaluation,
 }: {
   evaluating: boolean;
-  evaluation: IdentityEvaluation | null;
+  evaluation: EvaluationView | null;
 }) {
   const pct = evaluation?.face != null ? Math.round(evaluation.face * 100) : null;
   const tone =
@@ -508,9 +508,12 @@ function IdentityEvaluationPanel({
   const note =
     evaluation?.method === "not-configured"
       ? "No face-similarity provider wired yet (M26 Phase 2) — the evaluation pipeline ran and returned no score."
-      : evaluation?.face == null && !evaluating
-        ? `No face score (${evaluation?.method ?? "unavailable"}).`
-        : null;
+      : evaluation?.method === "provider-error"
+        ? "Provider unavailable — evaluation degraded gracefully (no score)."
+        : evaluation?.face == null && !evaluating
+          ? `No face score (${evaluation?.method ?? "unavailable"}).`
+          : null;
+  const cacheTotal = (evaluation?.cacheHits ?? 0) + (evaluation?.cacheMisses ?? 0);
 
   return (
     <div className="rounded-lg border p-4">
@@ -527,8 +530,30 @@ function IdentityEvaluationPanel({
       <p className="text-muted-foreground mt-1 text-xs">
         {note ?? "Face similarity between the generated image and the character's reference faces (higher = better identity preservation)."}
       </p>
-      {evaluation?.method && evaluation.method !== "not-configured" ? (
-        <p className="text-muted-foreground mt-1 font-mono text-[10px]">method: {evaluation.method}</p>
+      {pct != null ? (
+        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+          {evaluation?.confidence != null ? (
+            <div className="flex justify-between"><dt className="text-muted-foreground">confidence</dt><dd className="font-mono">{Math.round(evaluation.confidence * 100)}%</dd></div>
+          ) : null}
+          <div className="flex justify-between"><dt className="text-muted-foreground">provider</dt><dd className="font-mono">{evaluation?.provider ?? evaluation?.method}</dd></div>
+          {evaluation?.evalMs != null ? (
+            <div className="flex justify-between"><dt className="text-muted-foreground">time</dt><dd className="font-mono">{evaluation.evalMs} ms</dd></div>
+          ) : null}
+          {cacheTotal > 0 ? (
+            <div className="flex justify-between"><dt className="text-muted-foreground">cache</dt><dd className="font-mono">{evaluation?.cacheHits ?? 0} hit / {evaluation?.cacheMisses ?? 0} miss</dd></div>
+          ) : null}
+        </dl>
+      ) : null}
+      {evaluation?.anchors && evaluation.anchors.length ? (
+        <div className="mt-2 grid gap-0.5 text-[11px]">
+          <p className="text-muted-foreground">per-anchor similarity</p>
+          {evaluation.anchors.map((a, i) => (
+            <div key={i} className="flex justify-between font-mono">
+              <span className="text-muted-foreground">👤 {a.role}</span>
+              <span>{Math.round(a.sim * 100)}%</span>
+            </div>
+          ))}
+        </div>
       ) : null}
     </div>
   );

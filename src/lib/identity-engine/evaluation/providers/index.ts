@@ -6,10 +6,12 @@
  * zero engine change. Until then `getFaceSimilarityProvider()` returns the not-configured fallback and
  * evaluation degrades cleanly. `FACE_SIMILARITY_PROVIDER` env forces one once providers exist.
  */
+import { auraFaceProvider } from "./auraface";
 import { notConfiguredProvider, type FaceSimilarityProvider } from "./FaceSimilarityProvider";
 
 const REGISTRY: FaceSimilarityProvider[] = [
-  // AuraFace / AWS Rekognition / … land here — one line each, no engine change.
+  auraFaceProvider,
+  // AWS Rekognition / Azure Face / … land here — one line each, no engine change.
 ];
 
 /** The active provider (env override → first configured → not-configured fallback). */
