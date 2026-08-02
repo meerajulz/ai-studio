@@ -1,6 +1,6 @@
 # Reference Intelligence — the Identity Package (Milestone 25.2)
 
-> **Status:** Design accepted (Decision 063). Phase A (shadow) + **Phase B (image channel, Decision 064) + Phase C (channel arbitration, Decision 065) SHIPPED.** Next = Phase D (persist package + roled providers).
+> **Status:** Design accepted (Decision 063). **Phases A–D all SHIPPED** — A (shadow), B (image channel, Decision 064), C (channel arbitration, Decision 065), D (persistence + exposure-at-resolve, Decision 066). Roled-provider rendering (`named` schema) stays architecture-only until a hosted provider accepts roled inputs. Next = M26 Identity Evaluation (fills `ReferenceProfile.signals`).
 > **This is the long-term abstraction of the project.** The Identity Package is the internal,
 > provider-agnostic representation of *who a character is and how to reference them*. Providers
 > render a **projection** of it into whatever API they support. Nothing above the renderer knows
@@ -248,8 +248,18 @@ character package is a *later* additive table behind `getCharacterPackage()`.
   preserved). Byte-parity when `omitFacets` is empty (every non-arbitrated path unchanged). Transformation
   instructions themselves are untouched — only the descriptive layout leaves the text. Debug: "4.7 ·
   Channel Arbitration".
-- **Phase D — Persistence + roled providers.** `IdentityPackage` table behind `getCharacterPackage`;
-  `named` `ReferenceSchema` + renderer mapping when a roled provider lands.
+- **Phase D — Persistence + roled providers. ✅ SHIPPED (Decision 066).** The Character OWNS a persisted
+  default package: `IdentityPackage` table (1:1 Identity, mirrors `IdentityDataset`), refreshed on "Analyze
+  library" (`refreshCharacterPackage`), read via `getCharacterPackage` (`identity/package.ts`). Stores
+  **mediaId, never signed URLs** — URLs are re-signed at read time (`hydrateAnchors`), and anchors for
+  deleted media are dropped. Generation STARTS from the persisted package; if it's absent or can't satisfy
+  the request's exposure ceiling / Face-Anchor invariant, the Reference Engine rebuilds from live candidates
+  (no regression; identities not yet re-analyzed are byte-identical to Phase B/C). Exposure enforcement moved
+  into `resolvePackage` (anchors carry `exposure`; over-ceiling anchors are dropped), so a whole-library
+  default never sends a nude/lingerie anchor for a clothed prompt. Read-only "Identity Package" panel on the
+  identity Dataset tab. **Roled providers** (`named` `ReferenceSchema` + face_reference/controlnet/mask
+  mapping) stay architecture-only — the branch exists in `renderPackageForModel`, no hosted provider accepts
+  roled inputs yet, so no new provider was built.
 
 ## Forward links
 - **M26 Identity Evaluation** → `evaluatorRoleScorer` fills `ReferenceProfile.signals` with real

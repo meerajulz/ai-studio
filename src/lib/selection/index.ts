@@ -56,6 +56,8 @@ export {
   resolvePackage,
   renderPackageForModel,
   exposureRank,
+  serializeAnchors,
+  hydrateAnchors,
   type ReferenceSchema,
   type RenderedReference,
 } from "./package";
@@ -69,4 +71,5 @@ export {
   type IdentityPackage,
   type ReferenceProfile,
   type RoleScorer,
+  type StoredAnchor,
 } from "./types";

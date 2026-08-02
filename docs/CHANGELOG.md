@@ -7,6 +7,22 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Milestone 25.2 Phase D — Persist the Character's Identity Package (Decision 066, 2026-08-02)
+
+- The Character now OWNS a persisted **default Identity Package**: new `IdentityPackage` table (1:1 Identity),
+  refreshed on "Analyze library" (`refreshCharacterPackage`), read via `getCharacterPackage`
+  (`identity/package.ts`). Stores **mediaId, not signed URLs** — URLs re-signed at read; anchors for deleted
+  media dropped.
+- Generation STARTS from the persisted package (planner overrides per-request); falls back to a live rebuild
+  when it's absent or can't satisfy the prompt's exposure ceiling / Face-Anchor invariant — so identities not
+  yet re-analyzed stay byte-identical to Phase B/C.
+- Exposure enforcement moved into `resolvePackage` (anchors carry `exposure`; over-ceiling anchors dropped),
+  so a whole-library default never sends a nude/lingerie anchor for a clothed prompt. Read-only "Identity
+  Package" panel on the identity Dataset tab. Roled-provider rendering (`named` schema) stays architecture-only.
+- **Requires a Neon migration:** `add_identity_package` (`prisma migrate deploy`). tsc + build green;
+  verify-reference-package **30/30** (exposure-drop + serialize round-trip), all other verifiers unchanged-green.
+  **Milestone 25.2 (Reference Intelligence) COMPLETE — next = M26 Identity Evaluation.**
+
 ### Milestone 25.2 Phase C — Channel arbitration / prompt de-dup (Decision 065, 2026-08-02)
 
 - **Information-budget rule:** every identity fact lives once, in its strongest channel — transformation

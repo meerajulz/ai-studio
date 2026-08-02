@@ -30,8 +30,10 @@ import {
 import type { IdentityVisualPackage } from "@/lib/identity/types";
 import {
   hasConfidentFace,
+  type CharacterPackage,
   type SelectionCandidate,
 } from "@/lib/selection";
+import { getCharacterPackage } from "@/lib/identity/package";
 import { synthesizeIdentityAppearance } from "@/lib/vision";
 import { analyzeAndPersistMedia } from "@/lib/vision/persist";
 import { composeTransformationPrompt, facetsChangedBy, planTransformation } from "@/lib/transform";
@@ -88,6 +90,8 @@ async function runImageGeneration(
     candidates?: SelectionCandidate[];
     /** The identity's static Visual Package — FALLBACK when no analyzed candidates exist. */
     visualPackage?: IdentityVisualPackage | null;
+    /** The character's PERSISTED default Identity Package (M25.2 Phase D) — generation starts from it. */
+    characterPackage?: CharacterPackage | null;
     /** The identity's READY trained models (LoRA) — enables the `reference+lora` strategy (M24). */
     trainedModels?: TrainedModelRef[];
     /** DEV identity-benchmark cap on references sent (anchor kept first). */
@@ -127,6 +131,7 @@ async function runImageGeneration(
     directive,
     candidates: analyzedCandidates,
     visualPackage: opts.visualPackage,
+    characterPackage: opts.characterPackage,
     trainedModels: opts.trainedModels,
     manualReferenceMediaIds: opts.manualReferenceMediaIds,
     maxReferences: opts.maxReferences,
@@ -468,6 +473,7 @@ export async function generateImage(
     identityId,
     candidates: inputs.candidates,
     visualPackage: inputs.visualPackage,
+    characterPackage: inputs.characterPackage,
     trainedModels: inputs.trainedModels,
     maxReferences: input.maxReferences,
     manualReferenceMediaIds: input.manualReferenceMediaIds,
@@ -518,13 +524,17 @@ async function loadIdentityInputs(
   identity: IdentityContext | null;
   candidates: SelectionCandidate[];
   visualPackage: IdentityVisualPackage | null;
+  characterPackage: CharacterPackage | null;
   trainedModels: TrainedModelRef[];
 }> {
-  if (!identityId) return { identity: null, candidates: [], visualPackage: null, trainedModels: [] };
-  const [info, loaded, visualPackage, trainedModels] = await Promise.all([
+  if (!identityId)
+    return { identity: null, candidates: [], visualPackage: null, characterPackage: null, trainedModels: [] };
+  const [info, loaded, visualPackage, characterPackage, trainedModels] = await Promise.all([
     getIdentityContext(userId, identityId),
     getIdentitySelectionCandidates(userId, identityId),
     getIdentityVisualPackage(userId, identityId),
+    // The persisted default Identity Package (M25.2 Phase D) — null until the library is analyzed.
+    getCharacterPackage(userId, identityId),
     // READY trained models (LoRA) so the Identity Engine can offer `reference+lora` automatically (M24).
     getIdentityTrainedModelRefs(userId, identityId),
   ]);
@@ -540,7 +550,7 @@ async function loadIdentityInputs(
         trainingMediaCount: info.trainingMediaCount,
       }
     : null;
-  return { identity, candidates, visualPackage, trainedModels };
+  return { identity, candidates, visualPackage, characterPackage, trainedModels };
 }
 
 /** Re-run a generation's recipe unchanged (a new generation, lineage tagged in `params`). */
@@ -558,6 +568,7 @@ export async function regenerateGeneration(
     identityId: source.identityId,
     candidates: inputs.candidates,
     visualPackage: inputs.visualPackage,
+    characterPackage: inputs.characterPackage,
     trainedModels: inputs.trainedModels,
     lineage: { source: "regenerate", fromGenerationId: generationId },
   });
@@ -578,6 +589,7 @@ export async function generateVariation(
     identityId: source.identityId,
     candidates: inputs.candidates,
     visualPackage: inputs.visualPackage,
+    characterPackage: inputs.characterPackage,
     trainedModels: inputs.trainedModels,
     lineage: { source: "variation", fromGenerationId: generationId },
   });

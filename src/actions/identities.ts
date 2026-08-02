@@ -35,6 +35,7 @@ import {
   refreshIdentityDataset,
   type IdentityEngineOverview,
 } from "@/lib/identity/dataset";
+import { refreshCharacterPackage } from "@/lib/identity/package";
 import {
   pollIdentityTraining,
   startIdentityTraining,
@@ -167,6 +168,8 @@ export async function analyzeIdentityLibraryAction(
   const summary = await analyzeIdentityLibrary(userId, identityId, opts);
   // Identity Engine (Milestone 22): recompute + persist dataset readiness from the fresh knowledge.
   await refreshIdentityDataset(userId, identityId);
+  // Reference Intelligence (Milestone 25.2 Phase D): recompute + persist the default Identity Package.
+  await refreshCharacterPackage(userId, identityId);
   return summary;
 }
 

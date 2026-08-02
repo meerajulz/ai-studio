@@ -13,6 +13,7 @@ import type { CreativeDirective } from "@/lib/creative";
 import type {
   AnchorRole,
   AnchorScore,
+  CharacterPackage,
   FaceAnchorSource,
   IdentityFacet,
   SelectionCandidate,
@@ -44,6 +45,12 @@ export type ConditioningRequest = {
   candidates: SelectionCandidate[];
   /** Static Visual Package — FALLBACK when no analyzed candidates exist. */
   visualPackage?: IdentityVisualPackage | null;
+  /**
+   * The character's PERSISTED default Identity Package (Milestone 25.2 Phase D). The Reference Engine
+   * starts from it and overrides per-request; when absent, or it can't satisfy the request's exposure /
+   * face invariant, the engine rebuilds from `candidates` (no regression).
+   */
+  characterPackage?: CharacterPackage | null;
   /** DEV manual override: send EXACTLY these media ids, in order (bypasses selector/anchor/safety). */
   manualReferenceMediaIds?: string[];
   /** DEV cap on references sent (anchor kept first). */

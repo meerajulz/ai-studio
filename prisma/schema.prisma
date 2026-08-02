@@ -97,6 +97,7 @@ model User {
 
   // Identity Engine (Milestone 22) — owner back-relations.
   identityDatasets      IdentityDataset[]
+  identityPackages      IdentityPackage[]
   identityTrainedModels IdentityTrainedModel[]
   identityTrainingJobs  IdentityTrainingJob[]
   identityEvaluations   IdentityEvaluation[]
@@ -197,6 +198,8 @@ model Identity {
   // Identity Engine (Milestone 22) — dataset readiness, versioned trained models, training jobs,
   // evaluations, and generic identity artifacts (LoRAs/embeddings/adapters/vectors).
   dataset       IdentityDataset?
+  // Reference Intelligence (Milestone 25.2 Phase D) — the character's persisted default Identity Package.
+  package       IdentityPackage?
   trainedModels IdentityTrainedModel[]
   trainingJobs  IdentityTrainingJob[]
   evaluations   IdentityEvaluation[]
@@ -416,6 +419,31 @@ model IdentityDataset {
   recommendedImageIds String[]
   rejectedImageIds    String[]
   rejectionReasons    Json? // { [mediaId]: reason }
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  identityId String   @unique
+  identity   Identity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// The character's persisted DEFAULT Identity Package (Milestone 25.2 Phase D) — best-per-role anchors
+/// over the analyzed library, refreshed on "Analyze library". The Character OWNS it; generation starts
+/// from it and the planner overrides per-request. `anchors` stores mediaId (NOT signed URLs — those
+/// expire); URLs are re-signed at read time. 1:1 with Identity, mirrors IdentityDataset.
+model IdentityPackage {
+  id            String   @id @default(cuid())
+  anchors       Json // StoredAnchor[] — { role, roles[], mediaId, score, importance, reasons[], coversFacets[], exposure }
+  scorerId      String // which RoleScorer produced it (heuristic | evaluator)
+  imageCount    Int      @default(0)
+  analyzedCount Int      @default(0)
+  version       String // package-engine version (e.g. "ip-1")
+  computedAt    DateTime @default(now())
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

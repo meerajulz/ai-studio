@@ -21,6 +21,7 @@ import {
   type TrainingState,
 } from "@/lib/identity-engine";
 import { getIdentityAssets, type TrainedModelSummary } from "@/lib/identity-engine/assets/assets";
+import { getCharacterPackage } from "./package";
 
 /** Recompute + persist dataset readiness for an identity from its persisted knowledge. */
 export async function refreshIdentityDataset(userId: string, identityId: string): Promise<void> {
@@ -108,11 +109,19 @@ export type TrainingStaleness = {
   newImageCount: number | null; // max(0, current − trained) — the "N newer images" number
 };
 
+/** The character's persisted default Identity Package, shaped for the read-only UI (Milestone 25.2 Phase D). */
+export type CharacterPackageView = {
+  anchors: { role: string; roles: string[]; url: string; reasons: string[]; exposure: string }[];
+  analyzedCount: number;
+  scorerId: string;
+};
+
 export type IdentityEngineOverview = {
   capabilities: IdentityCapabilities; // what this identity can do now — UI adapts off this
   trainingState: TrainingState; // user-oriented lifecycle (M23) — UI reasons about this, not job status
   dataset: DatasetReadinessView | null;
   staleness: TrainingStaleness | null; // newest model vs. current dataset (retrain hint)
+  characterPackage: CharacterPackageView | null; // persisted default Identity Package (M25.2 Phase D)
   trainedModels: TrainedModelSummary[];
   trainingJobs: TrainingJobView[];
 };
@@ -124,6 +133,22 @@ export async function getIdentityEngineOverview(
 ): Promise<IdentityEngineOverview | null> {
   const assets = await getIdentityAssets(userId, identityId);
   if (!assets) return null;
+
+  // Reference Intelligence (M25.2 Phase D): the persisted default Identity Package (URLs re-signed).
+  const characterPkg = await getCharacterPackage(userId, identityId);
+  const characterPackage: CharacterPackageView | null = characterPkg
+    ? {
+        anchors: characterPkg.anchors.map((a) => ({
+          role: a.role,
+          roles: a.roles,
+          url: a.url,
+          reasons: a.reasons,
+          exposure: a.exposure,
+        })),
+        analyzedCount: characterPkg.computedFrom.analyzedCount,
+        scorerId: characterPkg.scorerId,
+      }
+    : null;
 
   const [row, jobs, readyModels, artifactRows, identityRow] = await Promise.all([
     prisma.identityDataset.findUnique({ where: { identityId } }),
@@ -243,6 +268,7 @@ export async function getIdentityEngineOverview(
     trainingState,
     dataset,
     staleness,
+    characterPackage,
     trainedModels: assets.trainedModels,
     trainingJobs: jobs.map((j) => ({
       id: j.id,

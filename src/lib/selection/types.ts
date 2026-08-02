@@ -138,7 +138,12 @@ export type IdentityAnchor = {
   importance: number; // ordering weight for THIS request (face is highest)
   reasons: string[];
   coversFacets: IdentityFacet[];
+  exposure: ExposureLevel; // so a persisted default anchor can be dropped per-request over the ceiling
 };
+
+/** The persisted form of an anchor (Milestone 25.2 Phase D) — mediaId only; the signed URL is expiring
+ * and re-derived at read time by `getCharacterPackage`. */
+export type StoredAnchor = Omit<IdentityAnchor, "url">;
 
 /** The character's STABLE default anchors over the whole library (persistable later — Phase D). */
 export type CharacterPackage = {

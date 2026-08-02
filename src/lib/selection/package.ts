@@ -21,6 +21,7 @@ import {
   type ReferenceProfile,
   type RoleScorer,
   type SelectionCandidate,
+  type StoredAnchor,
 } from "./types";
 
 /** Importance for ordering — Face is always highest; the rest are scene-tunable later (Phase B). */
@@ -90,6 +91,7 @@ export function buildCharacterPackage(
       importance: ROLE_IMPORTANCE[primary],
       reasons: p.reasons[primary],
       coversFacets: facetsForRoles(roles),
+      exposure: p.exposure,
     });
   }
   anchors.sort((a, b) => b.importance - a.importance);
@@ -136,10 +138,13 @@ export function resolvePackage(input: {
 }): IdentityPackage {
   const { characterPackage, neededRoles, maxReferences, exposureCeiling } = input;
   const needed = new Set(neededRoles);
+  const ceiling = EXPOSURE_RANK[exposureCeiling];
 
-  // Anchors serving at least one needed role, ordered by importance.
+  // Anchors serving at least one needed role AND within the prompt's exposure ceiling (so a persisted
+  // default built from the whole library never sends a nude/lingerie anchor for a clothed prompt),
+  // ordered by importance.
   let kept = characterPackage.anchors
-    .filter((a) => a.roles.some((r) => needed.has(r)))
+    .filter((a) => a.roles.some((r) => needed.has(r)) && EXPOSURE_RANK[a.exposure] <= ceiling)
     .sort((a, b) => b.importance - a.importance);
 
   // Face-Anchor invariant: a confident face anchor must be present, else the caller MUST refuse.
@@ -204,3 +209,26 @@ export function renderPackageForModel(pkg: IdentityPackage, schema: ReferenceSch
 
 /** Rank exposure so a package's ceiling can gate what may be sent (reused by exposure filtering). */
 export const exposureRank = (e: ExposureLevel): number => EXPOSURE_RANK[e];
+
+// ── Persistence (Milestone 25.2 Phase D) ──────────────────────────────────────────────────────────
+
+/** Strip the expiring signed URL for storage — persist stable mediaIds only. Pure. */
+export function serializeAnchors(anchors: IdentityAnchor[]): StoredAnchor[] {
+  return anchors.map(({ url: _url, ...rest }) => rest);
+}
+
+/**
+ * Re-attach signed URLs to stored anchors at read time; anchors whose media no longer resolves (deleted)
+ * are dropped. Pure — the identity layer supplies the freshly-signed `urlByMediaId` map. See Phase D.
+ */
+export function hydrateAnchors(
+  stored: StoredAnchor[],
+  urlByMediaId: Map<string, string>,
+): IdentityAnchor[] {
+  return stored
+    .map((a) => {
+      const url = urlByMediaId.get(a.mediaId);
+      return url ? { ...a, url } : null;
+    })
+    .filter((a): a is IdentityAnchor => a != null);
+}

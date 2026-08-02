@@ -62,7 +62,9 @@ export function IdentityDatasetReadiness({ identityId }: Props) {
   }
 
   const m = dataset.metrics;
+  const pkg = data?.characterPackage ?? null;
   return (
+    <div className="grid gap-6">
     <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
       <Card>
         <CardHeader>
@@ -109,6 +111,39 @@ export function IdentityDatasetReadiness({ identityId }: Props) {
           </div>
         ) : null}
       </div>
+    </div>
+
+      {pkg && pkg.anchors.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">
+              Identity Package
+              <span className="text-muted-foreground ml-2 font-normal">
+                the character&apos;s default anchors ({pkg.analyzedCount} analyzed) — generation starts here
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 sm:grid-cols-2">
+            {pkg.anchors.map((a, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-lg border p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={a.url} alt="" className="size-12 shrink-0 rounded object-cover" />
+                <div className="grid gap-0.5 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium">{a.roles.join(" · ")}</span>
+                    {a.exposure !== "clothed" ? (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {a.exposure}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <p className="text-muted-foreground">{a.reasons.join(", ")}</p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

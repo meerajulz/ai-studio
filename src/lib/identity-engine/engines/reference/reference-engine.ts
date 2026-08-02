@@ -19,6 +19,7 @@ import {
   renderPackageForModel,
   resolvePackage,
   type AnchorRole,
+  type CharacterPackage,
   type IdentityPackage,
   type SelectionCandidate,
 } from "@/lib/selection";
@@ -102,28 +103,34 @@ export function selectReferences(req: ConditioningRequest): ConditioningContribu
       .map((c) => ({ url: c.url, role: "reference" as const }));
     reason = `MANUAL reference selection (dev): ${referenceImages.length} image(s), exact order`;
   } else if (candidates.length) {
-    // Identity Package (Milestone 25.2 Phase B): the role-based anchor package DRIVES the references.
+    // Identity Package (M25.2): the role-based anchor package DRIVES the references. Phase D — start from
+    // the character's PERSISTED default; rebuild from live exposure-safe candidates if it's absent or
+    // can't satisfy this request's exposure ceiling / Face-Anchor invariant (no regression).
     const exposure = filterCandidatesByExposure(directive, candidates);
-    const characterPackage = buildCharacterPackage(req.identityId ?? "", exposure.safe);
-    const available = new Set(characterPackage.anchors.flatMap((a) => a.roles));
-    // Transformation-driven roles (M25.1). Without a plan, keep every available role (coverage).
-    const neededRoles = req.transformation
-      ? deriveNeededRoles({ ...req.transformation, available })
-      : ANCHOR_ROLES.filter((r) => available.has(r) || r === "face");
-    const pkg = resolvePackage({
-      characterPackage,
-      neededRoles,
-      maxReferences: req.maxReferences ?? DEFAULT_MAX_REFERENCES,
-      exposureCeiling: allowedExposureForPrompt(directive),
-    });
+    const exposureCeiling = allowedExposureForPrompt(directive);
+    const max = req.maxReferences ?? DEFAULT_MAX_REFERENCES;
+
+    const resolveFrom = (cp: CharacterPackage) => {
+      const available = new Set(cp.anchors.flatMap((a) => a.roles));
+      // Transformation-driven roles (M25.1). Without a plan, keep every available role (coverage).
+      const neededRoles = req.transformation
+        ? deriveNeededRoles({ ...req.transformation, available })
+        : ANCHOR_ROLES.filter((r) => available.has(r) || r === "face");
+      return { neededRoles, pkg: resolvePackage({ characterPackage: cp, neededRoles, maxReferences: max, exposureCeiling }) };
+    };
+
+    let source = "persisted default";
+    let resolved = req.characterPackage ? resolveFrom(req.characterPackage) : null;
+    if (!resolved || resolved.pkg.faceAnchorSource === "none") {
+      source = req.characterPackage ? "rebuilt (persisted insufficient)" : "rebuilt (no persisted package)";
+      resolved = resolveFrom(buildCharacterPackage(req.identityId ?? "", exposure.safe));
+    }
+    const { neededRoles, pkg } = resolved;
     identityPackage = toPackageTrace(pkg);
 
     // Render the package for the provider (image_urls today; face #0 by invariant). Face → the anchor
     // slot (reuses the adapter's proven [anchor, ...scene] merge/cap); the rest → scene references.
-    const rendered = renderPackageForModel(pkg, {
-      kind: "image_urls",
-      max: req.maxReferences ?? DEFAULT_MAX_REFERENCES,
-    });
+    const rendered = renderPackageForModel(pkg, { kind: "image_urls", max });
     if (pkg.faceAnchorSource === "none") {
       // No confident face anchor → Generation refuses (NO_IDENTITY_ANCHOR). Send nothing.
       referenceImages = [];
@@ -131,7 +138,7 @@ export function selectReferences(req: ConditioningRequest): ConditioningContribu
     } else {
       identityAnchor = { url: rendered[0].url, role: "anchor" };
       referenceImages = rendered.slice(1).map((r) => ({ url: r.url, role: anchorRoleToRef(r.role) }));
-      reason = `identity package: ${pkg.reason}`;
+      reason = `identity package (${source}): ${pkg.reason}`;
     }
     selection = {
       requirements: neededRoles,

@@ -122,6 +122,16 @@ Additive, owner-scoped, cascade from `Identity`. See [IDENTITY_ENGINE.md](./IDEN
   — home for non-trainable engines (PuLID/InstantID).
 - New enum **`TrainedModelStatus { DRAFT, READY, FAILED, ARCHIVED }`**.
 
+## Reference Intelligence (Milestone 25.2 Phase D, migration `add_identity_package`)
+
+- **`IdentityPackage`** (1:1 `Identity`, cascade) — the character's persisted **default Identity Package**:
+  `anchors` JSON (best-per-role, stored as `StoredAnchor` = `{ role, roles[], mediaId, score, importance,
+  reasons[], coversFacets[], exposure }` — **mediaId, never signed URLs**), `scorerId`, `imageCount`,
+  `analyzedCount`, `version` ("ip-1"), `computedAt`. Refreshed on "Analyze library"
+  (`refreshCharacterPackage`); URLs re-signed at read (`getCharacterPackage`). Generation starts from it
+  (planner overrides per-request; rebuilds live when it can't satisfy exposure/roles). See
+  [REFERENCE_INTELLIGENCE.md](./REFERENCE_INTELLIGENCE.md).
+
 ## Conventions
 
 - Access the client through the single instance in `src/lib/db/` (global singleton —

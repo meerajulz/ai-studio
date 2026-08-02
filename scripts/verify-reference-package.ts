@@ -14,9 +14,11 @@ import {
   deriveNeededRoles,
   FACE_ANCHOR_MIN_SCORE,
   hasConfidentFace,
+  hydrateAnchors,
   pickIdentityAnchor,
   renderPackageForModel,
   resolvePackage,
+  serializeAnchors,
 } from "../src/lib/selection";
 
 let passed = 0;
@@ -33,6 +35,7 @@ function mkMeta(over: {
   hair?: { visible?: boolean; length?: string; color?: string | null; wet?: boolean; windBlown?: boolean };
   tattoos?: { region: string; confidence: number }[];
   quality?: { overall?: number; sharpness?: number; usable?: boolean; cropped?: boolean };
+  clothing?: string[];
 }): IdentityMetadata {
   const f = over.face ?? {};
   const b = over.body ?? {};
@@ -50,7 +53,7 @@ function mkMeta(over: {
     tattoos: (over.tattoos ?? []) as IdentityMetadata["tattoos"],
     accessories: [],
     facialHair: null,
-    clothing: [],
+    clothing: over.clothing ?? [],
     quality: { overall: q.overall ?? 80, sharpness: q.sharpness ?? 0.8, usable: q.usable ?? true, cropped: q.cropped ?? false, exposure: 0.8, faceVisible: true, occlusion: false, resolution: null, aesthetic: null, issues: [] },
   } as unknown as IdentityMetadata;
 }
@@ -115,6 +118,27 @@ function main() {
   const weakPkg = buildCharacterPackage("id3", [weak]);
   const weakResolved = resolvePackage({ characterPackage: weakPkg, neededRoles: ["face"], maxReferences: 4, exposureCeiling: "clothed" });
   assert(weakResolved.faceAnchorSource === "none", "below-threshold face → refuse (no silent wrong-person)");
+
+  // Phase D — persistence + exposure at resolve time.
+  assert(pkg.anchors.every((a) => a.exposure === "clothed"), "buildCharacterPackage tags anchor.exposure");
+
+  // resolvePackage drops an anchor whose exposure exceeds the prompt's ceiling.
+  const nudeFace = cand("N", mkMeta({ face: { orientation: "front", confidence: 0.95, q: 0.9, res: 0.95 }, clothing: ["nude"], quality: { overall: 85 } }));
+  const nudePkg = buildCharacterPackage("id4", [nudeFace]);
+  assert(nudePkg.anchors[0].exposure === "nude", "nude photo → anchor.exposure nude");
+  const clothedReq = resolvePackage({ characterPackage: nudePkg, neededRoles: ["face"], maxReferences: 4, exposureCeiling: "clothed" });
+  assert(clothedReq.faceAnchorSource === "none", "persisted nude-only face is DROPPED for a clothed prompt → refuse (engine then rebuilds)");
+  const explicitReq = resolvePackage({ characterPackage: nudePkg, neededRoles: ["face"], maxReferences: 4, exposureCeiling: "nude" });
+  assert(explicitReq.faceAnchorSource === "face", "same anchor is allowed when the prompt permits nude");
+
+  // Serialize → hydrate round-trip preserves roles / mediaId / exposure (URLs re-signed at read time).
+  const stored = serializeAnchors(pkg.anchors);
+  assert(stored.every((a) => !("url" in a)), "serializeAnchors strips the expiring URL");
+  const urlMap = new Map(pkg.anchors.map((a) => [a.mediaId, `https://signed/${a.mediaId}.jpg`]));
+  const hydrated = hydrateAnchors(stored, urlMap);
+  assert(hydrated.length === pkg.anchors.length, "hydrateAnchors restores every anchor whose media exists");
+  assert(hydrated.every((a, i) => a.mediaId === pkg.anchors[i].mediaId && a.exposure === pkg.anchors[i].exposure && a.roles.join() === pkg.anchors[i].roles.join()), "round-trip preserves roles/mediaId/exposure");
+  assert(hydrateAnchors(stored, new Map()).length === 0, "hydrateAnchors drops anchors whose media was deleted");
 
   // Provider projection.
   const urls = renderPackageForModel(resolved, { kind: "image_urls", max: 2 });

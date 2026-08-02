@@ -2640,3 +2640,50 @@ Status
 Accepted — SHIPPED on `feat/lora-trainer-m24`. **▶ NEXT = Phase D** (persist the character package behind
 `getCharacterPackage` + an `IdentityPackage` table; `named` `ReferenceSchema` + renderer mapping when a roled
 provider — face_reference/controlnet/mask — lands). LIVE A/B on the M24.8 benchmark is user-driven (FAL_KEY).
+
+# Decision 066
+
+Date
+2026-08-02
+
+Decision
+**Persist the Character's default Identity Package (Milestone 25.2 Phase D) — the Character OWNS it.** New
+Prisma model `IdentityPackage` (1:1 `Identity`, cascade, mirrors `IdentityDataset`): `anchors` JSON
+(`StoredAnchor[]` = best-per-role, **mediaId only — never signed URLs, which expire**), `scorerId`,
+`imageCount`, `analyzedCount`, `version` ("ip-1"), `computedAt`. `refreshCharacterPackage`
+(`identity/package.ts`) rebuilds it from persisted knowledge on "Analyze library" (alongside
+`refreshIdentityDataset`); `getCharacterPackage` reads it back, **re-signing URLs at read time**
+(`hydrateAnchors`) and dropping anchors whose media was deleted.
+
+Generation (per the user's "every generation starts from this package") consumes it: `loadIdentityInputs`
+loads it → `ConditioningRequest.characterPackage` → the Reference Engine resolves FROM it. **Live-rebuild
+fallback (no regression):** if there's no persisted package, or the resolved package can't satisfy the
+request's exposure ceiling / Face-Anchor invariant (`faceAnchorSource === "none"`), the engine rebuilds from
+live exposure-safe candidates — so identities not yet re-analyzed are byte-identical to Phase B/C, and the
+`reason` records "persisted default" vs "rebuilt".
+
+**Exposure moved into `resolvePackage` (the correctness fork):** anchors now carry `exposure` (set by
+`buildCharacterPackage` from the role profile), and `resolvePackage` drops anchors whose exposure exceeds the
+prompt's ceiling. This lets a persisted default built from the WHOLE library stay safe per-request — a
+nude/lingerie anchor is never sent for a clothed prompt (it's dropped → face invariant → live rebuild picks a
+clothed face). Read-only "Identity Package" panel added to the identity Dataset tab (`getIdentityEngineOverview`
+gains `characterPackage`). **Roled providers deferred:** `renderPackageForModel`'s `named` schema
+(face_reference/controlnet/mask) stays architecture-only — no hosted provider accepts roled inputs yet.
+
+Requires the additive Neon migration `add_identity_package` (`prisma migrate deploy` — a user step; no DB
+access in-session). Verification: `prisma generate` + tsc + `next build` green; `verify-reference-package`
+30/30 (adds anchor.exposure tagging, exposure-drop-at-resolve, serialize↔hydrate round-trip, deleted-media
+drop); verify-selection / verify-transform / verify-identity-engine 46/46 / verify-training-infrastructure /
+verify-model-routing unchanged-green.
+
+Alternatives
+Persist as cache/UI-only, keep rebuilding per request (rejected by the user — the Character should own the
+package and generation should start from it). Store multiple candidates per role for exposure (rejected —
+single-best + the live-rebuild fallback is simpler and already correct). Store signed URLs (rejected — they
+expire; store mediaId and re-sign).
+
+Status
+Accepted — SHIPPED on `feat/lora-trainer-m24` (pending the Neon migration). **Milestone 25.2 (Reference
+Intelligence, Phases A–D) COMPLETE. ▶ NEXT = M26 Identity Evaluation** — the keystone: an `evaluatorRoleScorer`
+(InsightFace face + region tattoo/body similarity) fills `ReferenceProfile.signals`, making role fitness +
+routing + auto-promote data-driven. LIVE A/B on the M24.8 benchmark is user-driven (FAL_KEY).
