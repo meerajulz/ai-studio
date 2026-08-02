@@ -7,6 +7,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Milestone 26 Phase 1 — Identity Evaluation Engine (face drift) (Decision 067, 2026-08-02)
+
+- **The keystone: we now MEASURE identity preservation.** New provider-neutral Identity Evaluation Engine
+  (`src/lib/identity-engine/evaluation/`): a hosted `EmbeddingProvider` (Replicate ArcFace, env-gated) behind a
+  router → cached, **versioned** embeddings in Neon (`MediaEmbedding`) → pluggable evaluator modules (face
+  enabled; tattoo/body/hair/pose registered-disabled) → `evaluateGeneration` persists `IdentityEvaluation`.
+- The engine knows nothing about the backend — only embedding vectors + cosine similarity. Embeddings are
+  computed ONCE and cached keyed by evaluator version (bump = auto-recompute; scores never mix models); only
+  new generated images cost a call.
+- Non-blocking triggers: the Generate view shows an "Identity Evaluation" face-match % after the image renders;
+  the benchmark grid auto-scores each cell (`👤 identity NN%`) so models rank by measured preservation.
+- **Requires a Neon migration:** `add_media_embedding` (`prisma migrate deploy`) + `REPLICATE_API_TOKEN` +
+  `REPLICATE_FACE_EMBED_MODEL`. Without the key, evaluation reports `not-configured` and everything else works.
+- prisma generate + tsc + build green; `verify-evaluation.ts` 18/18 (cosine, face evaluator, composition,
+  version cache key), all prior verifiers unchanged-green. See `docs/IDENTITY_EVALUATION.md`. **Next = M26
+  Phase 2 (`evaluatorRoleScorer` feeds selection) → M27 routing by measured data.**
+
 ### Milestone 25.2 Phase D — Persist the Character's Identity Package (Decision 066, 2026-08-02)
 
 - The Character now OWNS a persisted **default Identity Package**: new `IdentityPackage` table (1:1 Identity),

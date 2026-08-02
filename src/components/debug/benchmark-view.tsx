@@ -337,6 +337,14 @@ export function BenchmarkView() {
                       </div>
                     )}
                   </div>
+                  {cell && cell.faceScore != null ? (
+                    <div className="text-muted-foreground text-center text-xs">
+                      👤 identity{" "}
+                      <span className="text-foreground font-semibold tabular-nums">
+                        {Math.round(cell.faceScore * 100)}%
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

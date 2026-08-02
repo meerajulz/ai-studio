@@ -84,3 +84,14 @@ export {
   type IdentityEvaluation,
   type IdentityEvaluator,
 } from "./evaluation/IdentityEvaluator";
+
+// Identity Evaluation Engine (Milestone 26) — real face-similarity scoring.
+export {
+  evaluateGeneration,
+  getGenerationEvaluation,
+  composeEvaluation,
+} from "./evaluation/engine";
+export { cosine, toSimilarity } from "./evaluation/cosine";
+export { EVALUATORS, enabledEvaluators } from "./evaluation/evaluators/registry";
+export type { Evaluator, EvalContext, EvalResult, EvalDimension, EvalImage } from "./evaluation/evaluators/types";
+export { isEmbeddingConfigured, getEmbeddingProvider, type EmbeddingProvider, type FaceEmbedding } from "./evaluation/providers";

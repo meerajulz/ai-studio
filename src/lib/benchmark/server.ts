@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { getModel, MODEL_REGISTRY } from "@/lib/ai/model-registry";
 import { Prisma, prisma } from "@/lib/db";
 import { generateImage } from "@/lib/generation/server";
+import { evaluateGeneration } from "@/lib/identity-engine";
 import type { BenchmarkCellTag, GenerationStatusValue } from "@/lib/generation/types";
 import { getGeneratedMediaByIds } from "@/lib/media/server";
 import type {
@@ -84,12 +85,21 @@ export async function runBenchmarkCell(
         cellIndex: cell.cellIndex,
       },
     });
+    // Auto-score identity preservation (Milestone 26). Best-effort — a measurement failure or a missing
+    // provider key must never fail the benchmark cell.
+    let faceScore: number | null = null;
+    try {
+      faceScore = (await evaluateGeneration(userId, result.generationId)).face;
+    } catch {
+      faceScore = null;
+    }
     return {
       modelId: cell.modelId,
       modelLabel,
       cellIndex: cell.cellIndex,
       generationId: result.generationId,
       status: "SUCCEEDED",
+      faceScore,
     };
   } catch (e) {
     return {
@@ -166,6 +176,13 @@ export async function getBenchmarkRun(
   const assets = await getGeneratedMediaByIds(userId, resultIds);
   const assetById = new Map(assets.map((a) => [a.id, a]));
 
+  // Persisted identity-evaluation face scores (Milestone 26), joined by generation.
+  const evals = await prisma.identityEvaluation.findMany({
+    where: { userId, generationId: { in: rows.map((r) => r.id) } },
+    select: { generationId: true, face: true },
+  });
+  const faceByGeneration = new Map(evals.map((e) => [e.generationId, e.face]));
+
   const cells: BenchmarkCellView[] = rows
     .map((r) => {
       const tag = readBenchmarkTag(r.params);
@@ -178,6 +195,7 @@ export async function getBenchmarkRun(
         cellIndex: tag?.cellIndex ?? 0,
         status: r.status as GenerationStatusValue,
         media: resultId ? (assetById.get(resultId) ?? null) : null,
+        faceScore: faceByGeneration.get(r.id) ?? null,
       };
     })
     .sort((a, b) => a.cellIndex - b.cellIndex);

@@ -19,6 +19,8 @@ import {
   DEFAULT_STYLE,
   type CreativeStyle,
 } from "@/lib/creative";
+import { evaluateGenerationAction } from "@/actions/evaluation";
+import type { IdentityEvaluation } from "@/lib/identity-engine";
 import type { GenerationDebug } from "@/lib/generation/types";
 import type { MediaAsset } from "@/lib/media/types";
 import { cn } from "@/lib/utils";
@@ -84,6 +86,8 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   const [identityId, setIdentityId] = useState<string>("");
   const [viewing, setViewing] = useState<MediaAsset | null>(null);
   const [debug, setDebug] = useState<GenerationDebug | null>(null);
+  const [evaluation, setEvaluation] = useState<IdentityEvaluation | null>(null);
+  const [evaluating, setEvaluating] = useState(false);
   // DEV identity-benchmark controls (not shown in prod).
   const [maxReferences, setMaxReferences] = useState<number | undefined>(undefined);
   const [refMode, setRefMode] = useState<"auto" | "manual">("auto");
@@ -160,6 +164,16 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
       setViewing(res.media);
       setDebug(res.debug ?? null); // dev-only; undefined in production
       toast.success("Image generated");
+
+      // Identity Evaluation (Milestone 26) — non-blocking: measure face drift AFTER the image is shown.
+      setEvaluation(null);
+      if (identityId) {
+        setEvaluating(true);
+        evaluateGenerationAction(res.generationId)
+          .then(setEvaluation)
+          .catch(() => setEvaluation(null))
+          .finally(() => setEvaluating(false));
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Generation failed");
     }
@@ -446,6 +460,8 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
         ) : null}
       </div>
 
+      {evaluating || evaluation ? <IdentityEvaluationPanel evaluating={evaluating} evaluation={evaluation} /> : null}
+
       {debug ? <CreativeDebugPanel debug={debug} /> : null}
 
       <div className="grid gap-3">
@@ -474,6 +490,46 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
           if (!open) setViewing(null);
         }}
       />
+    </div>
+  );
+}
+
+/** Identity Evaluation panel (Milestone 26) — the measured face-drift score for the last generation. */
+function IdentityEvaluationPanel({
+  evaluating,
+  evaluation,
+}: {
+  evaluating: boolean;
+  evaluation: IdentityEvaluation | null;
+}) {
+  const pct = evaluation?.face != null ? Math.round(evaluation.face * 100) : null;
+  const tone =
+    pct == null ? "text-muted-foreground" : pct >= 75 ? "text-emerald-600 dark:text-emerald-400" : pct >= 55 ? "text-amber-600 dark:text-amber-400" : "text-destructive";
+  const note =
+    evaluation?.method === "not-configured"
+      ? "Not configured — set REPLICATE_API_TOKEN + REPLICATE_FACE_EMBED_MODEL to measure identity drift."
+      : evaluation?.face == null && !evaluating
+        ? `No face score (${evaluation?.method ?? "unavailable"}).`
+        : null;
+
+  return (
+    <div className="rounded-lg border p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium">Identity Evaluation</h3>
+        {evaluating ? (
+          <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+            <Loader2 className="size-3 animate-spin" /> measuring…
+          </span>
+        ) : pct != null ? (
+          <span className={cn("text-lg font-semibold tabular-nums", tone)}>👤 {pct}%</span>
+        ) : null}
+      </div>
+      <p className="text-muted-foreground mt-1 text-xs">
+        {note ?? "Face similarity between the generated image and the character's reference faces (higher = better identity preservation)."}
+      </p>
+      {evaluation?.method && evaluation.method !== "not-configured" ? (
+        <p className="text-muted-foreground mt-1 font-mono text-[10px]">method: {evaluation.method}</p>
+      ) : null}
     </div>
   );
 }

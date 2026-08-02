@@ -132,6 +132,17 @@ Additive, owner-scoped, cascade from `Identity`. See [IDENTITY_ENGINE.md](./IDEN
   (planner overrides per-request; rebuilds live when it can't satisfy exposure/roles). See
   [REFERENCE_INTELLIGENCE.md](./REFERENCE_INTELLIGENCE.md).
 
+## Identity Evaluation (Milestone 26, migration `add_media_embedding`)
+
+- **`MediaEmbedding`** — cached identity embedding for one image. `mediaId` is a plain id (NOT an FK) so it
+  caches BOTH uploaded reference images and generated images (`source` records which); `kind` ("face"),
+  `provider`, `model`, `version` (evaluator cache key, e.g. "arcface-v1"), `vector` (JSON float[]), `dim`,
+  `userId` (cascade). `@@unique([mediaId, kind, version])` → a version bump auto-invalidates. Vectors are JSON
+  (cosine in JS; **pgvector deferred**). Computed once, reused everywhere.
+- **`IdentityEvaluation`** (existed since M22, now populated) — a generation's measured identity score. Phase 1
+  fills `face` + `overallIdentityScore` + `method` (the provider version); tattoo/hair/pose stay null until
+  those evaluator modules ship. See [IDENTITY_EVALUATION.md](./IDENTITY_EVALUATION.md).
+
 ## Conventions
 
 - Access the client through the single instance in `src/lib/db/` (global singleton —

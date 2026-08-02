@@ -2687,3 +2687,47 @@ Accepted — SHIPPED on `feat/lora-trainer-m24` (pending the Neon migration). **
 Intelligence, Phases A–D) COMPLETE. ▶ NEXT = M26 Identity Evaluation** — the keystone: an `evaluatorRoleScorer`
 (InsightFace face + region tattoo/body similarity) fills `ReferenceProfile.signals`, making role fitness +
 routing + auto-promote data-driven. LIVE A/B on the M24.8 benchmark is user-driven (FAL_KEY).
+
+# Decision 067
+
+Date
+2026-08-02
+
+Decision
+**Identity Evaluation Engine — Phase 1: face drift + backbone (Milestone 26, the keystone).** AI Studio now
+MEASURES how well a generation preserved the character, so M27 routing + M28 auto-promote can consume measured
+scores. Architecture (mirrors `ai/` + `vision/`): a **provider-neutral `EmbeddingProvider`**
+(`identity-engine/evaluation/providers/`) — first concrete backend `replicate-arcface` (fetch predictions
+create+poll, env `REPLICATE_API_TOKEN` + `REPLICATE_FACE_EMBED_MODEL`, exact model verified at first live run) —
+behind a router, so the engine consumes only `FaceEmbedding { vector, dim, version }` + cosine and never names a
+backend. **Cached, versioned embeddings** in Neon (`MediaEmbedding`, `@@unique(mediaId, kind, version)`, JSON
+float[]): computed ONCE, reused across every generation + benchmark; a provider/model change bumps `version` →
+cache miss → recompute, and scores from different models never mix. An **Identity Evaluation ENGINE** (pluggable
+`Evaluator` modules; `face` enabled, `tattoo`/`body`/`hair`/`pose` registered-disabled) → `evaluateGeneration`
+composes results → persists `IdentityEvaluation` (`face` + `overallIdentityScore` + `method` = provider
+version). Non-blocking triggers: Generate shows a face-match % after the image renders; the benchmark auto-scores
+each cell (`👤 identity NN%`).
+
+User's locked direction: hosted now (not a microservice — that's for very high volume); provider details never
+leak past the router; cache aggressively + versioned; design as an Identity Evaluation Engine (face is module
+one), not a Face Evaluator.
+
+**Scope decision:** store embeddings as JSON `float[]` (cosine in JS over the small per-identity set) — **no
+pgvector** yet (defer to when clustering/ANN needs it). Reference faces are the identity's top-5 anchor faces
+(reuses `rankIdentityAnchors`); face score = mean of the top-3 reference matches. Degrades cleanly: no identity /
+no key / no face → a reserved-metrics row with an explanatory `method`, never a user-facing throw.
+
+Requires the additive Neon migration `add_media_embedding` (`prisma migrate deploy` — a user step). Verification:
+prisma generate + tsc + `next build` green; `verify-evaluation.ts` 18/18 (cosine, face evaluator preserved-vs-
+drifted + no-face, engine composition, disabled dims null, version-as-cache-key); all prior verifiers
+unchanged-green. Live face scoring is user-driven (token + per-call cost).
+
+Alternatives
+Python microservice / ONNX-in-Node (rejected now — hosted matches the architecture + dev speed; revisit at
+scale). pgvector + full library embeddings up front (rejected — JSON + cosine is enough for per-identity drift;
+add pgvector when ANN is needed). Blocking inline evaluation (rejected — client-driven keeps generation fast).
+
+Status
+Accepted — SHIPPED on `feat/lora-trainer-m24` (pending the Neon migration + provider key). **▶ NEXT = M26
+Phase 2** (`evaluatorRoleScorer` fills `ReferenceProfile.signals` → data-driven reference ranking/selection) →
+**M27 Adaptive Routing** (route by MEASURED identity preservation). See docs/IDENTITY_EVALUATION.md.

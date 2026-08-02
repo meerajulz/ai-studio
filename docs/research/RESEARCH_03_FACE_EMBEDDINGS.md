@@ -106,12 +106,13 @@ Embeddings should land **before** Smart Reference Selection, so the selector can
 - **19B** — face embeddings (InsightFace, pending model-license review)
 - **20** — Smart Reference Selection (consumes metadata + suitability + embeddings)
 
-## Open questions for implementation (19B)
+## Open questions for implementation (19B) → RESOLVED at M26 (Decision 067)
 
-- **Where does inference run?** InsightFace/ONNX is Python-oriented; AI Studio is Next.js/TS. Options:
-  a small Python microservice, an ONNX-in-Node runtime, or a hosted inference endpoint. Decide behind
-  a provider-neutral `FaceEmbeddingProvider` (mirror `ImageProvider` / `VisionProvider`).
-- **Storage.** Embeddings are vectors → a `pgvector` column vs a separate store. This is the natural
-  companion to the first schema change (persisting `IdentityMetadata`).
-- **Licensing.** Confirm the specific InsightFace model package license for commercial use.
-- **Latency & batching.** Analyzing 20–50 images per identity → reuse the async Job queue plan.
+- **Where does inference run?** → **Hosted, behind a provider-neutral `EmbeddingProvider`** (Replicate ArcFace
+  first; swappable to Fal / self-hosted with zero engine change). Optimize for dev speed + clean architecture;
+  a Python microservice waits for very high volume. See [../IDENTITY_EVALUATION.md](../IDENTITY_EVALUATION.md).
+- **Storage.** → **JSON `float[]` in Neon (`MediaEmbedding`), cosine in JS.** pgvector deferred until ANN /
+  clustering over many vectors is needed. Embeddings are cached ONCE, keyed by evaluator **version**.
+- **Licensing.** Deferred — the hosted endpoint carries the model license; revisit before any self-hosting.
+- **Latency & batching.** Reference embeddings are cached (computed once), so only new generated images cost a
+  call; the async Job queue is still the eventual home for bulk analysis.

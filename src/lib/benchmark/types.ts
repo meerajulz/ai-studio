@@ -50,6 +50,7 @@ export type BenchmarkCellOutcome = {
   generationId: string | null;
   status: "SUCCEEDED" | "FAILED";
   error?: string;
+  faceScore?: number | null; // identity face similarity 0..1 (Milestone 26 auto-score), null if unmeasured
 };
 
 export type RunBenchmarkResult = { runId: string; cells: BenchmarkCellOutcome[] };
@@ -62,6 +63,7 @@ export type BenchmarkCellView = {
   cellIndex: number;
   status: GenerationStatusValue;
   media: MediaAsset | null; // the signed output; null if the cell failed or has no result yet
+  faceScore: number | null; // identity face similarity 0..1 (Milestone 26), null if unmeasured
 };
 
 /** A full benchmark run reassembled for the side-by-side grid. */

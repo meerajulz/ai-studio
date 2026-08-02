@@ -98,6 +98,7 @@ model User {
   // Identity Engine (Milestone 22) — owner back-relations.
   identityDatasets      IdentityDataset[]
   identityPackages      IdentityPackage[]
+  mediaEmbeddings       MediaEmbedding[]
   identityTrainedModels IdentityTrainedModel[]
   identityTrainingJobs  IdentityTrainingJob[]
   identityEvaluations   IdentityEvaluation[]
@@ -281,6 +282,31 @@ model MediaVisionKnowledge {
 
   mediaId String        @unique
   media   UploadedMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+}
+
+/// Cached identity embedding for one image (Milestone 26 — Identity Evaluation). The Evaluation Engine
+/// computes an image's embedding ONCE and reuses it; `version` is the evaluator cache key so a backend/
+/// model change auto-invalidates (a version bump = cache miss = recompute). Vectors stored as JSON
+/// float[] (cosine in JS over the small per-identity set; pgvector deferred until ANN is needed).
+/// `mediaId` is a plain id (NOT an FK) so it caches BOTH uploaded reference images and generated images
+/// (which live in a separate table); `source` records which. Owner-scoped via `userId`.
+model MediaEmbedding {
+  id         String   @id @default(cuid())
+  mediaId    String // UploadedMedia.id OR GeneratedMedia.id (see `source`)
+  source     String // "uploaded" | "generated"
+  kind       String // "face" | (future) "tattoo" | "body" | …
+  provider   String // e.g. "replicate-arcface"
+  model      String // exact hosted model id
+  version    String // evaluator cache-key version (e.g. "arcface-v1")
+  vector     Json // number[] — the embedding
+  dim        Int
+  computedAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, kind, version]) // one cached embedding per image per dimension per version
+  @@index([userId])
 }
 
 model Generation {
