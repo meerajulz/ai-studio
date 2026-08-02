@@ -1,21 +1,20 @@
 /**
  * Identity embedding cache (Milestone 26) — compute ONCE, reuse forever (per version).
  *
- * Every image's embedding is expensive (a hosted call), so we cache it in Neon keyed by
- * (mediaId, kind, version). Reference training images are embedded on first evaluation and reused across
- * every later generation + benchmark; only NEW generated images cost a call. A provider/model change bumps
- * the provider `version` → cache miss → automatic recompute, and scores from different models never mix.
- * Server-side only. See docs/IDENTITY_EVALUATION.md.
+ * Only relevant for `embed`-capable providers: a face vector is expensive, so we cache it in Neon keyed by
+ * (mediaId, kind, version). Reference faces are embedded on first evaluation and reused across every later
+ * generation + benchmark; only NEW generated images cost a call. A provider/model change bumps `version` →
+ * cache miss → automatic recompute, and scores from different models never mix. `compare`-only providers
+ * skip this entirely (they return a score directly, nothing to cache). Server-side only.
  */
 import { Prisma, prisma } from "@/lib/db";
-import { getEmbeddingProvider, type FaceEmbedding } from "./providers";
+import { getFaceSimilarityProvider, supportsEmbed, type Embedding } from "./providers";
 
 export type EmbeddingKind = "face"; // future: "tattoo" | "body" | …
 
 /**
- * Return the cached embedding for an image at the CURRENT provider version, computing + storing it on a
- * miss. `null` when the provider found no face (cached as absence is NOT done — a re-upload/better crop
- * could change it; no-face simply returns null each call, which is cheap to short-circuit upstream).
+ * Cached embedding for an image at the CURRENT provider version, computing + storing it on a miss.
+ * Returns `null` when the provider can't embed, or found no face.
  */
 export async function getOrComputeEmbedding(
   userId: string,
@@ -23,8 +22,9 @@ export async function getOrComputeEmbedding(
   imageUrl: string,
   source: "uploaded" | "generated",
   kind: EmbeddingKind = "face",
-): Promise<FaceEmbedding | null> {
-  const provider = getEmbeddingProvider();
+): Promise<Embedding | null> {
+  const provider = getFaceSimilarityProvider();
+  if (!supportsEmbed(provider)) return null;
   const version = provider.version;
 
   const cached = await prisma.mediaEmbedding.findUnique({
@@ -33,7 +33,7 @@ export async function getOrComputeEmbedding(
   });
   if (cached) return { vector: cached.vector as number[], dim: cached.dim, version };
 
-  const embedding = kind === "face" ? await provider.embedFace(imageUrl) : null;
+  const embedding = await provider.embed(imageUrl);
   if (!embedding) return null;
 
   await prisma.mediaEmbedding.upsert({
@@ -44,7 +44,7 @@ export async function getOrComputeEmbedding(
       userId,
       kind,
       provider: provider.id,
-      model: provider.model,
+      model: provider.id,
       version,
       vector: embedding.vector as unknown as Prisma.InputJsonValue,
       dim: embedding.dim,

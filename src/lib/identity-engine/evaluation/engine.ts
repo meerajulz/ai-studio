@@ -1,22 +1,31 @@
 /**
- * Identity Evaluation Engine (Milestone 26) — score how well a generation preserved the character.
+ * Identity Evaluation Engine (Milestone 26) — the evaluation half that mirrors generation.
  *
- * Composes the enabled evaluator modules (face today) into one `IdentityEvaluation`, using cached,
- * versioned, provider-neutral embeddings. Persists to `IdentityEvaluation` so routing (M27) and
- * auto-promote (M28) can consume MEASURED scores. Non-blocking for the user (called after the image is
- * shown, or per benchmark cell). See docs/IDENTITY_EVALUATION.md.
+ *   generation:  Character → Identity Package → Transformation → Provider → Image
+ *   evaluation:  Image → Identity Evaluation → {Face, Tattoo, Body, Hair} evaluators → Identity Score
+ *
+ * Composes the enabled evaluator modules into ONE `IdentityEvaluation` of normalized scores and persists
+ * it, so routing (M27) and auto-promote (M28) consume MEASURED data. It knows nothing about how a score
+ * was produced — embeddings, a compare API, or a future model all arrive as `{score, confidence}`.
+ * See docs/IDENTITY_EVALUATION.md.
  */
-import { prisma } from "@/lib/db";
+import { Prisma, prisma } from "@/lib/db";
 import { getGeneratedMediaByIds } from "@/lib/media/server";
 import { getIdentitySelectionCandidates } from "@/lib/identity/server";
+import { getCharacterPackage } from "@/lib/identity/package";
 import { rankIdentityAnchors } from "@/lib/selection";
 import { emptyEvaluation, type IdentityEvaluation } from "./IdentityEvaluator";
-import { getEmbeddingProvider, isEmbeddingConfigured } from "./providers";
+import {
+  getFaceSimilarityProvider,
+  isFaceSimilarityConfigured,
+  supportsCompare,
+  supportsEmbed,
+} from "./providers";
 import { getOrComputeEmbedding } from "./cache";
 import { enabledEvaluators } from "./evaluators/registry";
-import type { EvalContext, EvalDimension, EvalResult } from "./evaluators/types";
+import type { EvalContext, EvalDimension, EvalImage, EvalResult } from "./evaluators/types";
 
-const MAX_FACE_REFS = 5; // strongest reference faces to compare against (cached, so cheap after first run)
+const MAX_FACE_REFS = 5; // fallback cap when there is no persisted package
 
 /** Map an evaluator dimension to its `IdentityEvaluation` column (dims without a column live in metrics). */
 const DIMENSION_COLUMN: Partial<Record<EvalDimension, keyof IdentityEvaluation>> = {
@@ -34,9 +43,9 @@ export function composeEvaluation(
   results: (EvalResult & { weight: number })[],
 ): IdentityEvaluation {
   const evaln = emptyEvaluation(identityId, generationId, method);
+  const writable = evaln as unknown as Record<string, number | null>;
   let weighted = 0;
   let totalWeight = 0;
-  const writable = evaln as unknown as Record<string, number | null>;
   for (const r of results) {
     const col = DIMENSION_COLUMN[r.dimension];
     if (col && r.score != null) writable[col] = r.score;
@@ -49,8 +58,31 @@ export function composeEvaluation(
   return evaln;
 }
 
+/** The character's SEMANTIC anchors for evaluation — Face + Canonical from the Identity Package. */
+async function evaluationAnchors(userId: string, identityId: string): Promise<EvalImage[]> {
+  const pkg = await getCharacterPackage(userId, identityId);
+  if (pkg) {
+    const anchors = pkg.anchors
+      .filter((a) => a.roles.includes("face") || a.roles.includes("canonical"))
+      .map((a) => ({ mediaId: a.mediaId, url: a.url, role: a.roles.includes("face") ? "face" : "canonical" }));
+    const seen = new Set<string>();
+    const deduped = anchors.filter((a) => (seen.has(a.mediaId) ? false : seen.add(a.mediaId)));
+    if (deduped.length) return deduped;
+  }
+  // Fallback (identity not analyzed into a package yet): the strongest analyzed faces.
+  const candidates = await getIdentitySelectionCandidates(userId, identityId);
+  return rankIdentityAnchors(candidates)
+    .filter((a) => a.eligible)
+    .slice(0, MAX_FACE_REFS)
+    .map((a) => ({ mediaId: a.mediaId, url: a.url, role: "face" }));
+}
+
 /** Persist an evaluation (idempotent per generation): replace any prior rows for this generation. */
-async function persist(userId: string, e: IdentityEvaluation): Promise<IdentityEvaluation> {
+async function persist(
+  userId: string,
+  e: IdentityEvaluation,
+  metrics: Prisma.InputJsonValue | null = null,
+): Promise<IdentityEvaluation> {
   if (e.generationId) {
     await prisma.identityEvaluation.deleteMany({ where: { generationId: e.generationId, userId } });
   }
@@ -69,6 +101,7 @@ async function persist(userId: string, e: IdentityEvaluation): Promise<IdentityE
       composition: e.composition,
       overallIdentityScore: e.overallIdentityScore,
       method: e.method,
+      metrics: metrics ?? undefined,
     },
   });
   return e;
@@ -76,8 +109,8 @@ async function persist(userId: string, e: IdentityEvaluation): Promise<IdentityE
 
 /**
  * Evaluate one generation against its identity and persist the result. Owner-scoped; safe to call after
- * the image is shown. Degrades cleanly: no identity / no provider key / no face → a reserved-metrics row
- * with an explanatory `method`, never a throw that would surface to the user.
+ * the image is shown. Degrades cleanly: no identity / no provider / no face → a reserved-metrics row with
+ * an explanatory `method`, never a throw that would surface to the user.
  */
 export async function evaluateGeneration(
   userId: string,
@@ -90,7 +123,7 @@ export async function evaluateGeneration(
   if (!gen?.identityId) {
     return persist(userId, emptyEvaluation(gen?.identityId ?? "", generationId, "no-identity"));
   }
-  if (!isEmbeddingConfigured()) {
+  if (!isFaceSimilarityConfigured()) {
     return persist(userId, emptyEvaluation(gen.identityId, generationId, "not-configured"));
   }
 
@@ -103,26 +136,29 @@ export async function evaluateGeneration(
   const [asset] = await getGeneratedMediaByIds(userId, [output.id]);
   if (!asset) return persist(userId, emptyEvaluation(gen.identityId, generationId, "no-output"));
 
-  const candidates = await getIdentitySelectionCandidates(userId, gen.identityId);
-  const references = rankIdentityAnchors(candidates)
-    .filter((a) => a.eligible)
-    .slice(0, MAX_FACE_REFS)
-    .map((a) => ({ mediaId: a.mediaId, url: a.url }));
-
+  const provider = getFaceSimilarityProvider();
   const ctx: EvalContext = {
     identityId: gen.identityId,
-    generated: { mediaId: output.id, url: asset.url },
-    references,
-    embed: (img, source) => getOrComputeEmbedding(userId, img.mediaId, img.url, source),
+    generated: { mediaId: output.id, url: asset.url, role: "generated" },
+    references: await evaluationAnchors(userId, gen.identityId),
+    embed: supportsEmbed(provider)
+      ? (img, source) => getOrComputeEmbedding(userId, img.mediaId, img.url, source)
+      : undefined,
+    compare: supportsCompare(provider) ? (a, b) => provider.compare(a, b) : undefined,
   };
 
-  const method = getEmbeddingProvider().version;
   const results: (EvalResult & { weight: number })[] = [];
   for (const e of enabledEvaluators()) {
     results.push({ ...(await e.evaluate(ctx)), weight: e.weight });
   }
 
-  return persist(userId, composeEvaluation(gen.identityId, generationId, method, results));
+  const metrics = {
+    provider: provider.id,
+    version: provider.version,
+    dimensions: results.map((r) => ({ dimension: r.dimension, score: r.score, confidence: r.confidence, details: r.details ?? null })),
+  } as unknown as Prisma.InputJsonValue;
+
+  return persist(userId, composeEvaluation(gen.identityId, generationId, provider.version, results), metrics);
 }
 
 /** Read the latest persisted evaluation for a generation (owner-scoped). */

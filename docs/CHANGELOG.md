@@ -21,8 +21,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 - **Requires a Neon migration:** `add_media_embedding` (`prisma migrate deploy`) + `REPLICATE_API_TOKEN` +
   `REPLICATE_FACE_EMBED_MODEL`. Without the key, evaluation reports `not-configured` and everything else works.
 - prisma generate + tsc + build green; `verify-evaluation.ts` 18/18 (cosine, face evaluator, composition,
-  version cache key), all prior verifiers unchanged-green. See `docs/IDENTITY_EVALUATION.md`. **Next = M26
-  Phase 2 (`evaluatorRoleScorer` feeds selection) → M27 routing by measured data.**
+  version cache key), all prior verifiers unchanged-green. See `docs/IDENTITY_EVALUATION.md`.
+- **Refinement (validate before optimizing):** generalized the provider to a **capability-based**
+  `FaceSimilarityProvider { embed? | compare? }` (models the real 2026 ecosystem — self-hosted embedders vs
+  managed compare-APIs), made every evaluator return uniform `{score, confidence, details}`, and switched
+  the face evaluator to the Identity Package's **semantic anchors** (Face + Canonical) instead of arbitrary
+  top-N. **No concrete provider is committed** — validated that ArcFace/AuraFace is still SOTA in 2026, but
+  the registry is intentionally empty until a provider is chosen (and providers will be A/B'd like models).
+  **Next = M26 Phase 2 (wire a provider + `evaluatorRoleScorer`) → M27 routing by measured data.**
 
 ### Milestone 25.2 Phase D — Persist the Character's Identity Package (Decision 066, 2026-08-02)
 

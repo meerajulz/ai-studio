@@ -94,4 +94,11 @@ export {
 export { cosine, toSimilarity } from "./evaluation/cosine";
 export { EVALUATORS, enabledEvaluators } from "./evaluation/evaluators/registry";
 export type { Evaluator, EvalContext, EvalResult, EvalDimension, EvalImage } from "./evaluation/evaluators/types";
-export { isEmbeddingConfigured, getEmbeddingProvider, type EmbeddingProvider, type FaceEmbedding } from "./evaluation/providers";
+export {
+  isFaceSimilarityConfigured,
+  getFaceSimilarityProvider,
+  supportsEmbed,
+  supportsCompare,
+  type FaceSimilarityProvider,
+  type Embedding,
+} from "./evaluation/providers";

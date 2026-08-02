@@ -14,7 +14,7 @@ function disabled(dimension: EvalDimension): Evaluator {
     enabled: false,
     weight: 0,
     async evaluate() {
-      return { dimension, score: null, detail: { reason: "evaluator not enabled" } };
+      return { dimension, score: null, confidence: null, details: { reason: "evaluator not enabled" } };
     },
   };
 }
