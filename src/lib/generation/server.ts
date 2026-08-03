@@ -349,6 +349,7 @@ async function runImageGeneration(
                 availableRoles: identityPackage.availableRoles,
                 filledRoles: identityPackage.filledRoles,
                 missingRoles: identityPackage.missingRoles,
+                missingRoleReasons: identityPackage.missingRoleReasons,
                 facetsCovered: identityPackage.facetsCovered,
                 anchors: identityPackage.anchors,
               }

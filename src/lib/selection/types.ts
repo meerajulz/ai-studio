@@ -162,6 +162,7 @@ export type IdentityPackage = {
   neededRoles: AnchorRole[];
   filledRoles: AnchorRole[];
   missingRoles: AnchorRole[]; // → the prompt must describe these facets (channel arbitration)
+  missingRoleReasons: Partial<Record<AnchorRole, string>>; // WHY each missing role is unfilled (M27 Phase 2)
   facetsCoveredByReference: IdentityFacet[];
   exposureCeiling: ExposureLevel;
   faceAnchorSource: FaceAnchorSource;

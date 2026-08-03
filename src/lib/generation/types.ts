@@ -116,6 +116,7 @@ export type IdentityPackageDebug = {
   availableRoles: string[]; // every role the character has an anchor for (needs vs doesn't-need)
   filledRoles: string[];
   missingRoles: string[];
+  missingRoleReasons: Record<string, string>; // WHY each missing role is unfilled (M27 Phase 2)
   facetsCovered: string[]; // facets a reference now carries → the prompt could stop describing them
   anchors: { role: string; roles: string[]; score: number; url: string; reasons: string[] }[];
 };

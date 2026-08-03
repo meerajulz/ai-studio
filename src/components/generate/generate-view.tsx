@@ -782,7 +782,12 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
                   </div>
                   {debug.identityPackage.missingRoles.length ? (
                     <div className="text-amber-600 dark:text-amber-400">
-                      Needed but no anchor: {debug.identityPackage.missingRoles.join(", ")}
+                      Needed but no anchor:
+                      {debug.identityPackage.missingRoles.map((r) => (
+                        <div key={r} className="pl-2">
+                          {r} — {debug.identityPackage!.missingRoleReasons[r] ?? "unknown"}
+                        </div>
+                      ))}
                     </div>
                   ) : null}
                 </div>

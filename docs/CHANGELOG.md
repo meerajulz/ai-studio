@@ -7,6 +7,22 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Milestone 27 Phase 2 — Identity Package transparency (2026-08-03)
+
+- **The package builder is now debuggable.** New pure `explainPackage` (`selection/explain.ts`) exposes, for
+  every anchor role, all candidates ranked by fitness with **why each won or lost** (`chosen` / `lower than
+  chosen (59 < 82)` / `no <role> signal`) + each media's cross-role contribution — reusing the exact
+  `RoleScorer` the builder uses.
+- **Identity Package Inspector** on the identity Dataset tab (`identity-package-inspector.tsx`, lazy-loaded via
+  `getIdentityPackageInspection`): per-role candidate rows with fitness bars, the ✓ chosen anchor, and the
+  reason each other lost. Answers "why did this image win/lose a role?".
+- **"Needed but no anchor" now explains itself** (items 1/5): `resolvePackage` adds `missingRoleReasons`
+  (`no candidate scored for X` / `exceeds the exposure ceiling (nude > clothed)` / `dropped by the reference
+  cap`), surfaced in the Generate Debug "4.6" panel. Confirms item 1 is a resolve-time drop, not a builder bug.
+- No new providers/capabilities. tsc + build green; verify-reference-package **44/44**, all prior verifiers
+  unchanged. Deferred: package quality score + expanded eval (6/7), benchmark mode (8), auto-crop (1b),
+  legacy full-body detection (2).
+
 ### Milestone 27 Phase 1 — Face anchor correctness + explainable ranking (2026-08-03)
 
 - **Root‑cause fix:** `scoreAnchor` (`selection/anchor.ts`) gated face eligibility on `!quality.cropped`, but

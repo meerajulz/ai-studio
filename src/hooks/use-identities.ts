@@ -13,6 +13,7 @@ import {
   deleteIdentityAction,
   getIdentityAction,
   getIdentityEngineOverviewAction,
+  getIdentityPackageInspectionAction,
   listIdentitiesAction,
   pollIdentityTrainingAction,
   startIdentityTrainingAction,
@@ -76,6 +77,15 @@ export function useIdentityEngineOverview(id: string) {
     queryKey: [...identityKeys.detail(id), "engine"] as const,
     queryFn: () => getIdentityEngineOverviewAction(id),
     enabled: Boolean(id),
+  });
+}
+
+/** Identity Package Inspector (Milestone 27 Phase 2) — lazy: only fetch when `enabled` (panel opened). */
+export function useIdentityPackageInspection(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...identityKeys.detail(id), "package-inspection"] as const,
+    queryFn: () => getIdentityPackageInspectionAction(id),
+    enabled: Boolean(id) && enabled,
   });
 }
 

@@ -165,6 +165,22 @@ export function resolvePackage(input: {
   const missingRoles = neededRoles.filter((r) => !filledRoles.includes(r));
   const facetsCoveredByReference = [...new Set(kept.flatMap((a) => a.coversFacets))];
 
+  // WHY each needed role is unfilled (M27 Phase 2 — item 1/5): distinguish "no candidate has this role"
+  // from a resolve-time drop (exposure ceiling or the reference cap). Uses the full character package,
+  // not just what was kept, so the reason reflects the real cause.
+  const missingRoleReasons: Partial<Record<AnchorRole, string>> = {};
+  for (const r of missingRoles) {
+    const forRole = characterPackage.anchors.filter((a) => a.roles.includes(r));
+    if (forRole.length === 0) {
+      missingRoleReasons[r] = `no candidate scored for ${r}`;
+    } else if (forRole.every((a) => EXPOSURE_RANK[a.exposure] > ceiling)) {
+      const best = forRole[0];
+      missingRoleReasons[r] = `best ${r} candidate exceeds the exposure ceiling (${best.exposure} > ${exposureCeiling})`;
+    } else {
+      missingRoleReasons[r] = `dropped by the reference cap (max ${maxReferences})`;
+    }
+  }
+
   const reason =
     faceAnchorSource === "none"
       ? "No identity anchor — refuse."
@@ -175,6 +191,7 @@ export function resolvePackage(input: {
     neededRoles,
     filledRoles,
     missingRoles,
+    missingRoleReasons,
     facetsCoveredByReference,
     exposureCeiling,
     faceAnchorSource,

@@ -35,7 +35,11 @@ import {
   refreshIdentityDataset,
   type IdentityEngineOverview,
 } from "@/lib/identity/dataset";
-import { refreshCharacterPackage } from "@/lib/identity/package";
+import {
+  getIdentityPackageInspection,
+  refreshCharacterPackage,
+  type PackageInspection,
+} from "@/lib/identity/package";
 import {
   pollIdentityTraining,
   startIdentityTraining,
@@ -183,6 +187,17 @@ export async function getIdentityEngineOverviewAction(
 ): Promise<IdentityEngineOverview | null> {
   const userId = await requireUserId();
   return getIdentityEngineOverview(userId, identityId);
+}
+
+/**
+ * Identity Package Inspector (Milestone 27 Phase 2) — per-role candidate rankings + why each won/lost.
+ * Read-only; scores all analyzed candidates on demand (lazy — only when the inspector is opened).
+ */
+export async function getIdentityPackageInspectionAction(
+  identityId: string,
+): Promise<PackageInspection> {
+  const userId = await requireUserId();
+  return getIdentityPackageInspection(userId, identityId);
 }
 
 /**

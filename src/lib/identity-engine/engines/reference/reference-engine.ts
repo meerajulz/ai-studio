@@ -50,6 +50,7 @@ function toPackageTrace(pkg: IdentityPackage, availableRoles: AnchorRole[]): Ide
     availableRoles,
     filledRoles: pkg.filledRoles,
     missingRoles: pkg.missingRoles,
+    missingRoleReasons: pkg.missingRoleReasons,
     facetsCovered: pkg.facetsCoveredByReference,
     anchors: pkg.anchors.map((a) => ({
       role: a.role,

@@ -9,6 +9,7 @@ import { LoadingState } from "@/components/shared/loading-state";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { IdentityPackageInspector } from "./identity-package-inspector";
 
 /** Anchor-role glyphs for the Identity Package visualization (Milestone 25.2). */
 const ROLE_EMOJI: Record<string, string> = {
@@ -157,6 +158,8 @@ export function IdentityDatasetReadiness({ identityId }: Props) {
           </CardContent>
         </Card>
       ) : null}
+
+      <IdentityPackageInspector identityId={identityId} />
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
   buildCharacterPackage,
   deriveNeededRoles,
   FACE_ANCHOR_MIN_SCORE,
+  explainPackage,
   hasConfidentFace,
   hydrateAnchors,
   pickIdentityAnchor,
@@ -157,6 +158,26 @@ function main() {
   // Outcome reasons for ineligible faces.
   const backCand = cand("B2", mkMeta({ face: { visible: false, orientation: "back" } }));
   assert(scoreAnchor(backCand).reason === "face not visible", "back view → reason 'face not visible'");
+
+  // M27 Phase 2 — explainPackage: per-role rankings + why each candidate won/lost.
+  const explained = explainPackage([A, B, C]);
+  const faceRoleEx = explained.roles.find((r) => r.role === "face")!;
+  assert(faceRoleEx.chosenMediaId === "A", "explain: face role chosen = A");
+  assert(faceRoleEx.candidates.find((c) => c.mediaId === "A")!.rejection === "chosen", "explain: winner's rejection = 'chosen'");
+  const aBeatsLoser = faceRoleEx.candidates.find((c) => c.fitness > 0 && !c.chosen);
+  assert(!aBeatsLoser || aBeatsLoser.rejection.includes("lower than chosen"), "explain: a lower eligible candidate says 'lower than chosen'");
+  const tattooRoleEx = explained.roles.find((r) => r.role === "tattoo")!;
+  assert(tattooRoleEx.candidates.some((c) => c.rejection === "no tattoo signal"), "explain: a tattoo-free image → 'no tattoo signal'");
+  const aContribution = explained.media.find((m) => m.mediaId === "A")!;
+  assert(aContribution.wonRoles.includes("face") && aContribution.wonRoles.includes("canonical"), "explain: media A's contribution lists face + canonical");
+
+  // resolvePackage.missingRoleReasons — a nude-only body anchor is dropped for a clothed prompt WITH a reason.
+  const nudeBody = cand("NB", mkMeta({ face: { visible: false, orientation: "back" }, body: { visibility: "full", pct: 90 }, clothing: ["nude"], quality: { overall: 80 } }));
+  const clothedFace = cand("CF", mkMeta({ face: { orientation: "front", confidence: 0.95, q: 0.9, res: 0.95 }, quality: { overall: 88 } }));
+  const nbPkg = buildCharacterPackage("idNB", [clothedFace, nudeBody]);
+  const nbResolved = resolvePackage({ characterPackage: nbPkg, neededRoles: ["face", "body"], maxReferences: 4, exposureCeiling: "clothed" });
+  assert(nbResolved.missingRoles.includes("body"), "nude body anchor is dropped for a clothed prompt");
+  assert((nbResolved.missingRoleReasons.body ?? "").includes("exposure ceiling"), "missingRoleReasons explains the exposure drop");
 
   // Provider projection.
   const urls = renderPackageForModel(resolved, { kind: "image_urls", max: 2 });

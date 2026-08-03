@@ -119,6 +119,7 @@ export type IdentityPackageTrace = {
   availableRoles: AnchorRole[]; // every role the character HAS an anchor for (needs vs doesn't-need)
   filledRoles: AnchorRole[];
   missingRoles: AnchorRole[]; // → the prompt must still describe these facets (channel arbitration)
+  missingRoleReasons: Partial<Record<AnchorRole, string>>; // WHY each missing role is unfilled (M27 P2)
   facetsCovered: IdentityFacet[];
   anchors: { role: AnchorRole; roles: AnchorRole[]; score: number; url: string; reasons: string[] }[];
 };

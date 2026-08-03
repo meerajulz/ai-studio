@@ -12,9 +12,11 @@ import { Prisma, prisma } from "@/lib/db";
 import { getMediaByIds } from "@/lib/media/server";
 import {
   buildCharacterPackage,
+  explainPackage,
   hydrateAnchors,
   serializeAnchors,
   type CharacterPackage,
+  type PackageExplanation,
   type StoredAnchor,
 } from "@/lib/selection";
 import { getIdentitySelectionCandidates } from "./server";
@@ -46,6 +48,37 @@ export async function refreshCharacterPackage(userId: string, identityId: string
     create: { identityId, userId, ...common },
     update: { ...common, computedAt: new Date() },
   });
+}
+
+/** The Identity Package Inspector read-model (Milestone 27 Phase 2) — per-role rankings + per-media contribution. */
+export type PackageInspection = {
+  analyzedCount: number; // analyzed candidates the builder can see right now
+  persistedAnalyzedCount: number | null; // what the persisted package was built from
+  stale: boolean; // more/fewer analyzed images than the persisted package → re-analyze to refresh
+  explanation: PackageExplanation;
+};
+
+/**
+ * Explain the Identity Package for the inspector UI: run the SAME role scorer the builder uses over the
+ * identity's analyzed candidates and expose every candidate's per-role fitness + why it won/lost. Owner-
+ * scoped (via `getIdentitySelectionCandidates`); candidate URLs are already freshly signed. Read-only.
+ */
+export async function getIdentityPackageInspection(
+  userId: string,
+  identityId: string,
+): Promise<PackageInspection> {
+  const candidates = await getIdentitySelectionCandidates(userId, identityId);
+  const persisted = await prisma.identityPackage.findFirst({
+    where: { identityId, userId },
+    select: { analyzedCount: true },
+  });
+  const persistedAnalyzedCount = persisted?.analyzedCount ?? null;
+  return {
+    analyzedCount: candidates.length,
+    persistedAnalyzedCount,
+    stale: persistedAnalyzedCount != null && persistedAnalyzedCount !== candidates.length,
+    explanation: explainPackage(candidates),
+  };
 }
 
 /**

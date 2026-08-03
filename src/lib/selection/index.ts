@@ -51,6 +51,13 @@ export type {
 // Reference Intelligence — the Identity Package (Milestone 25.2).
 export { heuristicRoleScorer } from "./roles";
 export {
+  explainPackage,
+  type PackageExplanation,
+  type RoleExplanation,
+  type RoleCandidate,
+  type MediaContribution,
+} from "./explain";
+export {
   buildCharacterPackage,
   deriveNeededRoles,
   resolvePackage,
