@@ -46,8 +46,16 @@ class EndpointHandler:
 
             root = path or "."
             snapshot_download(AURAFACE_REPO, local_dir=os.path.join(root, "models", MODEL_NAME))
-            self.app = FaceAnalysis(name=MODEL_NAME, root=root, providers=["CPUExecutionProvider"])
-            self.app.prepare(ctx_id=-1, det_size=(640, 640))  # ctx_id=-1 → CPU
+            # Only load what an embedding needs — detection + recognition. Skipping the landmark/gender
+            # nets roughly halves RAM + per-request compute (fixes OOM on small CPU instances).
+            self.app = FaceAnalysis(
+                name=MODEL_NAME,
+                root=root,
+                providers=["CPUExecutionProvider"],
+                allowed_modules=["detection", "recognition"],
+            )
+            det = int(os.environ.get("DET_SIZE", "320"))
+            self.app.prepare(ctx_id=-1, det_size=(det, det))  # ctx_id=-1 → CPU; 320 is lighter than 640
         except Exception:  # noqa: BLE001
             self.init_error = traceback.format_exc()
 
