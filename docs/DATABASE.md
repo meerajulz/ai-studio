@@ -45,7 +45,8 @@ DATABASE_URL="postgresql://USER:PASSWORD@ep-xxxx.REGION.aws.neon.tech/DBNAME?ssl
 | `Project` | Workspace grouping (e.g. "Summer Campaign") | User; has Identities/Uploads/Generations |
 | `Identity` | A reusable, project-scoped subject (person/character/pet/product/…) | User + Project (required); `IdentityMedia`; Hero Image → `UploadedMedia`; Generations |
 | `IdentityMedia` | Join: training media for an identity (position/favorite/role) | Identity + UploadedMedia (both cascade) |
-| `UploadedMedia` | User-uploaded inputs / references (Vercel Blob) | User; Project (optional); training links |
+| `UploadedMedia` | User-uploaded inputs / references (Vercel Blob) | User; Project (optional); training links; Vision knowledge |
+| `MediaVisionKnowledge` | Persisted, provider-neutral Vision knowledge for one image (Milestone 20) — frozen `im-2` `metadata` + `score` + provider/model/version; NEVER raw provider JSON. Analyzed once; Smart Reference Selection consumes it | UploadedMedia (1:1, cascade) |
 | `Generation` | A generation request (image or video) | User; Project/Identity/Template (optional) |
 | `GeneratedMedia` | Output files from a Generation (Vercel Blob) | Generation (cascade) |
 | `Job` | Async execution / queue state for a Generation | Generation (1:1) |
@@ -102,6 +103,45 @@ npx prisma migrate dev        # create + apply a migration (dev)
 npx prisma migrate deploy     # apply migrations (prod)
 npx prisma studio             # browse data
 ```
+
+## Identity Engine (Milestone 22, migration `add_identity_engine`)
+
+Additive, owner-scoped, cascade from `Identity`. See [IDENTITY_ENGINE.md](./IDENTITY_ENGINE.md).
+
+- **`IdentityDataset`** (1:1 `Identity`) — persisted readiness (`readinessScore`, `rating`,
+  `metrics` JSON) + curation (`datasetVersion`, `recommendedImageIds`, `rejectedImageIds`,
+  `rejectionReasons`). Recomputed when the library is analyzed; never at generation time.
+- **`IdentityTrainedModel`** — versioned trained models. `@@unique([identityId, engine, version])`
+  → **append-only, never overwritten** (LoRA v1, v2, …). `status: TrainedModelStatus`. `datasetVersion`
+  (M23, migration `add_trained_model_dataset_version`) records which curated dataset revision the model
+  was trained on → drives the `OUTDATED` training state.
+- **`IdentityTrainingJob`** — a training run (provider-agnostic; Fal is the eventual first backend).
+- **`IdentityEvaluation`** — identity score of a generated image; all metric columns reserved
+  (`face/tattoos/hair/accessories/pose/expression/lighting/composition/overallIdentityScore`), null today.
+- **`IdentityArtifact`** — generic versioned identity resources (LoRAs, embeddings, adapters, vectors)
+  — home for non-trainable engines (PuLID/InstantID).
+- New enum **`TrainedModelStatus { DRAFT, READY, FAILED, ARCHIVED }`**.
+
+## Reference Intelligence (Milestone 25.2 Phase D, migration `add_identity_package`)
+
+- **`IdentityPackage`** (1:1 `Identity`, cascade) — the character's persisted **default Identity Package**:
+  `anchors` JSON (best-per-role, stored as `StoredAnchor` = `{ role, roles[], mediaId, score, importance,
+  reasons[], coversFacets[], exposure }` — **mediaId, never signed URLs**), `scorerId`, `imageCount`,
+  `analyzedCount`, `version` ("ip-1"), `computedAt`. Refreshed on "Analyze library"
+  (`refreshCharacterPackage`); URLs re-signed at read (`getCharacterPackage`). Generation starts from it
+  (planner overrides per-request; rebuilds live when it can't satisfy exposure/roles). See
+  [REFERENCE_INTELLIGENCE.md](./REFERENCE_INTELLIGENCE.md).
+
+## Identity Evaluation (Milestone 26, migration `add_media_embedding`)
+
+- **`MediaEmbedding`** — cached identity embedding for one image. `mediaId` is a plain id (NOT an FK) so it
+  caches BOTH uploaded reference images and generated images (`source` records which); `kind` ("face"),
+  `provider`, `model`, `version` (evaluator cache key, e.g. "arcface-v1"), `vector` (JSON float[]), `dim`,
+  `userId` (cascade). `@@unique([mediaId, kind, version])` → a version bump auto-invalidates. Vectors are JSON
+  (cosine in JS; **pgvector deferred**). Computed once, reused everywhere.
+- **`IdentityEvaluation`** (existed since M22, now populated) — a generation's measured identity score. Phase 1
+  fills `face` + `overallIdentityScore` + `method` (the provider version); tattoo/hair/pose stay null until
+  those evaluator modules ship. See [IDENTITY_EVALUATION.md](./IDENTITY_EVALUATION.md).
 
 ## Conventions
 

@@ -197,6 +197,12 @@ export type IdentityContext = {
   id: string;
   name: string;
   description: string | null;
+  /**
+   * A rich appearance paragraph SYNTHESIZED from the identity's analyzed images (Milestone 21) —
+   * hair/piercings/tattoo layout/etc. Preferred over `description` when present. Loaded by the
+   * generation layer; the Director just weaves it in. `null` when nothing is analyzed.
+   */
+  appearance?: string | null;
   hasHeroImage: boolean;
   trainingMediaCount: number;
   providerArtifacts?: Record<string, never>; // reserved — NOT used yet
@@ -208,6 +214,8 @@ export type IdentityReasoning = {
   name: string | null;
   /** The subject reference woven into the scene, e.g. "Emma, a young woman with red hair". */
   referencePhrase: string | null;
+  /** Synthesized appearance paragraph appended to the compiled prompt (Milestone 21); null if none. */
+  appearance: string | null;
   /** Signals the Director considered (transparency only — no provider artifacts used yet). */
   signals: {
     hasDescription: boolean;

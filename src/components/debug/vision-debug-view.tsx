@@ -49,6 +49,18 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
+/** Render a 0..1 signal as a percentage. */
+function pct(v: number): string {
+  return `${Math.round(v * 100)}%`;
+}
+
+/** The keys of a boolean record whose value is true (for compact expression display). */
+function trueKeys(obj: Record<string, boolean>): string[] {
+  return Object.entries(obj)
+    .filter(([, v]) => v)
+    .map(([k]) => k);
+}
+
 function Json({ value }: { value: unknown }) {
   return (
     <pre className="bg-muted max-h-96 overflow-auto rounded p-3 text-xs whitespace-pre-wrap">
@@ -217,7 +229,10 @@ export function VisionDebugView({ visionConfigured }: { visionConfigured: boolea
             <Panel title="Image score">
               <dl className="grid gap-1 text-sm">
                 <div className="font-semibold">Overall: {result.score.overall}/100 · {result.score.usable ? "usable" : "not usable"}</div>
-                <div>Face quality: {result.score.faceQuality}</div>
+                <div>
+                  Face quality:{" "}
+                  {result.metadata.face.visible ? result.score.faceQuality : "— (face not visible)"}
+                </div>
                 <div>Tattoo visibility: {result.score.tattooVisibility}</div>
                 <div>Body coverage: {result.score.bodyCoverage}</div>
                 <div>Hair visibility: {result.score.hairVisibility}</div>
@@ -228,6 +243,104 @@ export function VisionDebugView({ visionConfigured }: { visionConfigured: boolea
                   <div className="text-muted-foreground">{result.score.reasons.join(", ")}</div>
                 ) : null}
               </dl>
+            </Panel>
+
+            <Panel title="Face — expression & quality">
+              <div className="mb-2 text-sm">
+                Expression:{" "}
+                <span className="text-muted-foreground">
+                  {trueKeys(result.metadata.face.expression).join(", ") || "—"}
+                </span>
+              </div>
+              {result.metadata.face.quality ? (
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                  {Object.entries(result.metadata.face.quality).map(([k, v]) => (
+                    <div key={k} className="flex justify-between">
+                      <span className="text-muted-foreground">{k}</span>
+                      <span className="font-mono">{pct(v as number)}</span>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  Face quality: <span className="font-medium">Unavailable</span> — face not visible.
+                </p>
+              )}
+            </Panel>
+
+            <Panel title="Hair & body">
+              <dl className="grid gap-1 text-sm">
+                <div>
+                  Hair:{" "}
+                  <span className="text-muted-foreground">
+                    {[
+                      result.metadata.hair.color,
+                      result.metadata.hair.length,
+                      result.metadata.hair.texture,
+                      `${result.metadata.hair.parting} part`,
+                      result.metadata.hair.updo,
+                      result.metadata.hair.bangs ? "bangs" : null,
+                      result.metadata.hair.wet ? "wet" : null,
+                      result.metadata.hair.windBlown ? "wind-blown" : null,
+                    ]
+                      .filter((x) => x && x !== "unknown")
+                      .join(" · ") || "—"}
+                  </span>
+                </div>
+                <div>
+                  Visible regions:{" "}
+                  <span className="text-muted-foreground">
+                    {result.metadata.body.visibleRegions.join(", ") || "—"}
+                    {result.metadata.body.visiblePercent != null
+                      ? ` (~${result.metadata.body.visiblePercent}%)`
+                      : ""}
+                  </span>
+                </div>
+              </dl>
+            </Panel>
+
+            <Panel title="Tattoos (normalized region)">
+              {result.metadata.tattoos.length ? (
+                <div className="grid gap-0.5 font-mono text-xs">
+                  {result.metadata.tattoos.map((t, i) => (
+                    <div key={i}>
+                      <span className="text-foreground">{t.region}</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        ← “{t.location}” · {pct(t.confidence)}
+                        {t.description ? ` · ${t.description}` : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-sm">None detected.</p>
+              )}
+            </Panel>
+
+            <Panel title="Reference suitability">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                {(
+                  [
+                    "hero",
+                    "faceReference",
+                    "bodyReference",
+                    "tattooReference",
+                    "hairstyleReference",
+                    "expressionReference",
+                  ] as const
+                ).map((k) => (
+                  <div key={k} className="flex justify-between">
+                    <span className="text-muted-foreground">{k}</span>
+                    <span className="font-mono">{pct(result.metadata.referenceSuitability[k])}</span>
+                  </div>
+                ))}
+              </dl>
+              {result.metadata.referenceSuitability.reason ? (
+                <p className="text-muted-foreground mt-2 text-xs">
+                  {result.metadata.referenceSuitability.reason}
+                </p>
+              ) : null}
             </Panel>
 
             <Panel title="Coverage contribution (this image alone)">

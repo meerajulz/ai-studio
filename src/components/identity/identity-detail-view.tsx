@@ -34,6 +34,8 @@ import { IdentityAvatar } from "./identity-avatar";
 import { IdentityStatusBadge } from "./identity-status-badge";
 import { IdentityOverview } from "./identity-overview";
 import { IdentityTrainingMedia } from "./identity-training-media";
+import { IdentityDatasetReadiness } from "./identity-dataset-readiness";
+import { IdentityTrainedModels } from "./identity-trained-models";
 import { IdentitySettings } from "./identity-settings";
 import { IdentityFormDialog } from "./identity-form-dialog";
 import { DeleteIdentityDialog } from "./delete-identity-dialog";
@@ -172,6 +174,8 @@ export function IdentityDetailView({
         <TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="training">Training Media</TabsTrigger>
+          <TabsTrigger value="dataset">Dataset</TabsTrigger>
+          <TabsTrigger value="models">Models</TabsTrigger>
           <TabsTrigger value="templates" disabled>
             Templates
           </TabsTrigger>
@@ -186,6 +190,12 @@ export function IdentityDetailView({
         </TabsContent>
         <TabsContent value="training" className="pt-4">
           <IdentityTrainingMedia projectId={projectId} identity={identity} />
+        </TabsContent>
+        <TabsContent value="dataset" className="pt-4">
+          <IdentityDatasetReadiness identityId={identity.id} />
+        </TabsContent>
+        <TabsContent value="models" className="pt-4">
+          <IdentityTrainedModels identityId={identity.id} />
         </TabsContent>
         <TabsContent value="settings" className="pt-4">
           <IdentitySettings

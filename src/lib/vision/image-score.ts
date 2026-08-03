@@ -9,9 +9,9 @@
  *
  * Pure + deterministic + provider-neutral — it reads only normalized `IdentityMetadata` knowledge.
  */
-import type { FaceOrientation, IdentityMetadata } from "./types";
+import type { IdentityMetadata } from "./types";
 
-export const IMAGE_SCORE_VERSION = "score-1";
+export const IMAGE_SCORE_VERSION = "score-2";
 
 export type IdentityImageScore = {
   faceQuality: number; // 0..100
@@ -29,25 +29,18 @@ export type IdentityImageScore = {
 const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 const round = (v: number) => Math.round(v);
 
-const ORIENTATION_PENALTY: Record<FaceOrientation, number> = {
-  front: 0,
-  "three-quarter": 8,
-  "left-profile": 20,
-  "right-profile": 20,
-  profile: 20,
-  back: 45,
-  unknown: 10,
-};
-
+/**
+ * Face quality now DERIVES from the per-component `face.quality` computed in normalize.ts (19A) —
+ * one source of truth. The provider-facing confidence still nudges it so a low-confidence detection
+ * can't score as a clean face.
+ */
 function scoreFaceQuality(m: IdentityMetadata): number {
-  if (!m.face.visible) return 0;
-  const sharp = m.quality.sharpness; // 0..1
-  const base = m.face.confidence * 70 + sharp * 30;
-  const penalty =
-    ORIENTATION_PENALTY[m.face.orientation] +
-    (m.quality.occlusion ? 20 : 0) +
-    (m.face.eyesVisible ? 0 : 10);
-  return round(clamp(base - penalty));
+  // 19C — face quality is `null` (unavailable) when the face isn't visible; that's a 0 for RANKING
+  // purposes (a back view is the worst face reference), while the KNOWLEDGE stays "unavailable".
+  if (!m.face.visible || !m.face.quality) return 0;
+  const componentScore = m.face.quality.overall * 100; // 0..100
+  const confidenceFactor = 0.6 + 0.4 * m.face.confidence; // 0.6..1.0
+  return round(clamp(componentScore * confidenceFactor));
 }
 
 function scoreBodyCoverage(m: IdentityMetadata): number {

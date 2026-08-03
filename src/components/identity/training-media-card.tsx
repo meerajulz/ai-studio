@@ -15,6 +15,7 @@ import {
   type TrainingMediaItem,
   type TrainingMediaRoleValue,
 } from "@/lib/identity/types";
+import { renderStars } from "@/lib/vision";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ type TrainingMediaCardProps = {
   isFirst: boolean;
   isLast: boolean;
   onOpen: (item: TrainingMediaItem) => void;
+  onOpenKnowledge: (item: TrainingMediaItem) => void;
   onSetHero: (item: TrainingMediaItem) => void;
   onToggleFavorite: (item: TrainingMediaItem) => void;
   onSetRole: (item: TrainingMediaItem, role: TrainingMediaRoleValue) => void;
@@ -53,13 +55,14 @@ export function TrainingMediaCard({
   isFirst,
   isLast,
   onOpen,
+  onOpenKnowledge,
   onSetHero,
   onToggleFavorite,
   onSetRole,
   onMove,
   onRemove,
 }: TrainingMediaCardProps) {
-  const { media } = item;
+  const { media, knowledge } = item;
   const isVideo = media.type === "VIDEO";
 
   return (
@@ -152,6 +155,55 @@ export function TrainingMediaCard({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Analyzed-knowledge summary (Milestone 20) — click to open the full analysis panel. */}
+      <button
+        type="button"
+        onClick={() => onOpenKnowledge(item)}
+        className="hover:bg-muted/50 block w-full border-t px-2 py-2 text-left text-xs"
+      >
+        {knowledge ? (
+          <>
+            <div className="mb-1 flex items-center justify-between">
+              <span className="font-mono text-amber-500">
+                {renderStars(Math.round(knowledge.overallScore / 20))}
+              </span>
+              <span className="text-muted-foreground">Score {knowledge.overallScore}</span>
+            </div>
+            {knowledge.covered.length ? (
+              <div className="mb-1 flex flex-wrap gap-1">
+                {knowledge.covered.slice(0, 4).map((c) => (
+                  <span key={c} className="bg-muted rounded px-1 py-0.5">
+                    ✓ {c}
+                  </span>
+                ))}
+                {knowledge.covered.length > 4 ? (
+                  <span className="text-muted-foreground">+{knowledge.covered.length - 4}</span>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="text-muted-foreground flex flex-wrap items-center gap-x-2">
+              {knowledge.hair ? <span>{knowledge.hair}</span> : null}
+              {knowledge.environment ? <span>· {knowledge.environment}</span> : null}
+              {knowledge.exposure !== "clothed" ? (
+                <span
+                  className={cn(
+                    "rounded px-1 py-0.5",
+                    knowledge.exposure === "swimwear"
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+                      : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
+                  )}
+                >
+                  {knowledge.exposure}
+                </span>
+              ) : null}
+              <span className="ml-auto underline">View analysis</span>
+            </div>
+          </>
+        ) : (
+          <span className="text-muted-foreground">Not analyzed yet — click to view / analyze</span>
+        )}
+      </button>
 
       <div className="flex items-center gap-2 p-2">
         <Select

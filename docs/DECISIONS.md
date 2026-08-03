@@ -1659,3 +1659,1115 @@ Status
 Accepted — implemented. `npm run build` + `tsc --noEmit` pass; offline scoring/coverage verifiers
 still pass. **The `/debug/vision` page + the live Gemini call are for the user to exercise** (needs
 `GEMINI_API_KEY`) — this is the intended first live test. No persistence, no schema change.
+
+---
+
+# Decision 045
+
+Date
+2026-07-16
+
+Decision
+**Enrich Identity Intelligence metadata + rescore coverage (Milestone 19A).** The first real Gemini
+run (Decision 044) surfaced two problems: coverage was far too conservative, and the metadata model
+was too coarse for good future routing. 19A strengthens the **knowledge** — deliberately **no
+routing/selection logic and no Prisma/schema change** (`analyzeIdentity` stays debug/in-memory).
+
+1. **Coverage rescoring** (`coverage-engine.ts`, engine `cov-2`). The old formula
+   `best × 0.6 + breadth × 0.4` capped a single image's breadth at `0.33`, so a *perfect* frontal
+   portrait maxed at ~3★. New per-dimension model: `presence = matchStrength × visibilityConfidence`
+   (face confidence / the matched tattoo's confidence / attribute confidence), `qualityFactor =
+   clamp(quality.overall/70,0,1)` (a ramp, not a hard multiplier), `best = max(presence ×
+   qualityFactor)`, and `score = best + (1−best) × breadthBonus` — **breadth is now a bonus, never a
+   penalty**. A clearly-visible frontal portrait now reads ★★★★★ on front face / hair / chest tattoos.
+   Also fixed `toQuality`: a null `aesthetic` no longer caps a good photo at 90 (normalize over
+   present weights).
+2. **Normalized tattoo taxonomy.** `TattooKnowledge.region: TattooRegion` (~20 canonical regions);
+   raw `location` kept for provenance; `toTattooRegion()` maps free text → region. Coverage now
+   matches on region and gained **abdomen/hip** and **neck** dimensions (thighs/abdomen no longer
+   "fall through" — the gap noted after the first real run).
+3. **Richer metadata.** Structured body visibility (`visibleRegions`/`visiblePercent`); structured
+   `FaceExpression`; per-component `FaceQuality` with a **derived** overall (image scoring now derives
+   its face score from these — one source of truth); richer hair (texture/parting/updo/bangs/wet/
+   wind-blown).
+4. **Reference suitability (metadata, NOT routing).** `IdentityMetadata.referenceSuitability` rates
+   the image (0–1) as hero/face/body/tattoo/hairstyle/expression reference + reason. Provider-supplied
+   when available, else derived from knowledge. Smart Reference Selection (M20) consumes it later.
+5. **Docs/research.** New `docs/AI_ARCHITECTURE.md` (the whole intelligence stack) + `docs/research/
+   RESEARCH_03_FACE_EMBEDDINGS.md` (InsightFace recommended). Roadmap resequenced: **19A → 19B face
+   embeddings → 20 smart reference selection** (embeddings before selection).
+
+`IDENTITY_METADATA_VERSION` → `im-2`, `IMAGE_SCORE_VERSION` → `score-2`, `COVERAGE_ENGINE_VERSION` →
+`cov-2`.
+
+Reason
+The metadata model should settle *before* the first schema change persists it — reprocessing stored
+knowledge later is expensive. Richer, provider-neutral signals (derived when a provider omits them)
+make future routing far stronger without committing to it now. The coverage bug was a genuine scoring
+error (breadth penalized single strong images), not a threshold tweak. Doing embeddings before
+selection means the selector has both metadata and measurable facial similarity from day one.
+
+Alternatives
+Jump straight to persistence + request-aware selection (rejected — the plan; premature before the
+metadata model is rich and coverage is honest); make each attribute `{value, confidence}` (rejected —
+bloats consumers; the existing `attributeConfidence` map suffices); keep tattoo locations as free text
+(rejected — coverage/selection need a normalized taxonomy); ask Gemini for suitability only, no derived
+fallback (rejected — fields must always be populated + provider-neutral); do face embeddings after
+selection (rejected — the selector is stronger with similarity available from the start).
+
+Status
+Accepted — implemented. `npm run build` + `tsc --noEmit` pass; `scripts/verify-coverage.ts`
+(now asserts 5★ + region mapping) and `scripts/verify-scoring.ts` pass offline. **No schema change,
+no persistence, no routing.** The enriched Gemini prompt is for the user to exercise via
+`/debug/vision` (needs `GEMINI_API_KEY`).
+
+---
+
+# Decision 046
+
+Date
+2026-07-16
+
+Decision
+**Vision Intelligence Polish + freeze `im-2` (Milestone 19C).** A final correctness/clarity pass on
+the knowledge the Vision layer produces, then **stop expanding the metadata** and move to using it.
+**No new providers, no routing, no schema redesign, no generation changes.**
+
+1. **Unknown vs zero.** `FaceKnowledge.quality` is now `FaceQuality | null`; `deriveFaceQuality`
+   returns **`null` (unavailable)** when the face isn't visible instead of a bag of zeros. A back view
+   has *no* face quality, not 0%. `image-score.ts` treats absent face quality as 0 for *ranking*
+   (worst face reference) while the *knowledge* stays "unavailable"; `/debug/vision` renders
+   "Unavailable — face not visible" and "—".
+2. **Explainable reference suitability.** `referenceSuitability.reason` is now a **synthesized,
+   multi-clause** sentence built deterministically from the resolved scores + visibility
+   ("Excellent tattoo reference. Not suitable as a face reference — face not visible. Supporting
+   reference only — not a Hero."). Provider scores still win over derived fallbacks; a provider's own
+   freeform reason is kept only as a parenthetical suffix.
+3. **Single-image disagreement = an aggregation concern.** Documented that per-image observations may
+   conflict (one photo "brown", most "pink") and that identity-level aggregation (confidence-weighted
+   majority, later) resolves it — **not** the per-image normalizer. `TODO(19C → aggregation)` in
+   `coverage.ts`.
+4. **Coverage ≠ image quality.** Documented that coverage measures *how well an identity dimension is
+   represented*, not photo quality (those are `ImageQuality` / `image-score.ts`).
+5. **Tattoo taxonomy stays coarse.** Current regions are sufficient; finer anatomy (shoulder/elbow/
+   forearm/hand, calf/ankle) is documented as future, not implemented.
+6. **`im-2` FROZEN.** `IDENTITY_METADATA_VERSION = "im-2"` is the stable provider-neutral contract;
+   future providers normalize INTO it. Real changes are a deliberate versioned `im-3` bump, not
+   drive-by field additions.
+
+Reason
+"Unknown vs zero" is a correctness bug — zeros for an absent face are misleading knowledge and would
+poison any downstream selection ("this image has 0% lighting" is false; it has *no measurable* face
+lighting). Explainable reasons make the whole layer debuggable. Freezing the schema now — while it is
+rich but before it is persisted — prevents unbounded field sprawl and gives future providers a fixed
+target; the interesting work shifts from *collecting* information to *using* it (M20). The metadata
+model is complete enough; more fields would be a trap.
+
+Alternatives
+Per-field `number | null` on `FaceQuality` (rejected — a whole-object `null` is simpler and matches
+"face quality unavailable"; components aren't individually meaningful without a face); keep zeros and
+fix only the UI (rejected — the knowledge itself must be accurate, not just its display); solve hair
+disagreement per-image now (rejected — it's inherently an identity-level aggregation problem, premature
+before persistence); expand tattoo regions now (rejected — no consumer needs the finer anatomy yet);
+leave the schema open (rejected — that is exactly the 300-unused-fields trap this milestone avoids).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-scoring.ts` (now
+asserts face quality is `null` for a back view, non-null for a front view) and
+`scripts/verify-coverage.ts` pass offline. **No schema/persistence/routing/generation change.** The
+suitability reason + "unavailable" states are for the user to see via `/debug/vision`.
+
+---
+
+# Decision 047
+
+Date
+2026-07-17
+
+Decision
+**Smart Reference Selection + persist Vision knowledge (Milestone 20).** Turn the frozen Identity
+Intelligence knowledge into a permanent knowledge system and USE it to pick references per request.
+The "no schema" constraint was **intentionally lifted** by the user (the `im-2` contract is frozen, so
+persisting it is safe).
+
+1. **Persist per-image knowledge.** New additive table **`MediaVisionKnowledge`** (1:1 with
+   `UploadedMedia`): `version`/`provider`/`model`/`overallScore` + `metadata` (frozen `im-2`
+   `IdentityMetadata`, includes quality + reference suitability) + `score` (`IdentityImageScore`) +
+   `analyzedAt`. **Only provider-neutral knowledge** — never raw Gemini responses or debug values.
+   Single-image coverage is NOT persisted (it's an aggregate, recomputed from `metadata`).
+2. **Analyze once, never at generation.** `src/lib/vision/persist.ts`
+   (`analyzeAndPersistMedia`/`analyzeIdentityLibrary`/`getPersistedKnowledge`). Trigger = an
+   **"Analyze library"** action on the Training Media tab (user-initiated; the async Job queue will
+   automate on-upload later — Gemini is ~seconds/image and there's no queue yet). Generation reads
+   persisted knowledge only.
+3. **The selector** — new provider-neutral `src/lib/selection/`: `extractPromptRequirements(directive)`
+   (deterministic, from the Director's trace; HARD vs SOFT requirements), `matchImage` (per-requirement
+   0..100 from knowledge), `selectReferencePackage` (**greedy marginal-gain / set-cover** for diversity,
+   per-pick reasons, coverage warnings, never blocks). `SelectionCandidate.signals` future-proofs for
+   embeddings/favorites/LoRA.
+4. **Wire into generation, replace the static package.** `runImageGeneration` now builds the package
+   from persisted candidates and maps it to the existing provider-neutral `ReferenceImage[]`; falls
+   back to `getIdentityVisualPackage` when nothing is analyzed. **Providers unchanged** — Fal receives
+   ordered refs and never knows how they were chosen. Debug panel gains requirements + reasons +
+   warnings; new `/debug/selection` tool.
+
+Reason
+This is the payoff of 18–19 and the expected biggest generation-quality jump before LoRA: the app now
+sends the *best complementary references for the actual prompt* instead of the same static Hero +
+Portrait. Persisting the frozen contract is safe and necessary (re-analyzing at generation time would
+add ~40s/image); analysis is one-time and reused. Greedy set-cover (not top-N) is what prevents four
+near-identical faces. Keeping the provider contract untouched means zero risk to existing generation.
+
+Alternatives
+Analyze on every generation (rejected — far too slow; the whole point is analyze-once); store raw
+provider JSON (rejected — violates "provider-neutral knowledge"; bloats rows, couples to Gemini);
+pick top-N by overall score (rejected — yields redundant near-duplicate faces; coverage > duplication);
+block generation when a hard requirement is unmet (rejected — never block; warn instead); build only
+the engine without wiring (rejected — the user explicitly chose full production via Option 2);
+auto-analyze on upload synchronously (rejected for now — ~seconds/image with no Job queue;
+user-initiated + a future queue milestone instead).
+
+Status
+Accepted — implemented. Migration `add_media_vision_knowledge` applied; `tsc --noEmit` + `npm run
+build` pass; `scripts/verify-selection.ts` (yacht/office/back-view success criteria: diversity,
+coverage, reasons, warnings) + existing coverage/scoring verifiers pass offline. **Live path
+(analyze a real library → generation uses the selected package) is for the user to exercise** (needs
+`GEMINI_API_KEY` + `FAL_KEY`).
+
+---
+
+# Decision 048
+
+Date
+2026-07-17
+
+Decision
+**M20 hardening — scene-aware selection, synthesized identity description (M21), visible knowledge.**
+Real drift testing on M20 showed selection was working (picking from persisted knowledge) but three
+gaps still limited quality/confidence. All three fixed here; providers untouched.
+
+1. **Scene-aware, body-boosted selection.** Requirement weights are now **context-aware**
+   (`requirements.ts`): a `bodyDependent` prompt (swimwear/full-body/elegant/business/action/fashion)
+   boosts body-family requirements above the face and softens the face (still always present +
+   covered). `select.ts` orders best-first by **weighted value** (top requirement weight × match), so
+   a bikini beach shot leads with a full-body / leg-tattoo reference while a business portrait still
+   leads with the face.
+2. **Synthesized identity description (Milestone 21, folded in).** New pure
+   `synthesizeIdentityAppearance(metadatas)` (`vision/synthesize.ts`) aggregates analyzed images into
+   ONE **majority-voted** appearance paragraph — hair/accessories/**tattoo layout by region** (never
+   imagery, so scene analysis can't hallucinate a "snake") + age. Threaded via new
+   `IdentityContext.appearance` → `IdentityReasoning.appearance` → `compile.ts` appends it verbatim as
+   the first enrichment clause (the previously-unused `_identity` seam). `effectiveIdea` stays clean
+   for scene/intent analysis. Replaces the sparse static description in every prompt.
+3. **Visible knowledge on Training Media.** `getIdentity` attaches a `MediaKnowledgeSummary`
+   (`vision/summary.ts`) per image; the card shows a compact summary (stars/score/covered/hair/env);
+   a `Sheet` panel (`training-media-knowledge-panel.tsx`) shows the full analysis + Re-analyze via
+   `getMediaVisionKnowledgeAction`. Reads persisted `MediaVisionKnowledge` — **never Gemini**. The
+   identity page is now the canonical inspector.
+
+Reason
+These three stages are exactly where drift was localized. Scene-aware weighting fixes "great face,
+wrong body/scene" outputs. Synthesized description gives the model the identity's actual traits in
+text (hair/piercings/tattoo layout) instead of "long hair, tattoos". Region-based (not imagery)
+synthesis is the safe way to enrich the prompt without polluting scene/intent detection. Surfacing
+knowledge turns a silent toast into visible confidence and makes selector decisions explainable.
+
+Alternatives
+Static weights (rejected — the reported problem); feed the synthesized paragraph through scene
+analysis (rejected — tattoo imagery would inject stray scene nouns; append it post-analysis instead);
+describe tattoo imagery in the prompt (rejected — pollutes scene; region layout is what preserves
+identity anyway); re-analyze at display time (rejected — display reads persisted knowledge only);
+build a separate inspector page (rejected — knowledge should live WITH the image on the identity page).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-selection.ts`
+(now asserts the beach/bikini package is scene-led + a synthesized region-based appearance) +
+coverage/scoring verifiers pass offline. **Live path (Analyze library → cards show summaries → panel →
+scene-led generation with the synthesized appearance in the prompt) is for the user to exercise.**
+
+---
+
+# Decision 049
+
+Date
+2026-07-17
+
+Decision
+**M20 completion — Identity Anchor invariant, NSFW/black-image handling, synthesis polish.** Found
+from real generation testing; makes M20 complete before the identity-preservation milestone.
+
+1. **Identity Anchor (architectural invariant).** Separate the two questions: the **Reference
+   Selector** answers "what images describe this request?"; the **Identity Anchor** answers "who is
+   this person?". Every identity generation includes exactly ONE anchor — the strongest frontal face
+   (face quality × identity confidence, never cropped), chosen independently of the scene selector
+   (`selection/anchor.ts` `pickIdentityAnchor`). It rides as `ImageGenerationRequest.identityAnchor`;
+   the **provider adapter prepends it** to the reference list before sending, **deduped** (never
+   duplicates a selected image; no-op if the selector already led with it). It does NOT enter the
+   selector's reasoning/Debug. Fixes face drift when the scene package leads with a body reference.
+2. **NSFW / black images.** Kontext's safety filter returns HTTP 200 + a **black placeholder** +
+   `has_nsfw_concepts:[true]`. `fal.ts` now detects it and throws a new `CONTENT_MODERATED`
+   ProviderError BEFORE downloading/saving — the generation fails with a clear message instead of
+   silently storing a black square.
+3. **Synthesis polish.** `synthesizeIdentityAppearance`: removed **inferred age** (not stable visual
+   identity); **deduplicated** traits (no "ear gauges" + "ear gauge"); **richer region-based tattoo
+   descriptions** with size/style from the provider description (arm sub-regions collapse to
+   "{style} sleeve", "large floral chest piece") — still never artwork-specific.
+
+Verified (#6): the selector's package is sent to Fal in exact order/format (1 ref → `image_url`,
+2–4 → `image_urls` in order); nothing rebuilds the package. Remaining face drift is now assessed as a
+model limitation of reference-guided Kontext (no LoRA/embedding), to be addressed by the
+identity-preservation milestone.
+
+Reason
+Guaranteeing a clean face anchor is the cheap, high-value lever that survives scene-aware selection —
+and framing it as an invariant (not a Kontext hack) keeps the architecture clean: two questions, two
+mechanisms. Failing loudly on moderation beats a silent black image. Age is inferred and unstable;
+duplicated/sparse tattoo text weakened the prompt.
+
+Alternatives
+Put the anchor in the selector / make it a selected reference (rejected — it must NOT affect scene
+reasoning/Debug; it's a different question); reorder inside the scene selector (rejected — couples
+concerns; the anchor is provider-request assembly, prepended by the adapter); keep saving the black
+image + a flag (rejected — the user wants a real failure, not a silent black square); keep age
+(rejected — not stable visual identity).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-selection.ts` (now
+also asserts the Identity Anchor picks the clean frontal face + is null for back-only, and the polished
+synthesis: no age, deduped, rich descriptors) + coverage/scoring verifiers pass offline. **Live path
+(a real generation now sends `[anchor, …scene]` to Kontext; moderated prompts fail cleanly) is for the
+user to exercise.**
+
+---
+
+# Decision 050
+
+Date
+2026-07-17
+
+Decision
+**Reference Safety / exposure filtering (Milestone 20).** Root cause of the black images (reproduced
+in Fal Playground, so it's provider moderation, not our serialization): nude/lingerie reference images
+sent for normal prompts trip Kontext's NSFW filter. Add exposure as a first-class selection constraint.
+
+1. **Classify** (`vision/exposure.ts` `classifyExposure`): each analyzed image → `clothed · swimwear ·
+   lingerie · nude`, DERIVED from `clothing` terms (no schema change, works on persisted `im-2`).
+   **Positive-signal only** — missing `clothing` defaults to `clothed` (inferring nude from absent
+   clothing caused false positives that excluded good references). The Gemini prompt now explicitly
+   asks for "nude/lingerie/bikini" in `clothing` so true positives are captured.
+2. **Constrain** (`selection/exposure.ts`): `allowedExposureForPrompt(directive)` (business/portrait →
+   clothed; beach/pool → swimwear; explicit request → lingerie/nude) + `filterCandidatesByExposure`
+   drops candidates above the allowed level. Applied in `runImageGeneration` to BOTH the scene
+   selection AND the Identity Anchor — a nude image is never sent, even for its face.
+3. **Surface**: exposure shows on each training-media card; the Debug panel reports the allowed level +
+   number excluded.
+
+Reason
+This is the genuine fix for the moderation hits and a real product feature (content-aware selection),
+not a workaround. Deriving from `clothing` avoids an `im-3` bump / re-analysis; positive-signal-only
+avoids throwing away legitimate clothed references (the user explicitly wants to keep the best identity
+refs). It stacks cleanly with the `CONTENT_MODERATED` backstop (Decision 049).
+
+Alternatives
+Add a persisted `exposureLevel` field (im-3 + re-analysis) — deferred; derivation is enough now and
+the Gemini prompt improvement upgrades reliability without a schema break. Infer nude from body
+exposure when clothing is empty — rejected (false positives). Only fix at the provider (moderation
+backstop) — insufficient; it still wastes a generation and shows a failure.
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-selection.ts` (business
+excludes nude, beach allows swimwear but excludes nude, explicit-nude includes it, anchor never nude
+for a safe prompt) + coverage/scoring verifiers pass offline. **Live path (moderation hits should drop
+sharply once libraries are re-analyzed with the exposure-aware prompt) is for the user to exercise.**
+
+---
+
+# Decision 051
+
+Date
+2026-07-17
+
+Decision
+**Identity benchmark tooling — evidence before more heuristics.** The selector demonstrably sends the
+right images, yet faces still drift. Rather than add more selection heuristics, build dev-only
+observability to isolate *where* drift comes from (our selection vs. the provider).
+
+1. **Show the actual images sent** in the Generate Debug panel — thumbnails of the exact ordered
+   references (`ReferenceImageDebug.sentImages`, from a secret-free `referenceImages` echo in the Fal
+   `requestPayload`), not just roles. The first is ringed + labelled ★ anchor.
+2. **Dev reference-count control** (1·2·3·4·Auto) on the Generate page → `GenerateImageInput.
+   maxReferences` → `ImageGenerationRequest.maxReferences` → the Fal adapter caps the merged
+   `[anchor, …scene]` list (anchor kept first; 1 = anchor only). Dev-only (`NODE_ENV`), no code changes
+   to A/B 1→4 references.
+3. **Traceable results** — each generation records `params.references` ({maxReferences, offered,
+   anchorIncluded}).
+4. **Manual reference picker** (dev-only): toggle References → Manual on the Generate page to pin the
+   exact images + order sent (`GenerateImageInput.manualReferenceMediaIds` → `runImageGeneration`
+   bypasses selector/anchor/safety, sends them verbatim). Click to include/exclude, drag to reorder,
+   badges (Anchor/Face/Body/Tattoos/Hair/Smile); Debug shows "Manual reference selection". Answers
+   *which* image helps/hurts, not just how many.
+5. **Protocol + conclusion scaffold** in `docs/IDENTITY_BENCHMARK.md`.
+
+Reason
+"I don't want more heuristics until we have evidence about where the failure occurs" — so make the
+pipeline observable and A/B-able instead of guessing. If the anchor is image #1 and identity still
+drifts (especially at a single clean anchor), the bottleneck is the provider's identity preservation,
+not selection → the signal to move to the identity-preservation milestone.
+
+Alternatives
+An env var for reference count (rejected — needs a restart per change; a UI toggle is faster for 1→4
+A/B); a scripted batch benchmark (rejected — real generations need `FAL_KEY` + visual inspection; a UI
+control + Gallery comparison is the pragmatic path); exposing URLs in production debug (rejected — the
+Debug panel is dev-only already, `NODE_ENV !== production`).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass. **The benchmark itself is for the user
+to run** (needs `FAL_KEY` + an analyzed identity): generate the same prompt at 1→4 references, confirm
+the anchor is image #1, compare identity fidelity, and record the conclusion in IDENTITY_BENCHMARK.md.
+
+---
+
+# Decision 052
+
+Date
+2026-07-17
+
+Decision
+**Identity Anchor prominence fix + scoring diagnostic.** Testing showed the anchor was always the
+full-body studio photo (small face). Investigation confirmed the anchor is scored on FACE only
+(frontalness × faceQuality × confidence) — NOT body coverage or overall utility — but face
+**resolution** (size in frame) weighed only 0.05 in `faceQuality.overall`, so a sharp full-body face
+could beat a close-up.
+
+1. **Fix** (`selection/anchor.ts`): add an explicit **prominence** factor `0.4 + 0.6 × faceResolution`
+   to the anchor score (headshot ×1.0, half-body ×0.76, full-body ×0.61). A clear close-up now beats a
+   higher-confidence full-body. Verified: headshot 0.877 vs full-body 0.546 (was 0.877 vs 0.895 → the
+   bug).
+2. **Diagnostic**: `rankIdentityAnchors`/`scoreAnchor` return the full breakdown (faceQuality,
+   frontalness, eyeVisibility, lighting, resolution, prominence, confidence, score); the Generate Debug
+   panel renders the top-5 with thumbnails so the anchor decision is auditable on real data.
+
+Reason
+The anchor's whole job is "who is this person?" — face SIZE/clarity is central to that, and it was
+nearly ignored. This is a verified logic flaw, not a heuristic guess. The breakdown makes the decision
+inspectable: if the full-body genuinely has the best/most-prominent face, the choice is correct and
+drift is the model's — the exact evidence the user asked for.
+
+Alternatives
+Reweight `faceQuality.overall`'s resolution term globally (rejected — that would change coverage/image
+scoring too; prominence should be an ANCHOR-specific concern); rank by raw face bbox area (rejected — we
+don't persist a bbox; framing-derived resolution is the available proxy); leave as-is and call it model
+limitation (rejected — the anchor was demonstrably picking a smaller face than available).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-selection.ts` asserts a
+close-up beats a higher-confidence full-body. **User verifies on a real library via the Debug anchor
+ranking table.**
+
+---
+
+# Decision 053
+
+Date
+2026-07-17
+
+Decision
+**DEV model selector — benchmark Fal Kontext multi models.** The pipeline is verified sound; the
+remaining weakness is facial identity preservation. Before LoRA research, compare the two closest Fal
+multi-reference models with everything else held constant, changing ONLY the model id.
+
+1. **Config-driven model list** (`src/lib/ai/benchmark-models.ts`, client-safe): `Kontext Max Multi`
+   (current) + `Kontext Pro Multi`. Adding a model is a config edit here — no business-logic change
+   (the provider-abstraction requirement).
+2. **Override plumbing**: `GenerateImageInput.modelOverride` → `runImageGeneration` →
+   `ImageGenerationRequest.modelOverride` → `fal.ts` uses it on the reference path (forcing the multi
+   request shape, since the options are multi models). Everything else (prompt/refs/order/anchor/
+   safety/identity package) is unchanged.
+3. **Metadata**: `Generation.model` already records the exact model used per result (= the override
+   when set); the Debug panel shows "Chosen model" — so runs are comparable after the fact.
+4. **UI**: a dev-only **Model** selector (Auto · Max Multi · Pro Multi) next to the benchmark controls.
+   Default `Auto` (undefined) preserves normal behavior.
+
+Reason
+A small change with a potentially useful result: if `kontext/multi` preserves faces better, we learn it
+today; if not, we move to LoRA with confidence that the two closest Fal models were already compared.
+Config-driven models keep future comparisons cheap and provider-neutral.
+
+Alternatives
+Env var per benchmark run (rejected — needs a restart; a UI toggle is faster for A/B); hardcode the
+model choice in fal.ts (rejected — the explicit "configurable not hardcoded" requirement); send a fixed
+seed too (deferred — noted as a follow-up; not required for the model comparison).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` + verifiers pass. **The benchmark is for the
+user to run** (needs `FAL_KEY`): same prompt + manual references, generate once per model, compare
+facial identity / tattoos / hair / prompt adherence / realism. If essentially identical → next
+investigation is identity LoRA / stronger conditioning, not the selector.
+
+---
+
+# Decision 054
+
+Date
+2026-07-17
+
+Decision
+**Model Registry — capability-routed image orchestration (Milestone 21).** Kontext Max↔Pro Multi
+didn't move identity, and AI Studio shouldn't be "a FLUX app". Evolve the Image Provider layer into a
+provider/model-agnostic orchestrator: request CAPABILITIES, route to the best MODEL.
+
+1. **Registry** (`src/lib/ai/model-registry.ts`, client-safe config): each `ModelSpec` declares
+   capabilities, `maxReferences`, `payloadKind`, `priority`, `enabled`, `note`, `vendor`. **Research
+   (Fal docs 2026-07): every target editing model takes `{ prompt, image_urls }`** → almost the whole
+   registry is `payloadKind: "image_urls"` over ONE adapter builder. Registered: FLUX Kontext Max/Pro
+   Multi, FLUX.2 Pro Edit (surfaced by research), Nano Banana Pro, Gemini Image, GPT Image 2 Edit
+   (BYOK note), Seedream V5 Pro (refs ≤ 10) + single/t2i fallbacks.
+2. **Router** (`model-router.ts`): `chooseModel({provider, needs, mode, manualModelId})` — Auto (best
+   capability match by priority), Manual (explicit id), fallback-safe. Routed only when references
+   exist; no-ref → adapter t2i.
+3. **Adapter refactor** (`fal.ts`): removed all FLUX-specific model/branching; the request now carries
+   the RESOLVED `model`, and the adapter builds the body from its `payloadKind`. Identity Anchor,
+   reference cap, and NSFW handling unchanged.
+4. **Three modes** (Generate, dev-only): Auto (Recommended) · Manual · Developer (metadata). Debug
+   shows chosen model + reason + models considered. `Generation.model` records the exact model used.
+5. **Auto stays the proven Kontext Max Multi** (priority 95) — adding models never silently changes the
+   default; retune priorities after benchmarking.
+
+Reason
+Adding a state-of-the-art model should be *registering capabilities*, not rewriting the pipeline. A
+capability router keeps feature code free of model names and lets the app pick the right tool per
+request (identity edit vs typography vs background replace). The uniform `image_urls` payload made this
+cheap and low-risk.
+
+Alternatives
+Hardcode each model in fal.ts (rejected — the exact anti-pattern; not config-driven); one payload
+per model (rejected — research shows they share `image_urls`; a `payloadKind` enum + one builder
+suffices); let Auto pick the highest-capability model regardless (rejected — would switch the proven
+default to an unbenchmarked model; priority keeps Kontext Max Multi until evidence); per-request env
+vars (rejected — a UI mode toggle is faster and visible).
+
+Status
+Accepted — implemented. `tsc --noEmit` + `npm run build` pass; `scripts/verify-model-routing.ts` (Auto
+picks the best capable enabled model + stays Kontext Max Multi; Manual honored; disabled never
+auto-chosen) + selection/coverage/scoring verifiers pass offline. **Live model comparison is the user's
+benchmark** (needs `FAL_KEY`; GPT Image may need BYOK). Providers otherwise unchanged; HF still works.
+
+# Decision 055
+
+Date
+2026-07-19
+
+Decision
+**Identity Engine Architecture (Milestone 22) — foundation only.** Facial identity still drifts across
+every benchmarked model (reference-guided-editing limit). Rather than "add LoRA support", promote
+Identity to its own **subsystem** with pluggable conditioning methods; Generation becomes a consumer.
+
+1. **`src/lib/identity-engine/`** — `planConditioning(request) → ConditioningPlan`. A pluggable
+   `IdentityModule` registry (mirrors the model registry): **Reference** enabled; **LoRA / PuLID /
+   InstantID** registered but `enabled: false`. Reference is the always-on baseline; trainable/adapter
+   modules layer on → strategies `reference(+lora|+pulid|+instantid)`. Generation never learns the
+   method.
+2. **Naming refinements (user review):** the plugin interface is the neutral **`IdentityModule`** (not
+   "Conditioner"); training is **`TrainingEngine → Trainer → LoRATrainer`** (provider-agnostic, Fal is
+   the eventual first backend); the generic resource table is **`IdentityArtifact`** (LoRAs,
+   embeddings, adapters, vectors — not only media).
+3. **Identity Dataset** — `assembleDataset` reuses `analyzeIdentityCoverage` + adds diversity/quality
+   metrics + curation (recommended/rejected + reasons) + a **readiness score** persisted to
+   `IdentityDataset` (becomes part of the Identity).
+4. **Evaluation** — `IdentityEvaluator` with ALL metric slots reserved
+   (face/tattoos/hair/accessories/pose/expression/lighting/composition/overall), null today.
+5. **Schema (additive `add_identity_engine`):** `IdentityDataset`, `IdentityTrainedModel`
+   (`@@unique(identityId, engine, version)` — append-only, never overwrite), `IdentityTrainingJob`,
+   `IdentityEvaluation`, `IdentityArtifact`, enum `TrainedModelStatus`.
+6. **Generation** swaps its inline exposure→package→anchor block for `planConditioning`; the reference
+   logic moved verbatim into the Reference Engine. Output is **byte-for-byte identical** (parity-checked
+   in `verify-identity-engine.ts`). Read-only **Dataset** + **Models** UI tabs; no training buttons.
+
+Reason
+The next several milestones (LoRA, PuLID, InstantID, evaluation, direct providers) are all identity
+techniques. Building the pluggable subsystem first means each plugs in behind stable interfaces without
+reworking Generation. Architecture-first (approved) de-risks the expensive work.
+
+Alternatives
+Add LoRA directly into generation (rejected — hardcodes one technique, the anti-pattern the user
+called out); a single polymorphic asset table (rejected — trained models are versioned + relational;
+`IdentityArtifact` covers only genuinely generic artifacts); compute dataset readiness on-read
+(rejected — "the score becomes part of the Identity", so persist it); implement LoRA training now
+(rejected — architecture first, per the approved plan).
+
+Status
+Accepted — implemented (foundation). `tsc` + `build` + `verify-identity-engine.ts` (parity + registry +
+dataset + capabilities) pass; migration `add_identity_engine` applied. Architecture only — no
+LoRA/PuLID/ML. Committed `0c74ace` on `feat/identity-engine-m22`. Addendum: `getCapabilities(ctx,{model})`.
+
+# Decision 056
+
+Date
+2026-07-19
+
+Decision
+**Fal Training Infrastructure (Milestone 23) — teach the engine HOW to train, not how to evaluate.**
+Focused, provider-agnostic training foundation on top of M22's stubs; NO real training (M24), evaluation
+(M25), or retries (M26).
+
+1. **Training Registry** (`identity-engine/training/registry.ts`) — the THIRD registry, symmetric with
+   the Model Registry + Identity Module Registry. Provider trainers: `FalTrainer` enabled;
+   `Replicate/OpenAI/Google/Future` registered but disabled (shared `stubTrainer`, all `NOT_IMPLEMENTED`).
+   `Trainer` gained `label/enabled/priority`. Renamed the M22 technique-named `loraTrainer` → provider
+   `falTrainer` (technique is `TrainingOptions.engine`). `trainerFor(engine, provider?)` selects;
+   `TrainingEngine` seeds from enabled trainers.
+2. **`getCapabilities` → nested `{ conditioning, training }`.** `training = { available, providers,
+   recommendedProvider }` derived from the registry — a new training provider needs no UI change.
+3. **`TrainingState`** (`training/state.ts`, pure `deriveTrainingState`) — user lifecycle `NOT_READY →
+   READY_TO_TRAIN → TRAINING → TRAINED → OUTDATED → ARCHIVED`, DISTINCT from provider job statuses
+   (QUEUED/RUNNING/FAILED on `IdentityTrainingJob`) and the `TrainedModelStatus` artifact enum.
+4. **Schema:** `IdentityTrainedModel.datasetVersion` (migration `add_trained_model_dataset_version`) so
+   OUTDATED is computable. Lifecycle persistence seams in `identity/training.ts` (nextModelVersion /
+   create/transition job / persist model), ready for M24.
+5. **UI:** Models tab shows the `TrainingState` badge + training providers; no working Train button.
+
+Reason
+Building the registry + capability surface + lifecycle NOW (symmetric with the other two registries)
+means M24 only implements `FalTrainer.startTraining` — the whole stack lights up with no rework. Keeping
+evaluation/retries out prevents M23 from becoming "half of LoRA".
+
+Alternatives
+Technique-named trainers in the registry (rejected — the user's registry lists PROVIDERS; technique is an
+option); persist `TrainingState` as a column (rejected — it's derived from readiness + model + jobs, so
+compute it); implement Fal training now (rejected — that's M24); a persistence port abstraction (rejected
+— prisma-direct matches `identity/dataset.ts`; consistency over premature indirection).
+
+Status
+Accepted — implemented (infrastructure only). `tsc` + `npm run build` pass; `verify-training-infrastructure.ts`
+(21 — registry + capabilities + all six lifecycle states) + `verify-identity-engine.ts` (31, nested caps) +
+`verify-selection.ts` (no regression) green; migration applied to Neon. `FalTrainer.startTraining` still
+throws (M24 implements). Next = M24 LoRA Trainer.
+
+# Decision 057
+
+Date
+2026-07-19
+
+Decision
+**LoRA Trainer — first real training, end-to-end (Milestone 24).** The payoff milestone: a READY
+identity trains a LoRA on Fal and immediately generates with `reference+lora`, no manual config. Tight
+scope (one success criterion); evaluation/retries/multi-LoRA explicitly deferred.
+
+1. **FalTrainer** (`training/trainers/fal-trainer.ts`) — real Fal **queue** client for
+   `fal-ai/flux-lora-portrait-trainer` (submit → `/status` → result). fetch-based, `FAL_KEY`, no SDK
+   (mirrors `ai/providers/fal.ts`). `Trainer.startTraining(opts)` (dropped the unused dataset param).
+2. **Dataset packaging** (`identity/training.ts` `packageDataset`): the CURATED `recommendedImageIds`
+   (NOT every image) → signed originals → **`fflate`** ZIP → Blob upload → signed URL as `images_data_url`.
+3. **Orchestration** `startIdentityTraining` / `pollIdentityTraining` — **client-driven polling** (Fal
+   webhooks can't reach localhost). Persists a versioned `IdentityTrainedModel` with **full provenance
+   JSON** in `params` (provider, trainer, baseModel, datasetVersion, imageCount, trainingParameters,
+   providerMetadata incl. config file) so runs are comparable + reproducible.
+4. **LoRA module enabled** (`engines/lora/lora-engine.ts`) — availability gates on a READY model with
+   weights; `contribute` returns weights URL + trigger phrase. `getCapabilities.conditioning.lora` +
+   `recommendedStrategy:"reference+lora"` light up automatically.
+5. **Generation consumes it:** new registry model **`fal-ai/flux-kontext-lora`** (`lora` capability,
+   `maxReferences:1`, payloadKind `image_url_lora`). `ImageGenerationRequest.loras`; `fal.ts` sends
+   `{image_url, loras}`. When `plan.loraWeightsUrl` present, model routing needs `lora` → picks it, and
+   the **trigger phrase is prepended** to the prompt (LoRA activation).
+6. **UI:** functional **Train** button (READY_TO_TRAIN/OUTDATED) + progress (Queued/Training…) on the
+   Models tab.
+
+**Honest trade:** `flux-kontext-lora` takes ONE reference, so `reference+lora` = Identity Anchor (1) +
+LoRA (down from 4 refs) — the LoRA now carries identity, and it's the only Fal endpoint doing reference +
+LoRA together.
+
+Reason
+This is the first milestone the user sees a benefit. The M22/M23 seams (registry, capabilities, lifecycle,
+persistence) meant M24 is "fill in FalTrainer + package the dataset + one inference model" — the whole
+stack lit up with no rework. Keeping evaluation/retries out kept it shippable.
+
+Alternatives
+`fal-ai/flux-lora` t2i inference (rejected — no reference; the strategy is *reference*+lora); mirror LoRA
+weights to our Blob (deferred — Fal URLs are durable; store the Fal url as `artifactRef` for now);
+background worker for training (rejected — no worker infra + webhooks can't reach localhost; client
+polling is pragmatic); upload dataset to Fal storage (rejected — Blob signed URL reuses existing infra).
+
+Status
+Accepted — implemented. `tsc` + `npm run build` pass; `verify-training-infrastructure.ts` (28 — incl. LoRA
+routing to `flux-kontext-lora`) + `verify-identity-engine.ts` (31) + `verify-selection.ts` green. **Real
+training is async + paid — the live end-to-end run (train → progress → LoRA v1 → generate `reference+lora`)
+is user-driven** (needs `FAL_KEY`). Then the 4-way benchmark (baseline for M25). Next = M25 Identity Evaluation.
+
+# Decision 058
+
+Date
+2026-07-21
+
+Decision
+**Identity adapter research (Milestone 24.5).** After LoRA benchmarking (great tattoos/body/hair, weak
+FACE), researched the identity-preservation ecosystem instead of assuming PuLID. Findings + recommendation
+captured in **`docs/IDENTITY_TECHNOLOGIES.md`** (a living reference):
+
+1. **Face adapters are face-only** (PuLID/InfiniteYou/InstantID inject a face embedding; no tattoo/body
+   preservation). LoRA remains best for tattoos/body/hair → **keep LoRA**, add a face technique alongside.
+2. **Hosted single-call APIs can't stack LoRA + a face adapter** (PuLID takes a face image, not a `loras`
+   array). Stacking needs ComfyUI (ruled out). So they are **alternative** strategies chosen per request.
+3. **PuLID** = best FLUX face adapter **on Fal** (`fal-ai/flux-pulid`; output shape our `fal.ts` already
+   handles). **InfiniteYou** (ByteDance, ICCV'25) **beats PuLID** but is **Replicate-only**. DreamO's Fal
+   endpoint is deprecated; InstantID is SDXL; WithAnyone has no hosted API yet.
+
+Recommendation: add **PuLID (Fal)** as the first face-identity module now (validates the pluggable engine
+with a real 2nd technique, hosted, drop-in) + a reusable identity **benchmark**; adopt **InfiniteYou via a
+new Replicate provider** next if PuLID's face is insufficient. Keep the architecture unchanged — plug in
+via the Identity Module Registry, like Reference/LoRA.
+
+Reason
+The milestone's goal is a technology-agnostic identity platform, not a bet on PuLID. Research first keeps
+us honest: LoRA + a face adapter cover different halves, and the "best" depends on hosting (PuLID on Fal,
+InfiniteYou on Replicate). Documenting it once means future adapters are a table update, not new research.
+
+Status
+Research complete; `IDENTITY_TECHNOLOGIES.md` shipped. **Implementation path pending user pick** (PuLID-Fal
+now vs InfiniteYou-Replicate vs benchmark-first). No code/architecture change yet.
+
+# Decision 059
+
+Date
+2026-07-21
+
+Decision
+**PuLID face-identity module (Milestone 24.5 impl).** User chose PuLID-on-Fal. Added as the first
+non-LoRA identity technique via the Identity Module Registry — **no architecture change**.
+
+1. **PuLID module** (`engines/pulid/pulid-engine.ts`, enabled) — a `faceId` **adapter**; ZERO-SHOT
+   (`fal-ai/flux-pulid`: one face image + prompt, no training/embedding). `availability` = the identity
+   is analyzed; `contribute` picks the strongest frontal face via the existing `pickIdentityAnchor` +
+   exposure filter → `reference_image_url` + `id_weight`.
+2. **Pick-ONE-primary composition** (`engine.ts`) — PuLID and LoRA are **mutually exclusive** in a hosted
+   call (PuLID is face→image, takes no scene refs / no `loras`). The engine now selects a **single**
+   primary technique on top of the Reference baseline (was: layer all). Strategy stays
+   `reference` / `reference+lora` / `reference+pulid` (exactly one).
+3. **PuLID is OPT-IN** (`IdentityModule.autoSelect`) — LoRA is a strict upgrade (`autoSelect:true`, used
+   by Auto); PuLID is a **trade-off** (face-only, drops tattoos/scene) so `autoSelect:false` — chosen
+   only when explicitly requested. **Auto default is unchanged**; PuLID doesn't hijack every generation.
+4. **Routing** — new `ProviderCapability` `faceId`, registry `fal-ai/flux-pulid` (`payloadKind:"pulid"`,
+   `autoOnly:true`), `fal.ts` `pulid` body `{prompt, reference_image_url, id_weight}` (output shape
+   already handled). When the plan's primary is PuLID, generation sends only the face + `idWeight`, no
+   trigger word, no scene refs.
+5. **Benchmark** — dev **strategy selector** on Generate (`Auto·Reference·Reference+LoRA·PuLID`) via
+   `GenerateImageInput.strategyOverride` → `ConditioningRequest.preferEngine`. Same prompt across
+   techniques; Debug shows the strategy + model. (Automatic scoring = M25.)
+
+Reason
+PuLID is the only strong FLUX face adapter hosted on our existing Fal provider — a clean drop-in that
+proves the engine routes a real second technique. Keeping it opt-in avoids regressing the (better)
+tattoo/body/scene results LoRA+reference give. Combining face + tattoos in one hosted call isn't possible
+today (needs ComfyUI/FLUX.2) — documented for later.
+
+Alternatives
+Make PuLID the auto default (rejected — face-only would regress tattoos/scene for everyone); layer
+LoRA+PuLID (rejected — not possible in a single hosted call); InfiniteYou first (deferred — better but
+Replicate-only = a new provider; revisit if PuLID's face is insufficient).
+
+Status
+Accepted — implemented. `tsc` + `npm run build` pass; `verify-identity-engine.ts` (44 — incl. pick-one +
+opt-in PuLID) + `verify-training-infrastructure.ts` (30 — incl. faceId routing) + `verify-selection.ts`
+green. **Live A/B is user-run** (needs FAL_KEY balance): Generate → strategy selector → Reference vs
+Reference+LoRA vs PuLID on the same prompt. Next = InfiniteYou (Replicate) / M25 evaluation.
+
+# Decision 060
+
+Date
+2026-07-31
+
+Decision
+**Transform-first pivot (Character Transformation Architecture).** Reframe the layer *above* the Identity
+Engine from *"generate a character"* to *"transform a known character into a new context."* The models we
+use are editors, not generators; the architecture should match. Full design in
+**`docs/CHARACTER_TRANSFORMATION.md`** (the load-bearing doc). Nothing below the reframe is discarded — the
+Identity Engine, Vision layer, Selection engine, and Model Registry are all kept and reused.
+
+1. **New pipeline** — user → Character Engine → **Source Image Selector** (transformation-aware) →
+   **Transformation Planner** (preserve-vs-change) → Edit Provider → **Identity Evaluation** → **Character
+   Library** (promote good outputs back as reusable, tagged sources).
+2. **The core asset becomes the character's image library**, not a model checkpoint. Every generated image
+   that measurably preserved identity becomes another usable source — a compounding advantage.
+3. **LoRA/PuLID/InstantID become optional tools, not the center.** The planner may reach for them; the
+   system is no longer organized around them.
+4. **Resequenced M25–M28** (supersedes Evaluation→Retry→PuLID→InstantID): **M25 Transformation Planner**
+   (cheap, no schema, immediate consistency win) → **M26 Identity Evaluation** (the keystone) → **M27
+   Adaptive Provider Routing** (driven by *measured* eval data) → **M28 Character Library + Auto-Promote**
+   (highest risk, last).
+
+Reason
+Every identity experiment taught the same lesson — the providers transform an existing person rather than
+synthesize one. Organizing the top of the stack around that (a) matches reality, (b) turns each successful
+edit into a durable asset, and (c) is mostly a reframe + gap-fill (~70% already exists: selection, model
+registry, reserved evaluator) rather than a rewrite. It makes AI Studio a professional creative tool whose
+moat is the character library, not the current best model.
+
+Two structural corrections to the original proposal, baked into the design:
+- **Evaluation is the keystone, sequenced 2nd not 4th** — provider routing and auto-promote both depend on
+  trustworthy scores; asserting "best-at" without measurement is vibes.
+- **Auto-promote must not photocopy a photocopy** — generated images are lossy/drifted. Guardrail:
+  originals are sacred (never evicted as the identity source); generated images are *convenience* sources
+  tagged `generated`; promote only when an output beats the originals on identity axes (face+tattoos) with
+  a margin; track source-chain provenance and force a reset to an original when a chain gets too deep.
+  Without this, the loop drifts *with confidence* — worse than no loop.
+
+Alternatives
+Continue chasing another identity model (InfiniteYou/InstantID) — rejected as the *center*; they remain
+optional tools. Rename the `Identity` Prisma model → `Character` — deferred (high churn, zero functional
+gain); "Character" is a UI relabel, `Identity` stays the internal model name. Keep the original M25–M28
+order — rejected (dependency inversion: routing + promote need eval first).
+
+Status
+Design accepted; no code yet (design-first, user's call). `docs/CHARACTER_TRANSFORMATION.md` shipped;
+ROADMAP updated. Implementation starts at **M24.8 — Edit Provider Expansion** (see Decision 061).
+
+# Decision 061
+
+Date
+2026-07-31
+
+Decision
+**Front-load provider breadth + a permanent benchmark harness before the Transformation Planner
+(Milestone 24.8).** Insert M24.8 ahead of M25 so the planner is designed with the best editors already
+available to route to. Add **Qwen Image Edit** and **Wan** (Nano Banana Pro is already registered +
+enabled); each *same-shape* model (`{prompt, image_urls}`) is a single `MODEL_REGISTRY` line via the
+existing payload-kind abstraction — confirm each model's request shape first (a different shape = a small
+new `payloadKind` in `fal.ts`). Build a **permanent, model-pluggable benchmark harness** that persists
+source/prompt/**output** grids (same source + prompt → Kontext · GPT · Nano Banana · Qwen · Wan · … side by
+side); every future model plugs into the same harness. Also insert **M25.5 — Character Image Ranking**
+(heuristic/manual only). New order: **M24.8 → M25 → M25.5 → M26 → M27 → M28**.
+
+Reason
+Adding a same-shape editor is nearly free (the registry/payload-kind design already proved this — Nano
+Banana, Seedream, GPT Image, Gemini are all one-line entries), and having real models in hand de-risks the
+planner + provider-routing design instead of building it around whatever was integrated first. The
+benchmark, run on our *actual* use case (identity/tattoo/body-preserving transformation), compounds into an
+internal eval suite most teams lack.
+
+Two corrections folded in (both avoid dependency inversions):
+- **A benchmark is only an "eval suite" once auto-scored.** M24.8 ships the *harness* (persisted grid),
+  human-judged until **M26** attaches scores to the *same stored cells*. A manual side-by-side page alone
+  doesn't accumulate.
+- **You can't rank by quality without the evaluator.** M25.5 ranking is heuristic/manual (stars +
+  resolution/recency/face-detected); *quality* ranking arrives with M26.
+
+Alternatives
+Go straight to M25 (rejected — planner + M27 routing are better designed against real models; provider
+adds are cheap so the delay is small). Treat the benchmark as a throwaway page (rejected — persisting the
+grid is what lets M26 auto-score it retroactively). Put ranking before eval (rejected — no score to rank
+on).
+
+Status
+Accepted — design only, no code. `CHARACTER_TRANSFORMATION.md` §8 + ROADMAP updated. **Cost:** benchmark
+runs are real Fal spend, user-driven. Implementation starts at M24.8 (add Qwen/Wan + harness).
+
+# Decision 062
+
+Date
+2026-07-31
+
+Decision
+**Expand M25 into "Transformation Intelligence" (a sub-sequence).** After a live M24.8 benchmark run
+showed the edit models **cluster** — all usable, none perfect (only Qwen erred, on its endpoint) — the
+differentiator is confirmed to be the **orchestration layer**, not model choice. M25 becomes the layer that
+decides *everything before the model is called*. New sequence (full design in
+`CHARACTER_TRANSFORMATION.md` §11):
+
+- **M25.1 Transformation Planner** — preserve-vs-change instruction (+ negative prompt). Cheap, no schema.
+- **M25.2 Reference Intelligence** ⭐ — **typed Character References** (`FacePortrait`/`FaceSmile`/
+  `FullBodyFront`/`FullBodyBack`/`{Left,Right}ArmTattoo`/`ChestTattoo`/`LegTattoo`/`Hair`/`Eyes`;
+  `BestTransform` forward-refs M28) **derived** from persisted Vision knowledge, + best-image-per-type
+  selection. Evolves `src/lib/selection/` + im-2 metadata (~60% already exists).
+- **M25.3 Model Intelligence** — auto-pick model by transformation type. HEURISTIC now → data-driven at M26.
+- **M25.4 Retry Strategy** — targeted retry with the specific fixing reference. MANUAL now → automatic
+  drift-detection at M26.
+- **M25.5 Character Ranking** — heuristic/manual (unchanged) → quality-ranking at M26.
+- **M26 Identity Evaluation** — keystone; makes 25.3/25.4/25.5 automatic + data-driven; auto-scores the
+  M24.8 grid. The old standalone **M27 Adaptive Routing is absorbed** (heuristic = M25.3, data-driven = M26).
+
+Reason
+The benchmark is evidence: image models will keep improving and converging, so betting on "the best model"
+is a treadmill. A pipeline that knows *which typed references to send, what to preserve vs change, and which
+model fits the transformation* compounds with every model added — the OpenArt-style moat. Typed references
+are the highest-leverage new primitive and are mostly derivable from metadata we already persist, so this is
+an evolution of the selection engine, not a rebuild.
+
+Alternatives
+Keep M25 as a single "prompt rewrite" step (rejected — under-scopes the biggest current opportunity). Chase
+a better identity model (rejected — the benchmark shows diminishing returns vs orchestration). Put Model
+Intelligence (25.3) / Retry (25.4) before Evaluation as *automatic* features (rejected — dependency
+inversion: both need scores; they ship heuristic/manual and become data-driven at M26).
+
+Status
+Accepted — design only, no code. `CHARACTER_TRANSFORMATION.md` §11 + §8 table + ROADMAP updated. **▶ Next =
+M25.1 Transformation Planner.** Follow-up: investigate the live Qwen failure (likely endpoint tier/param —
+`-2509` image_urls vs `fal-ai/qwen-image-edit` single `image_url`); Wan succeeded live (endpoint guess held).
+
+# Decision 063
+
+Date
+2026-07-31
+
+Decision
+**The Identity Package — Reference Intelligence as the project's long-term abstraction (Milestone 25.2).**
+Full design in **`docs/REFERENCE_INTELLIGENCE.md`**. Replace the flat, unlabeled `image_urls[]` reference
+channel with a first-class, provider-agnostic **Identity Package** of typed anchors, each with a reason.
+The intelligence largely exists (`selection/` already tags picks with role + reason) but is destroyed at the
+provider boundary; we promote + unify it. Layers: pluggable **RoleScorer** → **buildCharacterPackage**
+(stable default anchors) → **resolvePackage** (per-request, transformation-driven) → **renderPackageForModel**
+(the only provider-aware step).
+
+Seven refinements agreed with the user, baked into the design:
+1. **Face Anchor is a pipeline invariant** — always `anchors[0]`, never dropped by a model cap; no confident
+   face → fall back to Hero → else **refuse** (`NO_IDENTITY_ANCHOR`), never a silent weak reference.
+2. **"Style Anchor" → "Canonical Anchor"** (highest-quality image that best represents the character).
+3. **Persistence-ready** — `CharacterPackage` (default anchors) is shaped to become a persisted table behind
+   `getCharacterPackage()` (mirrors `IdentityDataset`), no caller refactor. Not built in M25.2.
+4. **Transformation-driven roles** — `resolvePackage` consumes M25.1 preserve/change; changing hair → no Hair
+   Anchor slot; tattoos not preserved/visible → no Tattoo Anchor. Not "best of everything".
+5. **Providers fully separate** — the package is internal truth; only `renderPackageForModel` knows a
+   provider's shape (`image_urls` today; `named` face_reference/controlnet/ip_adapter/mask future). The
+   planner never names a provider.
+6. **Coverage > uniqueness** — one image may fill multiple roles (merge-by-image, frees slots); pick a
+   distinct image for a role only when it is meaningfully better.
+7. **M26-ready** — role fitness is a swappable `RoleScorer`; today `heuristicRoleScorer` (im-2), tomorrow
+   `evaluatorRoleScorer` (InsightFace similarity) fills `ReferenceProfile.signals`. Same interface.
+
+Prompt de-duplication (channel arbitration): each identity fact appears once, on its best channel — the
+appearance paragraph becomes gap-filling for facets NOT covered by a reference anchor.
+
+Reason
+The benchmark showed the models cluster; the differentiator is orchestration. A semantic, provider-agnostic
+Identity Package — with a sacred Face Anchor and evaluator-ready scoring — is the abstraction that compounds
+as better identity models arrive (they just render more of the package). It also removes the prompt
+duplication M25.1 exposed. Designed NOT to optimize around today's `image_urls`-only providers.
+
+Alternatives
+Keep improving prompt engineering (rejected — the reference channel is the bottleneck now). Discrete
+per-image type labels (rejected — continuous role fitness is more flexible; one image can be a good face AND
+body). Force reference diversity (rejected — coverage > uniqueness, refinement 6). Big-bang swap (rejected —
+load-bearing; phased with a zero-risk shadow mode).
+
+Status
+Accepted — design only. `REFERENCE_INTELLIGENCE.md` shipped; ROADMAP updated. **▶ Building Phase A (shadow
+mode): types + RoleScorer + package builder computed alongside the current selector, surfaced in Debug only,
+zero behavior change, + `verify-reference-package.ts`.** Phases B (switch image channel) / C (channel
+arbitration) / D (persistence + roled providers) follow, each A/B'd on the M24.8 benchmark.
+
+# Decision 064
+
+Date
+2026-08-02
+
+Decision
+**Identity Package drives generation + the Face-Anchor invariant becomes an identity-confidence policy
+(Milestone 25.2 Phase B).** The role-based Identity Package (Decision 063) now DRIVES the references sent, not
+just Debug. The Reference Engine (`identity-engine/engines/reference/reference-engine.ts` `selectReferences`)
+builds → resolves → renders the package and returns provider-neutral `referenceImages` + `identityAnchor`
+(face carried in the anchor slot; the Fal adapter's proven `[anchor, ...scene]` merge/cap stays the renderer,
+so providers stay pure). Needed anchor roles are transformation-driven — `planTransformation` (M25.1) now runs
+*before* `planConditioning` and its preserve/change flow in via `ConditioningRequest.transformation`
+(changing hair → no Hair Anchor, etc.); absent → keep every available role (coverage).
+
+**Face-Anchor invariant, refined by the user into an identity-confidence policy:** every Face Anchor must have
+a confidence score ≥ `FACE_ANCHOR_MIN_SCORE` (0.40, `selection/anchor.ts`, the single tunable knob).
+Resolution order: (1) strongest analyzed face ≥ threshold → (2) if none, analyze the Hero (`displayImageId`)
+on demand and cache it in `MediaVisionKnowledge` so it's scored by the SAME system (no Hero special-case,
+`ensureConfidentFace` in `generation/server.ts`) → (3) still none → refuse. `resolvePackage` reports
+`faceAnchorSource: "face" | "none"`; `runImageGeneration` throws the new `ProviderError("NO_IDENTITY_ANCHOR")`
+before hitting the provider — "I'd rather fail than silently generate a different person." Surfaced via the
+existing `toFriendlyError` path (like `CONTENT_MODERATED`).
+
+Scope: reference / Kontext edit path only. LoRA (`reference+lora`), PuLID (`faceId`), the manual dev picker,
+and the no-analyzed-candidates fallback are byte-for-byte unchanged (they set no `identityPackage`, so the
+refusal never fires on them). `renderPackageForModel`'s `named` schema stays the seam for future
+face_reference/controlnet/mask slots (Phase D). Byte-parity verified on the face-only case (single ref ===
+`pickIdentityAnchor`).
+
+Verification: tsc + `next build` green; `verify-reference-package` 22/22 (adds confidence-policy + byte-parity),
+`verify-identity-engine` 46/46 (parity block rewritten to assert package-driven refs), `verify-selection` /
+`verify-transform` / `verify-training-infrastructure` / `verify-model-routing` unchanged-green.
+
+Alternatives
+Switch inside `runImageGeneration` instead of the Reference Engine (rejected — the Identity Engine must own
+"how identity is conditioned"; server stays dumb). Trust the Hero unverified (rejected by the user — no silent
+fallbacks). Route LoRA/PuLID through the package now (deferred — lowest-risk scope first).
+
+Status
+Accepted — SHIPPED on `feat/lora-trainer-m24`. **▶ NEXT = Phase C (channel arbitration / prompt de-dup in
+`compile.ts` + transform: stop describing facets a reference already carries), then Phase D (persist the
+package + roled providers).** LIVE A/B on the M24.8 benchmark is user-driven (needs FAL_KEY).
+
+# Decision 065
+
+Date
+2026-08-02
+
+Decision
+**Channel arbitration + the information-budget principle (Milestone 25.2 Phase C).** Every identity fact
+should exist ONCE, in its STRONGEST representation. Priority: **transformation instruction (if changing) >
+reference image (if preserving) > appearance text (fallback only).** Before Phase C the synthesized appearance
+paragraph (`synthesizeIdentityAppearance` — hair/piercings/tattoo-layout) was baked into every prompt even
+when a reference carried the facet (redundant, and it fought the image) or the transformation was changing it
+(the old value contradicted the new intent, e.g. "pink long hair" vs "change to a blonde bob").
+
+One arbitration rule, no special cases — for each appearance facet: **IF the transformation changes it → drop
+from the text; ELSE IF a selected reference carries it → drop from the text; ELSE keep.** Implementation:
+`synthesizeIdentityAppearance(metadatas, { omitFacets })` (`vision/synthesize.ts`) skips the hair / piercings /
+tattoo clause groups; `facetsChangedBy(change)` (`transform/planner.ts`) maps the change list to
+`IdentityFacet`s (hair/tattoos/piercings); `runImageGeneration` computes `omitFacets = facetsChangedBy(change)
+∪ plan.identityPackage.facetsCovered` and splices the filtered appearance into the compiled prompt via
+`applyChannelArbitration` (pure string swap of the exact baked appearance substring — prompt ORDER preserved,
+no Creative Director restructure). Transformation instructions are untouched — only the descriptive layout
+leaves the appearance text (e.g. "remove shirt so both sleeves are visible" stays; "full blackout sleeve…"
+goes, because the Tattoo Anchor carries it). Debug adds "4.7 · Channel Arbitration" (`GenerationDebug.
+channelArbitration`).
+
+**Byte-parity:** the prompt only changes when `omitFacets` is non-empty (identity edit path with analyzed
+knowledge + a resolved package); `synthesizeIdentityAppearance` with no options is unchanged, so `compile.ts`
+and every no-identity / text-to-image / no-analyzed-candidates / manual path is byte-for-byte identical.
+
+Verification: tsc + `next build` green; `verify-selection` (adds omit-tattoos/omit-hair/byte-parity/omit-all →
+null), `verify-transform` 22/22 (adds `facetsChangedBy`), `verify-reference-package` 22/22 + `verify-identity-
+engine` 46/46 unchanged-green.
+
+Alternatives
+Cut appearance from `compile.ts` and re-compose it as a final layer (rejected — changes prompt order → breaks
+byte-parity on every identity gen, forces a full re-benchmark). Only drop reference-covered facets, not changed
+ones (rejected by the user — the old-vs-new conflict is the worse failure). Binary keep/drop without the
+priority ordering (rejected — the information-budget framing generalizes to face/body/future channels).
+
+Status
+Accepted — SHIPPED on `feat/lora-trainer-m24`. **▶ NEXT = Phase D** (persist the character package behind
+`getCharacterPackage` + an `IdentityPackage` table; `named` `ReferenceSchema` + renderer mapping when a roled
+provider — face_reference/controlnet/mask — lands). LIVE A/B on the M24.8 benchmark is user-driven (FAL_KEY).
+
+# Decision 066
+
+Date
+2026-08-02
+
+Decision
+**Persist the Character's default Identity Package (Milestone 25.2 Phase D) — the Character OWNS it.** New
+Prisma model `IdentityPackage` (1:1 `Identity`, cascade, mirrors `IdentityDataset`): `anchors` JSON
+(`StoredAnchor[]` = best-per-role, **mediaId only — never signed URLs, which expire**), `scorerId`,
+`imageCount`, `analyzedCount`, `version` ("ip-1"), `computedAt`. `refreshCharacterPackage`
+(`identity/package.ts`) rebuilds it from persisted knowledge on "Analyze library" (alongside
+`refreshIdentityDataset`); `getCharacterPackage` reads it back, **re-signing URLs at read time**
+(`hydrateAnchors`) and dropping anchors whose media was deleted.
+
+Generation (per the user's "every generation starts from this package") consumes it: `loadIdentityInputs`
+loads it → `ConditioningRequest.characterPackage` → the Reference Engine resolves FROM it. **Live-rebuild
+fallback (no regression):** if there's no persisted package, or the resolved package can't satisfy the
+request's exposure ceiling / Face-Anchor invariant (`faceAnchorSource === "none"`), the engine rebuilds from
+live exposure-safe candidates — so identities not yet re-analyzed are byte-identical to Phase B/C, and the
+`reason` records "persisted default" vs "rebuilt".
+
+**Exposure moved into `resolvePackage` (the correctness fork):** anchors now carry `exposure` (set by
+`buildCharacterPackage` from the role profile), and `resolvePackage` drops anchors whose exposure exceeds the
+prompt's ceiling. This lets a persisted default built from the WHOLE library stay safe per-request — a
+nude/lingerie anchor is never sent for a clothed prompt (it's dropped → face invariant → live rebuild picks a
+clothed face). Read-only "Identity Package" panel added to the identity Dataset tab (`getIdentityEngineOverview`
+gains `characterPackage`). **Roled providers deferred:** `renderPackageForModel`'s `named` schema
+(face_reference/controlnet/mask) stays architecture-only — no hosted provider accepts roled inputs yet.
+
+Requires the additive Neon migration `add_identity_package` (`prisma migrate deploy` — a user step; no DB
+access in-session). Verification: `prisma generate` + tsc + `next build` green; `verify-reference-package`
+30/30 (adds anchor.exposure tagging, exposure-drop-at-resolve, serialize↔hydrate round-trip, deleted-media
+drop); verify-selection / verify-transform / verify-identity-engine 46/46 / verify-training-infrastructure /
+verify-model-routing unchanged-green.
+
+Alternatives
+Persist as cache/UI-only, keep rebuilding per request (rejected by the user — the Character should own the
+package and generation should start from it). Store multiple candidates per role for exposure (rejected —
+single-best + the live-rebuild fallback is simpler and already correct). Store signed URLs (rejected — they
+expire; store mediaId and re-sign).
+
+Status
+Accepted — SHIPPED on `feat/lora-trainer-m24` (pending the Neon migration). **Milestone 25.2 (Reference
+Intelligence, Phases A–D) COMPLETE. ▶ NEXT = M26 Identity Evaluation** — the keystone: an `evaluatorRoleScorer`
+(InsightFace face + region tattoo/body similarity) fills `ReferenceProfile.signals`, making role fitness +
+routing + auto-promote data-driven. LIVE A/B on the M24.8 benchmark is user-driven (FAL_KEY).
+
+# Decision 067
+
+Date
+2026-08-02
+
+Decision
+**Identity Evaluation Engine — Phase 1: face drift + backbone (Milestone 26, the keystone).** AI Studio now
+MEASURES how well a generation preserved the character, so M27 routing + M28 auto-promote can consume measured
+scores. Architecture (mirrors `ai/` + `vision/`): a **provider-neutral `EmbeddingProvider`**
+(`identity-engine/evaluation/providers/`) — first concrete backend `replicate-arcface` (fetch predictions
+create+poll, env `REPLICATE_API_TOKEN` + `REPLICATE_FACE_EMBED_MODEL`, exact model verified at first live run) —
+behind a router, so the engine consumes only `FaceEmbedding { vector, dim, version }` + cosine and never names a
+backend. **Cached, versioned embeddings** in Neon (`MediaEmbedding`, `@@unique(mediaId, kind, version)`, JSON
+float[]): computed ONCE, reused across every generation + benchmark; a provider/model change bumps `version` →
+cache miss → recompute, and scores from different models never mix. An **Identity Evaluation ENGINE** (pluggable
+`Evaluator` modules; `face` enabled, `tattoo`/`body`/`hair`/`pose` registered-disabled) → `evaluateGeneration`
+composes results → persists `IdentityEvaluation` (`face` + `overallIdentityScore` + `method` = provider
+version). Non-blocking triggers: Generate shows a face-match % after the image renders; the benchmark auto-scores
+each cell (`👤 identity NN%`).
+
+User's locked direction: hosted now (not a microservice — that's for very high volume); provider details never
+leak past the router; cache aggressively + versioned; design as an Identity Evaluation Engine (face is module
+one), not a Face Evaluator.
+
+**Scope decision:** store embeddings as JSON `float[]` (cosine in JS over the small per-identity set) — **no
+pgvector** yet (defer to when clustering/ANN needs it). Reference faces are the identity's top-5 anchor faces
+(reuses `rankIdentityAnchors`); face score = mean of the top-3 reference matches. Degrades cleanly: no identity /
+no key / no face → a reserved-metrics row with an explanatory `method`, never a user-facing throw.
+
+Requires the additive Neon migration `add_media_embedding` (`prisma migrate deploy` — a user step). Verification:
+prisma generate + tsc + `next build` green; `verify-evaluation.ts` 18/18 (cosine, face evaluator preserved-vs-
+drifted + no-face, engine composition, disabled dims null, version-as-cache-key); all prior verifiers
+unchanged-green. Live face scoring is user-driven (token + per-call cost).
+
+Alternatives
+Python microservice / ONNX-in-Node (rejected now — hosted matches the architecture + dev speed; revisit at
+scale). pgvector + full library embeddings up front (rejected — JSON + cosine is enough for per-identity drift;
+add pgvector when ANN is needed). Blocking inline evaluation (rejected — client-driven keeps generation fast).
+
+Status
+Accepted — SHIPPED on `feat/lora-trainer-m24` (pending the Neon migration + provider key). **▶ NEXT = M26
+Phase 2** (`evaluatorRoleScorer` fills `ReferenceProfile.signals` → data-driven reference ranking/selection) →
+**M27 Adaptive Routing** (route by MEASURED identity preservation). See docs/IDENTITY_EVALUATION.md.
+
+# Decision 068
+
+Date
+2026-08-02
+
+Decision
+**M26 Phase 2 — wire ONE real face provider (AuraFace), scope-locked.** The evaluation pipeline now returns a
+live face-similarity score. First concrete `FaceSimilarityProvider` = `providers/auraface.ts` (embed path),
+which knows ONLY the interface + a generic HTTP contract (POST `{image}` → `{embedding: number[] | null}`) —
+**deliberately NOT Hugging Face-specific**: the endpoint is host-neutral env config
+(`FACE_EMBED_ENDPOINT_URL`/`FACE_EMBED_API_KEY`/`FACE_EMBED_VERSION`), so moving AuraFace to Fal/Replicate/AWS/
+self-hosted is a one-file-or-env change and nothing else in the system moves. Registered as the single entry in
+the provider registry.
+
+Instrumentation to meet the acceptance criteria (all additive; engine composition, Identity Package, registry
+pattern, DB schema, and the `FaceSimilarityProvider` interface unchanged): `getOrComputeEmbedding` now reports
+cache hit/miss; the engine times the eval, counts cache hits/misses, and catches provider errors → graceful
+`method: "provider-error"` (never throws to the user); `metrics` JSON carries provider/version/evalMs/cache/
+per-anchor sims; a new UI view `getGenerationEvaluationView` + `EvaluationView` flattens the row+metrics; the
+Generate "Identity Evaluation" panel shows **face % · confidence · provider · time · cache hit/miss · per-anchor
+similarity (Face/Canonical)**. Face score compares the generated face against the Identity Package's Face +
+Canonical anchors, embeddings cached (only new generated images cost a call).
+
+Scope explicitly held (user): ONE provider only; no tattoo/body/hair evaluators, no provider benchmark, no
+routing — those are later milestones.
+
+Verification: tsc + `next build` green; `verify-evaluation` 18/18; all prior verifiers unchanged-green. Needs
+the Neon migration `add_media_embedding` + a deployed AuraFace endpoint to produce live numbers (user-driven).
+
+Alternatives
+Bake in Hugging Face specifics (rejected — the endpoint must be swappable; provider knows only the interface).
+Change the engine/interface to carry richer results (rejected — kept `IdentityEvaluation` + engine unchanged;
+added a separate `EvaluationView` for the UI). Block generation on evaluation (rejected — client-driven, non-
+blocking).
+
+Status
+Accepted — SHIPPED on `feat/lora-trainer-m24` (pending the Neon migration + an AuraFace endpoint). **▶ NEXT =
+Evaluation Benchmark (A/B AuraFace vs Rekognition vs Azure) + `evaluatorRoleScorer` (feeds selection) → M27
+Adaptive Routing by measured preservation.** See docs/IDENTITY_EVALUATION.md.

@@ -66,6 +66,9 @@ const checks: [string, boolean][] = [
   ["A expression = smiling", A.expression === "smiling"],
   ["A tattoo visibility > 0", A.tattooVisibility > 0],
   ["B not usable (blurry+occluded)", B.usable === false],
+  // 19C — unknown vs zero: a back view has NO face quality (unavailable), not a bag of zeros.
+  ["B face quality unavailable (face not visible)", labelled[1].metadata.face.quality === null],
+  ["A face quality measured (object present)", labelled[0].metadata.face.quality !== null],
 ];
 console.log("\nChecks:");
 let ok = true;

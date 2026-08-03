@@ -45,6 +45,21 @@ export {
 } from "./capabilities";
 export { type RoutingCriteria, type RoutingDecision } from "./router";
 export {
+  MODEL_REGISTRY,
+  listModels,
+  getModel,
+  modelsForProvider,
+  type ModelSpec,
+  type PayloadKind,
+} from "./model-registry";
+export {
+  chooseModel,
+  type ModelMode,
+  type ModelRoutingCriteria,
+  type ModelRoutingDecision,
+  type ConsideredModel,
+} from "./model-router";
+export {
   ProviderError,
   isProviderError,
   type ImageGenerationRequest,

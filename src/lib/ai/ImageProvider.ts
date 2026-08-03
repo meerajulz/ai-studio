@@ -11,17 +11,40 @@ import type { ProviderCapabilities } from "./capabilities";
 /** A provider-neutral reference image (from an Identity Visual Package). */
 export type ReferenceImage = {
   url: string;
-  role: "hero" | "portrait" | "fullBody" | "reference";
+  role: "anchor" | "hero" | "portrait" | "fullBody" | "reference";
 };
 
 export type ImageGenerationRequest = {
   prompt: string;
   /**
    * Reference images for identity preservation, provider-neutral. Adapters use them ONLY if the
-   * chosen model is capable; otherwise they gracefully ignore them (Milestone 15). The Creative
-   * Director does not produce these — they come from the Identity Visual Package.
+   * chosen model is capable; otherwise they gracefully ignore them (Milestone 15). These describe
+   * the REQUEST (body pose, tattoos, scene) — chosen by the Smart Reference Selector.
    */
   referenceImages?: ReferenceImage[];
+  /**
+   * The **Identity Anchor** — the single strongest frontal-face reference whose only job is to tell
+   * the model WHO this person is (separate architectural concern from the scene selector). A capable
+   * adapter **prepends** it to the reference list immediately before sending (deduped) so identity is
+   * anchored regardless of the scene-driven selection. Non-capable adapters ignore it.
+   */
+  identityAnchor?: ReferenceImage;
+  /** DEV cap on how many references to send (anchor kept first). Undefined = the adapter's max. */
+  maxReferences?: number;
+  /**
+   * The RESOLVED model id to run (Milestone 21 — chosen by the capability model router, or a manual
+   * benchmark pick). The adapter looks it up in the Model Registry for the request-shape (`payloadKind`)
+   * and max references — no per-model branching. When absent, the adapter uses its own default.
+   */
+  model?: string;
+  /**
+   * Trained adapters (LoRA) to apply at inference, provider-neutral (Milestone 24). Each is a weights
+   * URL + optional strength. Adapters use them ONLY if the chosen model is LoRA-capable; others ignore
+   * them. Set by the Identity Engine when the conditioning strategy includes a trained model.
+   */
+  loras?: { path: string; scale?: number }[];
+  /** PuLID identity strength (Milestone 24.5) — how strongly the face adapter conditions on the face. */
+  idWeight?: number;
   // Reserved (NOT implemented): width/height/seed/negativePrompt.
 };
 
@@ -54,6 +77,8 @@ export type ProviderErrorCode =
   | "MISSING_TOKEN"
   | "PROVIDER_UNAVAILABLE"
   | "GENERATION_FAILED"
+  | "CONTENT_MODERATED" // the model's safety filter blocked it (often a black/blank placeholder image)
+  | "NO_IDENTITY_ANCHOR" // no verified face anchor for the character — refuse rather than draw a stranger
   | "TIMEOUT";
 
 /** Provider-neutral error. Providers map their SDK failures to these codes. */

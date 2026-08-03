@@ -11,10 +11,13 @@ export type ProviderCapability =
   | "referenceImages"
   | "multipleReferenceImages"
   | "identityPreservation"
+  | "realism" // photorealistic output quality
+  | "typography" // legible text / typography in images
   | "inpainting"
   | "outpainting"
   | "video"
   | "lora"
+  | "faceId" // identity via a face adapter (PuLID/InfiniteYou/…) — a face embedding, not a trained model
   | "ipAdapter"
   | "controlNet"
   | "asyncJobs";

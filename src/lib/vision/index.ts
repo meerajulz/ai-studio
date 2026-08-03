@@ -62,7 +62,16 @@ export function isVisionConfigured(): boolean {
 }
 
 // Knowledge-building (pure, provider-neutral)
-export { normalizeToIdentityMetadata } from "./normalize";
+export { normalizeToIdentityMetadata, toTattooRegion } from "./normalize";
+export { synthesizeIdentityAppearance } from "./synthesize";
+export { classifyExposure, EXPOSURE_RANK, type ExposureLevel } from "./exposure";
+export {
+  summarizeMediaKnowledge,
+  buildMediaKnowledgeDetail,
+  type MediaKnowledgeSummary,
+  type MediaKnowledgeDetail,
+  type KnowledgeSource,
+} from "./summary";
 export { computeIdentityCoverage } from "./coverage";
 
 // Identity Coverage Engine (identity-level: "what is missing?") — Milestone 18B
@@ -108,14 +117,23 @@ export {
 export {
   IDENTITY_METADATA_VERSION,
   type BodyKnowledge,
+  type BodyRegion,
+  type FaceExpression,
   type FaceKnowledge,
+  type FaceOrientation,
   type FacePose,
+  type FaceQuality,
   type HairKnowledge,
+  type HairParting,
+  type HairTexture,
+  type HairUpdo,
   type IdentityCoverage,
   type IdentityMetadata,
   type ImageEmbedding,
   type ImageQuality,
   type LightingKnowledge,
+  type ReferenceSuitability,
   type TattooKnowledge,
+  type TattooRegion,
   type VisionObservation,
 } from "./types";

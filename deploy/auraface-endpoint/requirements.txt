@@ -1,0 +1,8 @@
+# AuraFace face-embedding endpoint (CPU). Pin numpy<2 for insightface/onnxruntime compatibility.
+insightface==0.7.3
+onnxruntime==1.18.1
+huggingface_hub>=0.24.0
+numpy<2
+opencv-python-headless
+Pillow
+requests

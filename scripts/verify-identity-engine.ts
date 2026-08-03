@@ -1,0 +1,216 @@
+/**
+ * Deterministic verification of the Identity Engine (Milestone 22).
+ *
+ * Fully OFFLINE — no DB, no Blob, no Vision/generation API. Builds mocked candidates through the REAL
+ * vision pipeline, then checks:
+ *   1. IDENTITY PACKAGE (M25.2 Phase B) — `planConditioning` drives references from the role-based
+ *      Identity Package: a resolved package with faceAnchorSource, the Face Anchor byte-identical to
+ *      `pickIdentityAnchor`, and the face carried in the anchor slot (not duplicated in the scene refs).
+ *   2. STRATEGY — the plan is `reference` today (only the Reference module is enabled).
+ *   3. REGISTRY — reference is enabled; lora / pulid / instantid are registered but disabled.
+ *   4. DATASET — `assembleDataset` returns a readiness score + rating + metrics for a mock library.
+ *
+ * Run: `npx tsx scripts/verify-identity-engine.ts`
+ */
+import { directCreative } from "../src/lib/creative";
+import {
+  filterCandidatesByExposure,
+  pickIdentityAnchor,
+  type SelectionCandidate,
+} from "../src/lib/selection";
+import {
+  normalizeToIdentityMetadata,
+  scoreIdentityImage,
+  type VisionObservation,
+} from "../src/lib/vision";
+import {
+  assembleDataset,
+  getCapabilities,
+  IDENTITY_MODULES,
+  loraEngine,
+  planConditioning,
+  referenceEngine,
+  type ConditioningContext,
+  type DatasetImage,
+} from "../src/lib/identity-engine";
+
+let pass = 0;
+let fail = 0;
+function check(name: string, ok: boolean, detail = "") {
+  if (ok) {
+    pass += 1;
+    console.log(`  ✓ ${name}`);
+  } else {
+    fail += 1;
+    console.log(`  ✗ ${name}${detail ? ` — ${detail}` : ""}`);
+  }
+}
+
+const HQ = { sharpness: 0.9, exposure: 0.6, faceVisible: true, width: 1024, height: 1536 };
+function candidate(mediaId: string, attrs: Record<string, unknown>, quality = HQ): SelectionCandidate {
+  const obs: VisionObservation = { provider: "mock", model: "mock", attributes: attrs, quality };
+  const metadata = normalizeToIdentityMetadata(obs);
+  return { mediaId, url: `https://example/${mediaId}.jpg`, metadata, score: scoreIdentityImage(metadata) };
+}
+
+const FACE = candidate("face", {
+  hairColor: "pink", hairLength: "long", hairVisible: true,
+  faceVisible: true, faceOrientation: "front", faceConfidence: 0.97,
+  framing: "headshot", bodyVisibility: "face", lightingSetting: "studio", lightingQuality: "even",
+});
+const SMILE = candidate("smile", {
+  hairColor: "pink", hairLength: "long", hairVisible: true,
+  faceVisible: true, faceOrientation: "front", faceConfidence: 0.95, smiling: true,
+  faceExpression: { smiling: true, teethVisible: true, lookingAtCamera: true },
+  framing: "half-body", bodyVisibility: "upper", lightingSetting: "indoor", lightingQuality: "soft",
+});
+const FULLBODY = candidate("fullbody", {
+  hairColor: "pink", hairLength: "long", hairVisible: true,
+  faceVisible: true, faceOrientation: "three-quarter", faceConfidence: 0.8,
+  framing: "full-body", bodyVisibility: "full", clothing: ["bikini"],
+  lightingSetting: "outdoor", lightingQuality: "even",
+});
+const LEGTATTOO = candidate("legtattoo", {
+  hairColor: "pink", hairVisible: true,
+  faceVisible: true, faceOrientation: "front", faceConfidence: 0.7,
+  framing: "full-body", bodyVisibility: "full",
+  tattoos: [{ location: "left thigh", confidence: 0.95 }, { location: "right calf", confidence: 0.9 }],
+  lightingSetting: "indoor",
+});
+const library = [FACE, SMILE, FULLBODY, LEGTATTOO];
+
+async function main() {
+  console.log("Identity Engine — verification\n");
+
+  // 1. IDENTITY PACKAGE (M25.2 Phase B) — the engine drives references from the role-based package.
+  console.log("Identity Package drives references (Phase B):");
+  const idea = "Walking on the beach in a bikini";
+  const directive = directCreative({ idea });
+
+  const exposure = filterCandidatesByExposure(directive, library);
+  const anchor = pickIdentityAnchor(exposure.safe);
+
+  const plan = await planConditioning({ identityId: "id_mock", directive, candidates: library });
+  const newUrls = plan.referenceImages.map((r) => r.url);
+
+  check("resolved an Identity Package", plan.identityPackage != null);
+  check("faceAnchorSource === 'face' (verified anchor)", plan.identityPackage?.faceAnchorSource === "face",
+    plan.identityPackage?.faceAnchorSource);
+  check("Face Anchor byte-identical to pickIdentityAnchor", (plan.identityAnchor?.url ?? null) === (anchor?.url ?? null),
+    `${plan.identityAnchor?.url} vs ${anchor?.url}`);
+  check("anchor role is 'anchor'", !plan.identityAnchor || plan.identityAnchor.role === "anchor");
+  check("face NOT duplicated in the scene references", !newUrls.includes(plan.identityAnchor?.url ?? "__none__"),
+    JSON.stringify(newUrls));
+
+  // 2. STRATEGY — reference only today.
+  console.log("\nStrategy:");
+  check("strategy === 'reference'", plan.strategy === "reference", plan.strategy);
+  check("engines === ['reference']", JSON.stringify(plan.engines) === JSON.stringify(["reference"]));
+  check("loraModelId is null", plan.loraModelId === null);
+  check("adapterInputs is null", plan.adapterInputs === null);
+
+  // Manual override still routes through the engine (dev benchmark parity).
+  const manual = await planConditioning({
+    identityId: "id_mock", directive, candidates: library,
+    manualReferenceMediaIds: ["fullbody", "face"],
+  });
+  check("manual override keeps exact order", JSON.stringify(manual.referenceImages.map((r) => r.url)) ===
+    JSON.stringify(["fullbody", "face"].map((id) => `https://example/${id}.jpg`)));
+  check("manual override sets manual debug flag", manual.debug?.manual === true);
+  check("manual override sends no anchor", manual.identityAnchor === undefined);
+
+  // 3. REGISTRY — reference enabled; the rest registered but disabled.
+  console.log("\nRegistry:");
+  const byId = Object.fromEntries(IDENTITY_MODULES.map((m) => [m.id, m]));
+  check("reference enabled", byId.reference?.enabled === true);
+  check("lora enabled (M24)", byId.lora != null && byId.lora.enabled === true);
+  check("pulid enabled (M24.5)", byId.pulid != null && byId.pulid.enabled === true);
+  check("pulid is opt-in (autoSelect false)", byId.pulid?.autoSelect === false);
+  check("lora is auto-select", byId.lora?.autoSelect === true);
+  check("instantid registered + disabled", byId.instantid != null && byId.instantid.enabled === false);
+  check("reference + lora + pulid enabled (3)", IDENTITY_MODULES.filter((m) => m.enabled).length === 3);
+
+  // 4. DATASET — readiness computed from mock knowledge.
+  console.log("\nDataset readiness:");
+  const images: DatasetImage[] = library.map((c) => ({ mediaId: c.mediaId, metadata: c.metadata, score: c.score }));
+  const dataset = assembleDataset(images, { identityId: "id_mock" });
+  check("readiness score in 0..100", dataset.readiness.score >= 0 && dataset.readiness.score <= 100,
+    String(dataset.readiness.score));
+  check("rating is a known bucket", ["excellent", "good", "fair", "poor"].includes(dataset.readiness.rating),
+    dataset.readiness.rating);
+  check("verdict is non-empty", dataset.readiness.verdict.length > 0);
+  check("coverage report present", typeof dataset.metrics.coverage.overall === "number");
+  check("curation recommends usable images", dataset.curation.recommendedImageIds.length > 0);
+  check("analyzedCount matches library", dataset.analyzedCount === library.length);
+
+  // 5. CAPABILITIES — what the identity can do now, and how it adapts after training.
+  console.log("\nCapabilities:");
+  const emptyCtx: ConditioningContext = {
+    identityId: "id_mock", hasAnalyzedCandidates: true, trainedModels: [], artifacts: [],
+  };
+  const caps = await getCapabilities(emptyCtx);
+  check("conditioning.reference true", caps.conditioning.reference === true);
+  check("lora/instantid unavailable; PuLID available (zero-shot, analyzed identity)",
+    !caps.conditioning.lora && caps.conditioning.pulid && !caps.conditioning.instantid);
+  check("training.available true (Fal registered)", caps.training.available === true);
+  check("training.providers = ['fal']", JSON.stringify(caps.training.providers) === JSON.stringify(["fal"]));
+  check("training.recommendedProvider = 'fal'", caps.training.recommendedProvider === "fal");
+  check("recommendedStrategy = 'reference'", caps.conditioning.recommendedStrategy === "reference",
+    caps.conditioning.recommendedStrategy);
+
+  // Post-training: enable the LoRA module + a READY model in context → capabilities adapt with NO UI change.
+  const enabledLora = { ...loraEngine, enabled: true };
+  const trainedCtx: ConditioningContext = {
+    identityId: "id_mock", hasAnalyzedCandidates: true,
+    trainedModels: [{ id: "m1", engine: "lora", version: 1, triggerWord: "jln", artifactRef: "blob://w", modelCompatibility: ["flux"] }],
+    artifacts: [],
+  };
+  const capsTrained = await getCapabilities(trainedCtx, {}, [referenceEngine, enabledLora]);
+  check("lora true once enabled + model ready", capsTrained.conditioning.lora === true);
+  check("recommendedStrategy adapts to 'reference+lora'",
+    capsTrained.conditioning.recommendedStrategy === "reference+lora",
+    capsTrained.conditioning.recommendedStrategy);
+  const capsWrongModel = await getCapabilities(trainedCtx, { model: "sdxl" }, [referenceEngine, enabledLora]);
+  check("lora gated by model compatibility (sdxl → false)", capsWrongModel.conditioning.lora === false);
+  const capsRightModel = await getCapabilities(trainedCtx, { model: "flux" }, [referenceEngine, enabledLora]);
+  check("lora usable for a compatible model (flux → true)", capsRightModel.conditioning.lora === true);
+
+  // 6. AUTOMATIC reference+lora — the generation-time wiring: a READY trained model in the request
+  // (which the generation layer loads) makes the plan `reference+lora` with NO manual toggle.
+  console.log("\nAutomatic reference+lora (generation-time wiring):");
+  const loraPlan = await planConditioning({
+    identityId: "id_mock", directive, candidates: library,
+    trainedModels: [{ id: "m1", engine: "lora", version: 1, triggerWord: "jln", artifactRef: "blob://w", modelCompatibility: ["fal-ai/flux-kontext-lora"] }],
+  });
+  check("strategy becomes 'reference+lora' automatically", loraPlan.strategy === "reference+lora", loraPlan.strategy);
+  check("lora weights threaded into the plan", loraPlan.loraWeightsUrl === "blob://w");
+  check("lora trigger word threaded into the plan", loraPlan.loraTriggerWord === "jln");
+  const noModelPlan = await planConditioning({ identityId: "id_mock", directive, candidates: library });
+  check("no trained model → strategy stays 'reference'", noModelPlan.strategy === "reference");
+
+  // 7. PuLID (M24.5) — opt-in face strategy, mutually exclusive with LoRA; the engine picks ONE primary.
+  console.log("\nPuLID (opt-in, pick-one primary):");
+  check("PuLID is NOT the auto default (analyzed identity stays 'reference')",
+    noModelPlan.strategy === "reference", noModelPlan.strategy);
+  const pulidPlan = await planConditioning({
+    identityId: "id_mock", directive, candidates: library, preferEngine: "pulid",
+  });
+  check("preferEngine 'pulid' → strategy 'reference+pulid'", pulidPlan.strategy === "reference+pulid", pulidPlan.strategy);
+  check("PuLID plan carries a face reference url", typeof pulidPlan.pulidReferenceUrl === "string");
+  const loraModelReq = { id: "m1", engine: "lora" as const, version: 1, triggerWord: "jln", artifactRef: "blob://w", modelCompatibility: ["fal-ai/flux-kontext-lora"] };
+  const autoLora = await planConditioning({ identityId: "id_mock", directive, candidates: library, trainedModels: [loraModelReq] });
+  check("Auto with a trained LoRA → 'reference+lora' (not pulid)", autoLora.strategy === "reference+lora", autoLora.strategy);
+  const forcePulidOverLora = await planConditioning({ identityId: "id_mock", directive, candidates: library, trainedModels: [loraModelReq], preferEngine: "pulid" });
+  check("explicit 'pulid' overrides an available LoRA (pick-one)", forcePulidOverLora.strategy === "reference+pulid", forcePulidOverLora.strategy);
+  check("single primary — never reference+lora+pulid", forcePulidOverLora.engines.length === 2);
+  const forceRef = await planConditioning({ identityId: "id_mock", directive, candidates: library, trainedModels: [loraModelReq], preferEngine: "reference" });
+  check("preferEngine 'reference' forces the baseline only", forceRef.strategy === "reference", forceRef.strategy);
+
+  console.log(`\n${pass} passed, ${fail} failed`);
+  if (fail > 0) process.exit(1);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

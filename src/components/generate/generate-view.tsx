@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Bug, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 
@@ -8,12 +8,19 @@ import {
   useGenerateImage,
   useProjectGenerations,
 } from "@/hooks/use-generation";
-import { useIdentities, defaultIdentityFilters } from "@/hooks/use-identities";
+import {
+  useIdentities,
+  useIdentity,
+  useIdentityEngineOverview,
+  defaultIdentityFilters,
+} from "@/hooks/use-identities";
 import {
   CREATIVE_STYLE_OPTIONS,
   DEFAULT_STYLE,
   type CreativeStyle,
 } from "@/lib/creative";
+import { evaluateGenerationAction } from "@/actions/evaluation";
+import type { EvaluationView } from "@/lib/identity-engine";
 import type { GenerationDebug } from "@/lib/generation/types";
 import type { MediaAsset } from "@/lib/media/types";
 import { cn } from "@/lib/utils";
@@ -24,8 +31,43 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MediaViewer } from "@/components/media/media-viewer";
 import { GenerationHistory } from "./generation-history";
+import { ManualReferencePicker, type PickerImage } from "./manual-reference-picker";
+import type { MediaKnowledgeSummary } from "@/lib/vision";
+import { MODEL_REGISTRY } from "@/lib/ai/model-registry";
 
 const MAX_PROMPT = 1000;
+
+/** Anchor-role glyphs for the Identity Package visualization (Milestone 25.2). */
+const ROLE_EMOJI: Record<string, string> = {
+  face: "👤",
+  body: "💪",
+  tattoo: "🖋",
+  hair: "💇",
+  canonical: "⭐",
+  pose: "🧍",
+};
+const roleEmoji = (role: string) => ROLE_EMOJI[role] ?? "•";
+/** Filename-ish label from a signed URL (best-effort) so anchors read like "IMG_9762". */
+const shortLabel = (url: string) => {
+  try {
+    const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+    return name.replace(/\.[a-z0-9]+$/i, "").slice(0, 24) || "reference";
+  } catch {
+    return "reference";
+  }
+};
+
+/** Compact badges for the manual reference picker, derived from the persisted knowledge summary. */
+function badgesFor(k: MediaKnowledgeSummary, isAnchor: boolean): string[] {
+  const b: string[] = [];
+  if (isAnchor) b.push("Anchor");
+  if (k.covered.some((c) => /face|profile/i.test(c))) b.push("Face");
+  if (k.covered.some((c) => /body/i.test(c))) b.push("Body");
+  if (k.covered.some((c) => /tattoo/i.test(c))) b.push("Tattoos");
+  if (k.covered.some((c) => /hair/i.test(c))) b.push("Hair");
+  if (k.smiling) b.push("Smile");
+  return b;
+}
 
 type GenerateViewProps = {
   projectId: string;
@@ -44,10 +86,61 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
   const [identityId, setIdentityId] = useState<string>("");
   const [viewing, setViewing] = useState<MediaAsset | null>(null);
   const [debug, setDebug] = useState<GenerationDebug | null>(null);
+  const [evaluation, setEvaluation] = useState<EvaluationView | null>(null);
+  const [evaluating, setEvaluating] = useState(false);
+  // DEV identity-benchmark controls (not shown in prod).
+  const [maxReferences, setMaxReferences] = useState<number | undefined>(undefined);
+  const [refMode, setRefMode] = useState<"auto" | "manual">("auto");
+  const [manualSelected, setManualSelected] = useState<string[]>([]);
+  // DEV model selection: Auto (capability router) · Manual (pick one) · Developer (Manual + metadata).
+  const [modelMode, setModelMode] = useState<"auto" | "manual" | "developer">("auto");
+  const [modelId, setModelId] = useState<string | undefined>(undefined);
+  // Identity STRATEGY benchmark (M24.5): undefined = Auto; else force reference / lora / pulid.
+  const [strategyOverride, setStrategyOverride] =
+    useState<"reference" | "lora" | "pulid" | undefined>(undefined);
   const generateMut = useGenerateImage(projectId);
+  const isDev = process.env.NODE_ENV !== "production";
+  // Selected identity's analyzed images (for the manual reference picker). Fetch only in dev.
+  const { data: identityDetail } = useIdentity(isDev && identityId ? identityId : "");
+  // Whether the identity has a trained LoRA — generation then uses ONE reference + the LoRA.
+  const { data: engineOverview } = useIdentityEngineOverview(isDev && identityId ? identityId : "");
+  const hasTrainedLora = engineOverview?.capabilities.conditioning.lora ?? false;
   const { data: history, isLoading: historyLoading } =
     useProjectGenerations(projectId);
   const { data: identities } = useIdentities(projectId, defaultIdentityFilters);
+
+  const pickerImages = useMemo<PickerImage[]>(() => {
+    const items = identityDetail?.trainingMedia ?? [];
+    // Anchor badge = the analyzed image with the strongest visible front face.
+    let anchorId: string | null = null;
+    let bestFace = -1;
+    for (const t of items) {
+      const k = t.knowledge;
+      if (k && k.covered.some((c) => /front face/i.test(c)) && k.suitability.face > bestFace) {
+        bestFace = k.suitability.face;
+        anchorId = t.media.id;
+      }
+    }
+    return items
+      .filter((t) => t.media.type === "IMAGE")
+      .map((t) => ({
+        mediaId: t.media.id,
+        url: t.media.url,
+        analyzed: t.knowledge != null,
+        badges: t.knowledge ? badgesFor(t.knowledge, t.media.id === anchorId) : [],
+      }));
+  }, [identityDetail]);
+
+  // Registry models grouped by vendor for the Manual/Developer selector (config-driven; t2i hidden;
+  // auto-only models like Kontext+LoRA hidden — they need inputs the app supplies automatically).
+  const modelsByVendor = useMemo(() => {
+    const groups = new Map<string, typeof MODEL_REGISTRY>();
+    for (const m of MODEL_REGISTRY) {
+      if (m.payloadKind === "t2i" || m.autoOnly) continue;
+      groups.set(m.vendor, [...(groups.get(m.vendor) ?? []), m]);
+    }
+    return [...groups.entries()];
+  }, []);
 
   const isPending = generateMut.isPending;
   const trimmed = prompt.trim();
@@ -61,10 +154,26 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
         prompt: trimmed,
         style,
         identityId: identityId || undefined,
+        maxReferences: isDev && refMode === "auto" ? maxReferences : undefined,
+        manualReferenceMediaIds:
+          isDev && refMode === "manual" && manualSelected.length ? manualSelected : undefined,
+        modelMode: isDev && modelMode === "auto" ? "auto" : isDev ? "manual" : undefined,
+        modelOverride: isDev && modelMode !== "auto" ? modelId : undefined,
+        strategyOverride: isDev ? strategyOverride : undefined,
       });
       setViewing(res.media);
       setDebug(res.debug ?? null); // dev-only; undefined in production
       toast.success("Image generated");
+
+      // Identity Evaluation (Milestone 26) — non-blocking: measure face drift AFTER the image is shown.
+      setEvaluation(null);
+      if (identityId) {
+        setEvaluating(true);
+        evaluateGenerationAction(res.generationId)
+          .then(setEvaluation)
+          .catch(() => setEvaluation(null))
+          .finally(() => setEvaluating(false));
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Generation failed");
     }
@@ -143,6 +252,174 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
             </Button>
           ))}
         </div>
+        {isDev && identityId ? (
+          <div className="grid gap-2 rounded-md border border-dashed p-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground mr-1 text-sm">
+                Identity strategy <span className="text-[10px] uppercase">dev</span>
+              </span>
+              {(
+                [
+                  [undefined, "Auto", true],
+                  ["reference", "Reference", true],
+                  ["lora", "Reference + LoRA", hasTrainedLora],
+                  ["pulid", "PuLID (face)", engineOverview?.capabilities.conditioning.pulid ?? false],
+                ] as const
+              ).map(([value, label, enabled]) => (
+                <Button
+                  key={label}
+                  type="button"
+                  size="sm"
+                  variant={strategyOverride === value ? "default" : "outline"}
+                  disabled={isPending || !enabled}
+                  onClick={() => setStrategyOverride(value)}
+                >
+                  {label}
+                </Button>
+              ))}
+              <span className="text-muted-foreground text-xs">
+                benchmark: same prompt across techniques (Debug shows the strategy + model)
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground mr-1 text-sm">
+                References <span className="text-[10px] uppercase">dev</span>
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant={refMode === "auto" ? "default" : "outline"}
+                disabled={isPending}
+                onClick={() => setRefMode("auto")}
+              >
+                Auto (selector)
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={refMode === "manual" ? "default" : "outline"}
+                disabled={isPending}
+                onClick={() => setRefMode("manual")}
+              >
+                Manual
+              </Button>
+            </div>
+
+            <div className="grid gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted-foreground mr-1 text-sm">Model</span>
+                {(
+                  [
+                    ["auto", "Auto (Recommended)"],
+                    ["manual", "Manual"],
+                    ["developer", "Developer"],
+                  ] as const
+                ).map(([m, label]) => (
+                  <Button
+                    key={m}
+                    type="button"
+                    size="sm"
+                    variant={modelMode === m ? "default" : "outline"}
+                    disabled={isPending}
+                    onClick={() => setModelMode(m)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+
+              {modelMode === "auto" ? (
+                <p className="text-muted-foreground text-xs">
+                  AI Studio routes to the best model by capability — see the Debug panel for the chosen
+                  model + reason.
+                </p>
+              ) : (
+                <div className="grid gap-2">
+                  {modelsByVendor.map(([vendor, models]) => (
+                    <div key={vendor} className="grid gap-1">
+                      <span className="text-muted-foreground text-[11px] font-medium uppercase">
+                        {vendor}
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {models.map((mdl) => (
+                          <Button
+                            key={mdl.id}
+                            type="button"
+                            size="sm"
+                            variant={modelId === mdl.id ? "default" : "outline"}
+                            disabled={isPending || !mdl.enabled}
+                            onClick={() => setModelId(mdl.id)}
+                            title={mdl.note ? `${mdl.id} — ${mdl.note}` : mdl.id}
+                          >
+                            {mdl.label}
+                          </Button>
+                        ))}
+                      </div>
+                      {modelMode === "developer" ? (
+                        <div className="text-muted-foreground grid gap-0.5 text-[10px]">
+                          {models.map((mdl) => (
+                            <div key={mdl.id}>
+                              <span className="font-mono">{mdl.label}</span> · p{mdl.priority} · refs≤
+                              {mdl.maxReferences} · {mdl.capabilities.join(", ")}
+                              {mdl.note ? ` · ⚠ ${mdl.note}` : ""}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                  {!modelId ? (
+                    <p className="text-muted-foreground text-xs">Pick a model for this generation.</p>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            {refMode === "auto" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {[1, 2, 3, 4].map((n) => (
+                  <Button
+                    key={n}
+                    type="button"
+                    size="sm"
+                    variant={maxReferences === n ? "default" : "outline"}
+                    disabled={isPending}
+                    onClick={() => setMaxReferences(n)}
+                  >
+                    {n}
+                  </Button>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={maxReferences === undefined ? "default" : "outline"}
+                  disabled={isPending}
+                  onClick={() => setMaxReferences(undefined)}
+                >
+                  Auto
+                </Button>
+                <span className="text-muted-foreground text-xs">anchor stays first; 1 = anchor only</span>
+              </div>
+            ) : pickerImages.length ? (
+              <ManualReferencePicker
+                images={pickerImages}
+                selected={manualSelected}
+                onChange={setManualSelected}
+                max={4}
+                disabled={isPending}
+                note={
+                  hasTrainedLora
+                    ? "This identity has a trained LoRA — generation uses your #1 reference + the LoRA (one image, model fal-ai/flux-kontext-lora). Extra picks are ignored."
+                    : undefined
+                }
+              />
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                No analyzed images for this identity yet — run <strong>Analyze library</strong> first.
+              </p>
+            )}
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span
             className={cn(
@@ -183,6 +460,8 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
         ) : null}
       </div>
 
+      {evaluating || evaluation ? <IdentityEvaluationPanel evaluating={evaluating} evaluation={evaluation} /> : null}
+
       {debug ? <CreativeDebugPanel debug={debug} /> : null}
 
       <div className="grid gap-3">
@@ -211,6 +490,96 @@ export function GenerateView({ projectId, providerReady }: GenerateViewProps) {
           if (!open) setViewing(null);
         }}
       />
+    </div>
+  );
+}
+
+/** Identity Evaluation panel (Milestone 26) — the measured face-drift score for the last generation. */
+function IdentityEvaluationPanel({
+  evaluating,
+  evaluation,
+}: {
+  evaluating: boolean;
+  evaluation: EvaluationView | null;
+}) {
+  const pct = evaluation?.face != null ? Math.round(evaluation.face * 100) : null;
+  const tone =
+    pct == null ? "text-muted-foreground" : pct >= 75 ? "text-emerald-600 dark:text-emerald-400" : pct >= 55 ? "text-amber-600 dark:text-amber-400" : "text-destructive";
+  const note =
+    evaluation?.method === "not-configured"
+      ? "No face-similarity provider wired yet (M26 Phase 2) — the evaluation pipeline ran and returned no score."
+      : evaluation?.method === "provider-error"
+        ? "Provider unavailable — evaluation degraded gracefully (no score)."
+        : evaluation?.face == null && !evaluating
+          ? `No face score (${evaluation?.method ?? "unavailable"}).`
+          : null;
+  const cacheTotal = (evaluation?.cacheHits ?? 0) + (evaluation?.cacheMisses ?? 0);
+
+  return (
+    <div className="rounded-lg border p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium">Identity Evaluation</h3>
+        {evaluating ? (
+          <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+            <Loader2 className="size-3 animate-spin" /> measuring…
+          </span>
+        ) : pct != null ? (
+          <span className={cn("text-lg font-semibold tabular-nums", tone)}>👤 {pct}%</span>
+        ) : null}
+      </div>
+      <p className="text-muted-foreground mt-1 text-xs">
+        {note ?? "Face similarity between the generated image and the character's reference faces (higher = better identity preservation)."}
+      </p>
+      {pct != null ? (
+        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+          {evaluation?.confidence != null ? (
+            <div className="flex justify-between"><dt className="text-muted-foreground">confidence</dt><dd className="font-mono">{Math.round(evaluation.confidence * 100)}%</dd></div>
+          ) : null}
+          <div className="flex justify-between"><dt className="text-muted-foreground">provider</dt><dd className="font-mono">{evaluation?.provider ?? evaluation?.method}</dd></div>
+          {evaluation?.evalMs != null ? (
+            <div className="flex justify-between"><dt className="text-muted-foreground">time</dt><dd className="font-mono">{evaluation.evalMs} ms</dd></div>
+          ) : null}
+          {cacheTotal > 0 ? (
+            <div className="flex justify-between"><dt className="text-muted-foreground">cache</dt><dd className="font-mono">{evaluation?.cacheHits ?? 0} hit / {evaluation?.cacheMisses ?? 0} miss</dd></div>
+          ) : null}
+          {evaluation?.referenceCount != null ? (
+            <div className="flex justify-between"><dt className="text-muted-foreground">references</dt><dd className="font-mono">{evaluation.referenceCount}</dd></div>
+          ) : null}
+        </dl>
+      ) : null}
+      {pct != null && evaluation?.dimensions && evaluation.dimensions.length ? (
+        <div className="mt-3 grid gap-1 text-[11px]">
+          <p className="text-muted-foreground">dimensions</p>
+          {evaluation.dimensions.map((d) => (
+            <div key={d.key} className="grid gap-0.5">
+              <div className="flex items-center justify-between">
+                <span>
+                  {d.key}{" "}
+                  <span className={cn("text-[9px]", d.measured ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
+                    {d.measured ? "measured" : "predicted"}
+                  </span>
+                </span>
+                <span className="font-mono tabular-nums">{Math.round(d.value * 100)}</span>
+              </div>
+              <div className="bg-muted h-1 overflow-hidden rounded-full">
+                <div className={cn("h-full rounded-full", d.measured ? "bg-emerald-500" : "bg-foreground/40")} style={{ width: `${Math.round(d.value * 100)}%` }} />
+              </div>
+            </div>
+          ))}
+          <p className="text-muted-foreground text-[9px]">face = measured (AuraFace); others = predicted from the package.</p>
+        </div>
+      ) : null}
+      {evaluation?.anchors && evaluation.anchors.length ? (
+        <div className="mt-2 grid gap-0.5 text-[11px]">
+          <p className="text-muted-foreground">per-anchor similarity</p>
+          {evaluation.anchors.map((a, i) => (
+            <div key={i} className="flex justify-between font-mono">
+              <span className="text-muted-foreground">👤 {a.role}</span>
+              <span>{Math.round(a.sim * 100)}%</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -377,9 +746,135 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
           <DebugRow label="Compiled prompt" value={debug.compiledPrompt} />
         </DebugStage>
 
+        {debug.transformation ? (
+          <DebugStage title="4.5 · Transformation (preserve vs change)">
+            <DebugRow label="Preserve" value={debug.transformation.preserve.join(", ")} />
+            <DebugRow label="Change" value={debug.transformation.change.join(", ")} />
+            <DebugRow label="Instruction" value={debug.transformation.instruction} />
+            <DebugRow
+              label="Negative prompt (computed; not sent yet)"
+              value={debug.transformation.negativePrompt ?? "—"}
+            />
+          </DebugStage>
+        ) : null}
+
+        {debug.identityPackage ? (
+          <DebugStage title="4.6 · Identity Package (drives references)">
+            <DebugRow
+              label="Face anchor"
+              value={
+                debug.identityPackage.faceAnchorSource === "none"
+                  ? "⚠ none (would refuse)"
+                  : `via ${debug.identityPackage.faceAnchorSource}`
+              }
+            />
+            <DebugRow
+              label="Anchors (ordered)"
+              value={
+                <div className="grid gap-1.5">
+                  {debug.identityPackage.anchors.map((a, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <img src={a.url} alt="" className="size-10 rounded object-cover" />
+                      <div className="text-[11px] leading-tight">
+                        <div className="text-foreground font-semibold">
+                          {i === 0 ? "★ " : ""}
+                          {a.roles.map((r) => `${roleEmoji(r)} ${r}`).join(" · ")}
+                        </div>
+                        <div className="font-mono text-muted-foreground">
+                          {shortLabel(a.url)} · confidence {a.score}
+                        </div>
+                        <div className="text-muted-foreground">{a.reasons.join(" · ")}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              }
+            />
+            <DebugRow
+              label="Transformation"
+              value={
+                <div className="grid gap-0.5 text-[11px]">
+                  <div className="text-emerald-600 dark:text-emerald-400">
+                    Needs:{" "}
+                    {debug.identityPackage.neededRoles.map((r) => `✓ ${roleEmoji(r)} ${r}`).join("  ") || "—"}
+                  </div>
+                  <div className="text-muted-foreground">
+                    Doesn&apos;t need:{" "}
+                    {debug.identityPackage.availableRoles
+                      .filter((r) => !debug.identityPackage!.neededRoles.includes(r))
+                      .map((r) => `✗ ${roleEmoji(r)} ${r}`)
+                      .join("  ") || "—"}
+                  </div>
+                  {debug.identityPackage.missingRoles.length ? (
+                    <div className="text-amber-600 dark:text-amber-400">
+                      Needed but no anchor:
+                      {debug.identityPackage.missingRoles.map((r) => (
+                        <div key={r} className="pl-2">
+                          {r} — {debug.identityPackage!.missingRoleReasons[r] ?? "unknown"}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              }
+            />
+          </DebugStage>
+        ) : null}
+
+        {debug.channelArbitration ? (
+          <DebugStage title="4.7 · Channel Arbitration (prompt de-dup)">
+            <DebugRow
+              label="Omitted from text"
+              value={debug.channelArbitration.omittedFacets.join(", ")}
+            />
+            <DebugRow
+              label="Appearance before"
+              value={debug.channelArbitration.appearanceBefore ?? "—"}
+            />
+            <DebugRow
+              label="Appearance after"
+              value={debug.channelArbitration.appearanceAfter ?? "— (fully carried by references)"}
+            />
+          </DebugStage>
+        ) : null}
+
         <DebugStage title="Provider & routing">
           <DebugRow label="Chosen provider" value={debug.provider} />
           <DebugRow label="Chosen model" value={debug.model} />
+          {debug.modelRouting ? (
+            <>
+              <DebugRow
+                label="Model routing"
+                value={`${debug.modelRouting.mode} → ${debug.modelRouting.label} (${debug.modelRouting.vendor}) — ${debug.modelRouting.reason}`}
+              />
+              <DebugRow
+                label="Models considered"
+                value={
+                  <div className="grid gap-0.5 font-mono text-[11px]">
+                    {debug.modelRouting.considered
+                      .slice()
+                      .sort((a, b) => b.priority - a.priority)
+                      .map((m) => (
+                        <div
+                          key={m.id}
+                          className={
+                            m.id === debug.modelRouting?.chosen
+                              ? "text-foreground font-semibold"
+                              : m.enabled
+                                ? "text-muted-foreground"
+                                : "text-muted-foreground/50"
+                          }
+                        >
+                          {m.id === debug.modelRouting?.chosen ? "★ " : ""}
+                          {m.label} · {m.vendor} · p{m.priority}
+                          {m.enabled ? "" : " · disabled"}
+                        </div>
+                      ))}
+                  </div>
+                }
+              />
+            </>
+          ) : null}
           <DebugRow
             label="Provider capabilities"
             value={
@@ -410,15 +905,126 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
             label="Supports reference images"
             value={debug.referenceImages.supportsReferenceImages ? "yes" : "no"}
           />
+          {debug.referenceImages.manual ? (
+            <DebugRow
+              label="Selection mode"
+              value={
+                <span className="font-medium text-amber-600 dark:text-amber-400">
+                  Manual reference selection (dev) — exact chosen images/order
+                </span>
+              }
+            />
+          ) : null}
+          <DebugRow
+            label="References selected"
+            value={`${debug.referenceImages.offered}${debug.referenceImages.manual ? " (manual)" : ""}`}
+          />
+          <DebugRow
+            label="Model reference limit"
+            value={
+              debug.referenceImages.modelMaxReferences != null
+                ? `${debug.referenceImages.modelMaxReferences}${debug.model ? ` — ${debug.model}` : ""}`
+                : "—"
+            }
+          />
+          {debug.referenceImages.devCap != null ? (
+            <DebugRow label="Dev References cap" value={`${debug.referenceImages.devCap}`} />
+          ) : null}
           <DebugRow
             label="Reference images sent"
-            value={`${debug.referenceImages.sent} of ${debug.referenceImages.offered} offered${
+            value={`${debug.referenceImages.sent} of ${debug.referenceImages.offered}${
               debug.referenceImages.sentRoles.length
                 ? ` (${debug.referenceImages.sentRoles.join(", ")})`
                 : ""
             }`}
           />
+          {debug.referenceImages.limitReason ? (
+            <DebugRow label="Why fewer than selected" value={debug.referenceImages.limitReason} />
+          ) : null}
+          {debug.referenceImages.sentImages.length ? (
+            <DebugRow
+              label="Images sent (in order)"
+              value={
+                <div className="flex flex-wrap gap-2">
+                  {debug.referenceImages.sentImages.map((img, i) => (
+                    <div key={`${img.url}-${i}`} className="grid gap-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={img.url}
+                        alt={img.role}
+                        className={cn(
+                          "size-20 rounded border object-cover",
+                          i === 0 && img.role === "anchor" ? "ring-primary ring-2" : "",
+                        )}
+                      />
+                      <span className="text-center text-[10px]">
+                        {i + 1}. {i === 0 && img.role === "anchor" ? "★ anchor" : img.role}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              }
+            />
+          ) : null}
           <DebugRow label="Why these images" value={debug.referenceImages.selectionReason} />
+          {debug.anchorRanking.length ? (
+            <DebugRow
+              label="Identity anchor ranking (FACE only)"
+              value={
+                <div className="overflow-x-auto">
+                  <table className="text-[11px]">
+                    <thead>
+                      <tr className="text-muted-foreground text-left">
+                        {["#", "img", "orient", "prom", "res", "frontal", "eyes", "faceQ", "sharp", "light", "conf", "score", "why"].map(
+                          (h) => (
+                            <th key={h} className="px-1 pb-1 font-normal">
+                              {h}
+                            </th>
+                          ),
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="font-mono">
+                      {debug.anchorRanking.map((a, i) => (
+                        <tr
+                          key={a.mediaId}
+                          className={
+                            a.chosen
+                              ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+                              : a.eligible
+                                ? "text-foreground"
+                                : "text-muted-foreground"
+                          }
+                        >
+                          <td className="px-1">{a.chosen ? "✓" : i + 1}</td>
+                          <td className="px-1">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={a.url} alt="" className="size-10 rounded object-cover" />
+                          </td>
+                          <td className="px-1">{a.orientation}</td>
+                          <td className="px-1 text-center">{Math.round(a.prominence * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.resolution * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.frontalness * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.eyeVisibility * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.faceQuality * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.sharpness * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.lighting * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.confidence * 100)}</td>
+                          <td className="px-1 text-center">{a.score.toFixed(3)}</td>
+                          <td className="px-1 whitespace-nowrap">{a.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="text-muted-foreground mt-1">
+                    ✓ = chosen Face anchor (green). Face‑only score = frontal × faceQ × conf × prominence.
+                    `prom`/`res` reflect face size (headshot ≈ 100, full‑body ≈ 35). A body‑cropped headshot is
+                    eligible — only the FACE matters here. `why` explains each row&apos;s outcome.
+                  </p>
+                </div>
+              }
+            />
+          ) : null}
           <DebugRow
             label="Provider response metadata"
             value={

@@ -1,4 +1,5 @@
-import type { ProviderCapability, RoutingDecision } from "@/lib/ai";
+import type { ModelRoutingDecision, ProviderCapability, RoutingDecision } from "@/lib/ai";
+import type { AnchorScore } from "@/lib/selection";
 import type {
   CompiledStructure,
   CompositionPlan,
@@ -10,6 +11,7 @@ import type {
   SceneGraph,
 } from "@/lib/creative";
 import type { MediaAsset } from "@/lib/media/types";
+import type { TransformationDebug } from "@/lib/transform";
 
 /** Debug-safe summary of an Identity Visual Package (no signed URLs). */
 export type VisualPackageSummary = {
@@ -29,6 +31,48 @@ export type GenerateImageInput = {
   style?: CreativeStyle;
   /** Optional emphasis ("What matters most?"). Defaults to auto-detect in the Director. */
   focus?: CreativeFocus;
+  /**
+   * DEV-only identity benchmark control: cap how many reference images are sent to the provider
+   * (1–4). The Identity Anchor is always kept first, so `1` = anchor only. Lets us A/B identity
+   * preservation with 1→4 references WITHOUT code changes. Ignored in production. Milestone 20.
+   */
+  maxReferences?: number;
+  /**
+   * DEV-only MANUAL reference override: send EXACTLY these training-media ids, in THIS order, to the
+   * provider — bypassing the selector, the Identity Anchor, and the safety filter. For benchmarking
+   * "does image A alone preserve identity? does A+B beat A+C?". Ignored in production. Milestone 20.
+   */
+  manualReferenceMediaIds?: string[];
+  /**
+   * DEV-only manual model id (identity benchmark — compare models with everything else identical).
+   * Used only when `modelMode === "manual"`. Ignored in production. Milestone 20/21.
+   */
+  modelOverride?: string;
+  /** Model selection mode (Milestone 21): "auto" = capability router picks; "manual" = the id above. */
+  modelMode?: "auto" | "manual";
+  /**
+   * DEV-only identity STRATEGY benchmark (Milestone 24.5): force the primary identity technique —
+   * "reference" (baseline only), "lora" (Reference+LoRA), or "pulid" (PuLID face). Undefined = the
+   * engine picks. Ignored in prod.
+   */
+  strategyOverride?: "reference" | "lora" | "pulid";
+  /**
+   * Model Benchmark (Milestone 24.8): tag this generation as one CELL of a benchmark run so the
+   * side-by-side grid can be reassembled (schema-free — stored in `Generation.params.benchmark`).
+   * The harness pins `manualReferenceMediaIds` + `modelOverride` so every cell shares one source.
+   */
+  benchmark?: BenchmarkCellTag;
+};
+
+/** Provenance tag written to `Generation.params.benchmark` for a benchmark cell (Milestone 24.8). */
+export type BenchmarkCellTag = {
+  runId: string;
+  /** The model this cell ran — kept in the tag so a FAILED cell (empty `model` column) still resolves. */
+  modelId: string;
+  /** A label for the pinned source (e.g. "portrait_01") — display only. */
+  sourceLabel?: string;
+  /** Position of this model in the run, for stable grid ordering. */
+  cellIndex?: number;
 };
 
 /**
@@ -53,8 +97,51 @@ export type GenerationDebug = {
   routing: RoutingDecision; // how the provider was chosen
   visualPackage: VisualPackageSummary | null; // identity reference images (Milestone 15)
   referenceImages: ReferenceImageDebug; // what was offered/sent to the provider (Milestone 17)
+  referenceSelection: ReferenceSelectionDebug | null; // Smart Reference Selection trace (Milestone 20)
+  anchorRanking: AnchorScore[]; // top identity-anchor candidates + face scoring breakdown (Milestone 20)
+  conditioning: ConditioningDebugSummary | null; // Identity Engine strategy + engines (Milestone 22)
+  transformation: TransformationDebug | null; // preserve-vs-change plan (Milestone 25.1); null when not an edit
+  identityPackage: IdentityPackageDebug | null; // typed anchor package (Milestone 25.2); null when no identity
+  channelArbitration: ChannelArbitrationDebug | null; // prompt de-dup (Milestone 25.2 Phase C); null when nothing omitted
+  modelRouting: ModelRoutingDecision | null; // capability model routing: chosen model + why (Milestone 21)
   responseMetadata: Record<string, unknown> | null; // provider response metadata (seed/timings/…)
   payload: Record<string, unknown>; // secret-free echo of the provider request
+};
+
+/** The typed Identity Package built for this request (Milestone 25.2 — shadow mode, debug only). */
+export type IdentityPackageDebug = {
+  faceAnchorSource: string; // "face" | "hero" | "none"
+  reason: string;
+  neededRoles: string[];
+  availableRoles: string[]; // every role the character has an anchor for (needs vs doesn't-need)
+  filledRoles: string[];
+  missingRoles: string[];
+  missingRoleReasons: Record<string, string>; // WHY each missing role is unfilled (M27 Phase 2)
+  facetsCovered: string[]; // facets a reference now carries → the prompt could stop describing them
+  anchors: { role: string; roles: string[]; score: number; url: string; reasons: string[] }[];
+};
+
+/** Which appearance facets were de-duped out of the prompt, and the before/after text (Milestone 25.2 Phase C). */
+export type ChannelArbitrationDebug = {
+  omittedFacets: string[]; // facets dropped from the appearance text (carried by a reference or being changed)
+  appearanceBefore: string | null;
+  appearanceAfter: string | null;
+};
+
+/** Which Identity Engine strategy conditioned this generation (Milestone 22). `reference` today. */
+export type ConditioningDebugSummary = {
+  strategy: string; // "reference" | "reference+lora" | …
+  engines: string[]; // modules that contributed
+  engineNotes: string[]; // per non-reference module: why it did / didn't contribute
+};
+
+/** Why the Smart Reference Selector chose this package (Milestone 20). `null` = static fallback used. */
+export type ReferenceSelectionDebug = {
+  requirements: string[]; // active prompt-requirement labels
+  selected: { role: string; reason: string; satisfies: string[] }[];
+  warnings: string[]; // hard requirements with no suitable reference
+  allowedExposure: string; // max reference exposure the prompt permits (Reference Safety filter)
+  excludedForSafety: number; // candidates dropped because they exceeded the allowed exposure
 };
 
 /** Which reference images were selected + sent to the provider, and why (Milestone 17). */
@@ -64,7 +151,13 @@ export type ReferenceImageDebug = {
   offeredRoles: string[];
   sent: number; // what the provider/model actually used
   sentRoles: string[];
+  sentImages: { url: string; role: string }[]; // the ACTUAL ordered images sent (dev thumbnails, M20)
   selectionReason: string;
+  identityAnchor: boolean; // whether an Identity Anchor was prepended (Milestone 20)
+  manual: boolean; // dev manual reference override was used (Milestone 20)
+  modelMaxReferences: number | null; // the chosen model's own reference limit (Milestone 24)
+  devCap: number | null; // dev References cap (1·2·3·4·Auto), null = Auto
+  limitReason: string; // why fewer than offered were sent (empty when all offered were sent)
 };
 
 export type GenerationResult = {

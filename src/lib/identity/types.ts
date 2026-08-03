@@ -5,6 +5,7 @@
  * See docs/IDENTITIES.md, TRAINING_MEDIA.md.
  */
 import type { MediaAsset } from "@/lib/media/types";
+import type { MediaKnowledgeSummary } from "@/lib/vision";
 
 export type IdentityStatusValue = "DRAFT" | "ACTIVE" | "ARCHIVED";
 
@@ -28,6 +29,8 @@ export type IdentityContextInfo = {
  */
 export type IdentityVisualPackage = {
   heroImageUrl: string | null;
+  /** The Hero's media id (displayImageId) — lets generation analyze it on demand for the Face Anchor. */
+  heroMediaId: string | null;
   bestPortraitUrl: string | null;
   bestFullBodyUrl: string | null;
   referenceImageUrls: string[];
@@ -70,6 +73,8 @@ export type TrainingMediaItem = {
   position: number;
   isFavorite: boolean;
   role: TrainingMediaRoleValue;
+  /** Persisted Vision knowledge summary (Milestone 20); null until the image is analyzed. */
+  knowledge: MediaKnowledgeSummary | null;
 };
 
 /** Full identity detail for the detail page (Overview + Training Media). */

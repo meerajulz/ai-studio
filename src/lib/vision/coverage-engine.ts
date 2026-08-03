@@ -10,9 +10,9 @@
  *
  * Scoring algorithm + assumptions are documented in docs/IDENTITY_INTELLIGENCE.md.
  */
-import type { IdentityMetadata } from "./types";
+import type { IdentityMetadata, TattooRegion } from "./types";
 
-export const COVERAGE_ENGINE_VERSION = "cov-1";
+export const COVERAGE_ENGINE_VERSION = "cov-2";
 
 export type CoverageDimensionId =
   | "face-front"
@@ -26,7 +26,9 @@ export type CoverageDimensionId =
   | "tattoo-back"
   | "tattoo-left-arm"
   | "tattoo-right-arm"
+  | "tattoo-abdomen"
   | "tattoo-leg"
+  | "tattoo-neck"
   | "env-indoor"
   | "env-outdoor";
 
@@ -62,80 +64,119 @@ export type CoverageReport = {
   suggestions: CoverageSuggestion[]; // prioritized (most important gaps first)
 };
 
-/** Per-image match weight in [0,1] for a dimension (0 = no contribution). */
-type Matcher = (m: IdentityMetadata) => number;
+/**
+ * How well ONE image represents a dimension:
+ *   • `strength` (0..1) — how strongly the image depicts this aspect (front = 1, generic profile = 0.5…)
+ *   • `confidence` (0..1) — how sure we are it's really there (face confidence, the matched tattoo's
+ *     confidence, etc.). A clearly-visible aspect has high confidence → high stars. See scoreDimension.
+ */
+type DimMatch = { strength: number; confidence: number };
+type Matcher = (m: IdentityMetadata) => DimMatch;
 
 type DimensionSpec = {
   label: string;
   weight: number; // importance in the overall score
-  face: boolean; // face-confidence weighted?
   tattoo: boolean; // only applicable if the identity has tattoos
   match: Matcher;
 };
 
-const hasLoc = (m: IdentityMetadata, ...keywords: string[]): boolean =>
-  m.tattoos.some((t) => {
-    const loc = t.location.toLowerCase();
-    return keywords.some((k) => loc.includes(k));
-  });
+const NO: DimMatch = { strength: 0, confidence: 0 };
+const hit = (strength: number, confidence: number): DimMatch => ({ strength, confidence });
+
+/** Match tattoos by NORMALIZED region (19A). Confidence = the most confident matching tattoo. */
+const tattooIn = (m: IdentityMetadata, regions: TattooRegion[]): DimMatch => {
+  const hits = m.tattoos.filter((t) => regions.includes(t.region));
+  return hits.length ? hit(1, Math.max(...hits.map((t) => t.confidence))) : NO;
+};
+
+/** Confidence a provider attaches to an attribute, with a sensible default when it gave none. */
+const attrConf = (m: IdentityMetadata, key: string, fallback: number): number =>
+  typeof m.attributeConfidence[key] === "number" ? m.attributeConfidence[key] : fallback;
 
 /** The coverage dimensions + how each maps onto normalized knowledge. */
 const DIMENSIONS: Record<CoverageDimensionId, DimensionSpec> = {
   "face-front": {
-    label: "Front face", weight: 3, face: true, tattoo: false,
-    match: (m) => (m.face.visible && m.face.orientation === "front" ? 1 : 0),
+    label: "Front face", weight: 3, tattoo: false,
+    match: (m) => (m.face.visible && m.face.orientation === "front" ? hit(1, m.face.confidence) : NO),
   },
   "face-left-profile": {
-    label: "Left profile", weight: 1, face: true, tattoo: false,
-    match: (m) => (m.face.orientation === "left-profile" ? 1 : m.face.orientation === "profile" ? 0.5 : 0),
+    label: "Left profile", weight: 1, tattoo: false,
+    match: (m) =>
+      m.face.orientation === "left-profile"
+        ? hit(1, m.face.confidence)
+        : m.face.orientation === "profile"
+          ? hit(0.5, m.face.confidence)
+          : NO,
   },
   "face-right-profile": {
-    label: "Right profile", weight: 1, face: true, tattoo: false,
-    match: (m) => (m.face.orientation === "right-profile" ? 1 : m.face.orientation === "profile" ? 0.5 : 0),
+    label: "Right profile", weight: 1, tattoo: false,
+    match: (m) =>
+      m.face.orientation === "right-profile"
+        ? hit(1, m.face.confidence)
+        : m.face.orientation === "profile"
+          ? hit(0.5, m.face.confidence)
+          : NO,
   },
   "face-back": {
-    label: "Back view", weight: 1, face: false, tattoo: false,
-    match: (m) => (m.face.orientation === "back" ? 1 : 0),
+    label: "Back view", weight: 1, tattoo: false,
+    match: (m) => (m.face.orientation === "back" ? hit(1, 0.9) : NO),
   },
   "body-upper": {
-    label: "Upper body", weight: 2, face: false, tattoo: false,
-    match: (m) => (m.body.framing === "half-body" || m.body.visibility === "upper" ? 1 : 0),
+    label: "Upper body", weight: 2, tattoo: false,
+    match: (m) =>
+      m.body.framing === "half-body" || m.body.visibility === "upper"
+        ? hit(1, attrConf(m, "framing", 0.9))
+        : NO,
   },
   "body-full": {
-    label: "Full body", weight: 3, face: false, tattoo: false,
-    match: (m) => (m.body.framing === "full-body" || m.body.visibility === "full" ? 1 : 0),
+    label: "Full body", weight: 3, tattoo: false,
+    match: (m) =>
+      m.body.framing === "full-body" || m.body.visibility === "full"
+        ? hit(1, attrConf(m, "framing", 0.9))
+        : NO,
   },
   hair: {
-    label: "Hair", weight: 2, face: false, tattoo: false,
-    match: (m) => (m.hair.visible ? 1 : 0),
+    label: "Hair", weight: 2, tattoo: false,
+    match: (m) => (m.hair.visible ? hit(1, attrConf(m, "hairColor", 0.9)) : NO),
   },
   "tattoo-chest": {
-    label: "Chest tattoos", weight: 1, face: false, tattoo: true,
-    match: (m) => (hasLoc(m, "chest") ? 1 : 0),
+    label: "Chest tattoos", weight: 1, tattoo: true,
+    match: (m) => tattooIn(m, ["chest", "chest-left", "chest-right"]),
   },
   "tattoo-back": {
-    label: "Back tattoos", weight: 1, face: false, tattoo: true,
-    match: (m) => (hasLoc(m, "back") ? 1 : 0),
+    label: "Back tattoos", weight: 1, tattoo: true,
+    match: (m) => tattooIn(m, ["back", "upper-back", "lower-back"]),
   },
   "tattoo-left-arm": {
-    label: "Left arm tattoos", weight: 1, face: false, tattoo: true,
-    match: (m) => (hasLoc(m, "left arm", "left sleeve") ? 1 : 0),
+    label: "Left arm tattoos", weight: 1, tattoo: true,
+    match: (m) => tattooIn(m, ["left-shoulder", "left-upper-arm", "left-forearm", "left-hand"]),
   },
   "tattoo-right-arm": {
-    label: "Right arm tattoos", weight: 1, face: false, tattoo: true,
-    match: (m) => (hasLoc(m, "right arm", "right sleeve") ? 1 : 0),
+    label: "Right arm tattoos", weight: 1, tattoo: true,
+    match: (m) => tattooIn(m, ["right-shoulder", "right-upper-arm", "right-forearm", "right-hand"]),
+  },
+  "tattoo-abdomen": {
+    label: "Abdomen / hip tattoos", weight: 1, tattoo: true,
+    match: (m) => tattooIn(m, ["abdomen", "hip"]),
   },
   "tattoo-leg": {
-    label: "Leg tattoos", weight: 1, face: false, tattoo: true,
-    match: (m) => (hasLoc(m, "leg") ? 1 : 0),
+    label: "Leg tattoos", weight: 1, tattoo: true,
+    match: (m) => tattooIn(m, ["left-thigh", "right-thigh", "left-calf", "right-calf", "feet"]),
+  },
+  "tattoo-neck": {
+    label: "Neck tattoos", weight: 0.5, tattoo: true,
+    match: (m) => tattooIn(m, ["neck"]),
   },
   "env-indoor": {
-    label: "Indoor references", weight: 0.5, face: false, tattoo: false,
-    match: (m) => (m.lighting.setting === "indoor" || m.lighting.setting === "studio" ? 1 : 0),
+    label: "Indoor references", weight: 0.5, tattoo: false,
+    match: (m) =>
+      m.lighting.setting === "indoor" || m.lighting.setting === "studio"
+        ? hit(1, attrConf(m, "lightingSetting", 0.8))
+        : NO,
   },
   "env-outdoor": {
-    label: "Outdoor references", weight: 0.5, face: false, tattoo: false,
-    match: (m) => (m.lighting.setting === "outdoor" ? 1 : 0),
+    label: "Outdoor references", weight: 0.5, tattoo: false,
+    match: (m) => (m.lighting.setting === "outdoor" ? hit(1, attrConf(m, "lightingSetting", 0.8)) : NO),
   },
 };
 
@@ -147,23 +188,26 @@ function scoreDimension(
   usable: IdentityMetadata[],
   applicable: boolean,
 ): DimensionScore {
-  // Each contributing image contributes: matchWeight × quality × (faceConfidence for face dims).
+  // Per image: presence = how strongly + how confidently it depicts the dimension; the technical
+  // quality is a RAMP (full credit at overall ≥ 70, scaling down below), never a hard multiplier.
   const contributions = usable
     .map((m) => {
-      const w = spec.match(m);
-      if (w <= 0) return null;
-      const q = m.quality.overall / 100;
-      const c = spec.face ? m.face.confidence : 1;
-      return { value: w * q * c, quality: q * c };
+      const { strength, confidence } = spec.match(m);
+      if (strength <= 0) return null;
+      const qualityFactor = clamp(m.quality.overall / 70, 0, 1);
+      const presence = strength * confidence;
+      return { best: presence * qualityFactor, confidence };
     })
-    .filter((x): x is { value: number; quality: number } => x !== null);
+    .filter((x): x is { best: number; confidence: number } => x !== null);
 
   const imageCount = contributions.length;
-  const best = imageCount ? Math.max(...contributions.map((x) => x.value)) : 0; // 0..1
-  const breadth = Math.min(imageCount, 3) / 3; // more angles → higher
-  const score = imageCount ? clamp(best * 0.6 + breadth * 0.4, 0, 1) : 0;
+  const best = imageCount ? Math.max(...contributions.map((x) => x.best)) : 0; // 0..1
+  // Breadth is a BONUS for extra angles, never a penalty against one strong image (19A rescoring):
+  // one perfect image already ≈ full score; more images only lift a weak `best` toward 1.
+  const breadthBonus = (Math.min(Math.max(imageCount - 1, 0), 2) / 2) * 0.25;
+  const score = imageCount ? clamp(best + (1 - best) * breadthBonus, 0, 1) : 0;
   const stars = imageCount === 0 ? 0 : clamp(Math.round(score * 5), 1, 5);
-  const confidence = imageCount ? Math.max(...contributions.map((x) => x.quality)) : 0;
+  const confidence = imageCount ? Math.max(...contributions.map((x) => x.confidence)) : 0;
 
   const status: CoverageStatus = !applicable
     ? "not-applicable"

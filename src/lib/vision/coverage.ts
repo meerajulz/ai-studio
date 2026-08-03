@@ -5,7 +5,7 @@
  * automatic Hero/reference selection and request-aware selection (RESEARCH_02 §12). Pure +
  * deterministic; provider-neutral (it reads only normalized `IdentityMetadata`). No I/O.
  */
-import type { IdentityCoverage, IdentityMetadata } from "./types";
+import type { IdentityCoverage, IdentityMetadata, TattooRegion } from "./types";
 
 const unique = (xs: (string | null)[]): string[] =>
   [...new Set(xs.filter((x): x is string => Boolean(x)))];
@@ -24,8 +24,16 @@ export function computeIdentityCoverage(
     (m) => m.body.framing === "half-body" || m.body.visibility === "upper",
   );
 
+  // TODO(19C → aggregation, future): single-image observations may DISAGREE (one photo reads
+  // "brown" while most read "pink" — lighting/filters/motion). We currently just collect the distinct
+  // values; identity-level aggregation (e.g. confidence-weighted majority vote across images) will
+  // resolve these conflicts into a canonical hair color. Do NOT solve per-image — it's an aggregation
+  // concern. See docs/IDENTITY_INTELLIGENCE.md → "Single-image observations may disagree".
   const hairColors = unique(metadatas.map((m) => m.hair.color));
   const tattooLocations = unique(metadatas.flatMap((m) => m.tattoos.map((t) => t.location)));
+  const tattooRegions = [
+    ...new Set(metadatas.flatMap((m) => m.tattoos.map((t) => t.region))),
+  ] as TattooRegion[];
 
   const averageQuality = analyzedImages
     ? Math.round(metadatas.reduce((sum, m) => sum + m.quality.overall, 0) / analyzedImages)
@@ -50,6 +58,7 @@ export function computeIdentityCoverage(
     hasUpperBody,
     hairColors,
     tattooLocations,
+    tattooRegions,
     averageQuality,
     gaps,
   };

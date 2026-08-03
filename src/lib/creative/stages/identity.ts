@@ -16,6 +16,7 @@ const EMPTY: IdentityReasoning = {
   present: false,
   name: null,
   referencePhrase: null,
+  appearance: null,
   signals: { hasDescription: false, hasHeroImage: false, trainingMediaCount: 0 },
 };
 
@@ -42,6 +43,8 @@ export function resolveIdentity(
       present: true,
       name: identity.name,
       referencePhrase,
+      // Carried separately so scene/intent analysis stays clean; the compiler appends it verbatim.
+      appearance: identity.appearance?.trim() || null,
       signals: {
         hasDescription: description !== null,
         hasHeroImage: identity.hasHeroImage,
