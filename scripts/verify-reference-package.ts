@@ -16,8 +16,10 @@ import {
   hasConfidentFace,
   hydrateAnchors,
   pickIdentityAnchor,
+  rankIdentityAnchors,
   renderPackageForModel,
   resolvePackage,
+  scoreAnchor,
   serializeAnchors,
 } from "../src/lib/selection";
 
@@ -139,6 +141,22 @@ function main() {
   assert(hydrated.length === pkg.anchors.length, "hydrateAnchors restores every anchor whose media exists");
   assert(hydrated.every((a, i) => a.mediaId === pkg.anchors[i].mediaId && a.exposure === pkg.anchors[i].exposure && a.roles.join() === pkg.anchors[i].roles.join()), "round-trip preserves roles/mediaId/exposure");
   assert(hydrateAnchors(stored, new Map()).length === 0, "hydrateAnchors drops anchors whose media was deleted");
+
+  // M27 Phase 1 — a body-cropped headshot is a GREAT face anchor and must beat a full-body (the
+  // `quality.cropped` flag = "body parts cut off" must NOT disqualify a FACE anchor).
+  const headshot = cand("H", mkMeta({ face: { orientation: "front", confidence: 0.95, q: 0.9, res: 0.95 }, body: { visibility: "face", pct: 10 }, quality: { overall: 88, cropped: true } }));
+  const fullbodyFace = cand("F", mkMeta({ face: { orientation: "front", confidence: 0.95, q: 0.85, res: 0.3 }, body: { visibility: "full", pct: 90 }, quality: { overall: 82, cropped: false } }));
+  assert(scoreAnchor(headshot).eligible, "body-cropped headshot is ELIGIBLE as a face anchor (crop flag ignored)");
+  assert(scoreAnchor(headshot).score > scoreAnchor(fullbodyFace).score, "headshot outscores full-body on the face-only score");
+  assert(pickIdentityAnchor([fullbodyFace, headshot])!.mediaId === "H", "pickIdentityAnchor picks the headshot, not the full-body");
+  const rankedHF = rankIdentityAnchors([fullbodyFace, headshot]);
+  assert(rankedHF[0].mediaId === "H" && rankedHF[0].chosen && rankedHF[0].reason.startsWith("chosen"), "ranking marks the headshot chosen with a reason");
+  assert(rankedHF.find((a) => a.mediaId === "F")!.reason.includes("lower face score"), "full-body's reason explains why it lost");
+  const packageFace = buildCharacterPackage("idHF", [fullbodyFace, headshot]).anchors.find((a) => a.roles.includes("face"));
+  assert(packageFace?.mediaId === "H", "Identity Package Face anchor = the headshot (full-body demoted)");
+  // Outcome reasons for ineligible faces.
+  const backCand = cand("B2", mkMeta({ face: { visible: false, orientation: "back" } }));
+  assert(scoreAnchor(backCand).reason === "face not visible", "back view → reason 'face not visible'");
 
   // Provider projection.
   const urls = renderPackageForModel(resolved, { kind: "image_urls", max: 2 });

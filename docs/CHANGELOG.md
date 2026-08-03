@@ -7,6 +7,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Milestone 27 Phase 1 — Face anchor correctness + explainable ranking (2026-08-03)
+
+- **Root‑cause fix:** `scoreAnchor` (`selection/anchor.ts`) gated face eligibility on `!quality.cropped`, but
+  `cropped` means "body parts cut off" — true for a good headshot. So clean portraits scored **0.000** and lost
+  the Face role to full‑body images. The gate is now **face‑only** (`face.visible && frontal && has quality`);
+  a body‑cropped headshot is eligible again, so it correctly outranks a full‑body (higher face prominence/res).
+- **Explainability:** each `AnchorScore` now carries `chosen` + a human `reason` (chosen / profile angle /
+  below‑threshold / lower than chosen / face not visible). The Generate Debug "Identity anchor ranking" panel
+  shows the full per‑factor breakdown (prom · res · frontal · eyes · faceQ · sharp · light → score) with the
+  ✓ chosen row and a `why` column.
+- No new providers/features (M27 = tooling). tsc + build green; verify-reference-package **37/37** (adds the
+  cropped‑headshot‑beats‑full‑body assertions), all prior verifiers unchanged. Deferred: auto‑crop (needs a
+  face bbox), package transparency/quality/benchmark items = later M27 phases.
+
 ### Milestone 26 Phase 2 — Wire one real face provider (Decision 068, 2026-08-02)
 
 - Wired the first concrete `FaceSimilarityProvider` (**AuraFace**, embed path) behind the unchanged

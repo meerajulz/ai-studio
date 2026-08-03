@@ -40,7 +40,9 @@ export type AnchorScore = {
   prominence: number; // derived from resolution — how much of the frame the face fills
   confidence: number;
   score: number; // final anchor score
-  eligible: boolean; // passed the gate (visible, not cropped, some frontality)
+  eligible: boolean; // passed the gate (face visible + frontal + has quality)
+  chosen: boolean; // set by rankIdentityAnchors — the winning Face anchor
+  reason: string; // human explanation of the outcome (chosen / why it lost / why ineligible)
 };
 
 /** Face prominence from resolution: a close-up is worth ~1.6× a full-body of equal face quality. */
@@ -60,7 +62,14 @@ export function hasConfidentFace(candidates: SelectionCandidate[]): boolean {
   return best != null && scoreAnchor(best).score >= FACE_ANCHOR_MIN_SCORE;
 }
 
-/** Score ONE candidate as an identity anchor — FACE quality × frontality × confidence × prominence. */
+/**
+ * Score ONE candidate as an identity anchor — FACE quality × frontality × confidence × prominence.
+ *
+ * Eligibility is FACE-only: a headshot whose *body* is cropped is a GREAT face anchor, so the whole-image
+ * `quality.cropped` flag ("important body parts cut off") must NOT disqualify it (that was the bug where a
+ * clean portrait scored 0.000 and lost to a full-body). A face that is itself cut off already shows up as
+ * low `face.quality` / high occlusion, so it's handled by the quality term, not the crop flag.
+ */
 export function scoreAnchor(c: SelectionCandidate): AnchorScore {
   const face = c.metadata.face;
   const q = face.quality;
@@ -69,8 +78,22 @@ export function scoreAnchor(c: SelectionCandidate): AnchorScore {
   const faceQuality = q?.overall ?? 0;
   const resolution = q?.resolution ?? 0;
   const prominence = prominenceOf(resolution);
-  const eligible = face.visible && !c.metadata.quality.cropped && frontalness > 0 && Boolean(q);
+  const eligible = face.visible && frontalness > 0 && Boolean(q);
   const score = eligible ? frontalness * faceQuality * face.confidence * prominence : 0;
+
+  // Per-candidate reason (why it's ineligible / weak). `rankIdentityAnchors` overrides for the winner.
+  const reason = !face.visible
+    ? "face not visible"
+    : !q
+      ? "no face-quality data"
+      : frontalness === 0
+        ? "face turned away (back)"
+        : orientation.includes("profile")
+          ? "profile angle"
+          : score < FACE_ANCHOR_MIN_SCORE
+            ? `weak face score ${score.toFixed(2)} (< ${FACE_ANCHOR_MIN_SCORE})`
+            : "eligible";
+
   return {
     mediaId: c.mediaId,
     url: c.url,
@@ -87,12 +110,26 @@ export function scoreAnchor(c: SelectionCandidate): AnchorScore {
     confidence: face.confidence,
     score,
     eligible,
+    chosen: false,
+    reason,
   };
 }
 
-/** Rank all candidates by anchor score, best first (for the dev anchor diagnostic). */
+/** Rank all candidates by anchor score, best first, and annotate the winner + why the rest lost. */
 export function rankIdentityAnchors(candidates: SelectionCandidate[]): AnchorScore[] {
-  return candidates.map(scoreAnchor).sort((a, b) => b.score - a.score);
+  const ranked = candidates.map(scoreAnchor).sort((a, b) => b.score - a.score);
+  let winnerFound = false;
+  for (const a of ranked) {
+    if (!a.eligible) continue;
+    if (!winnerFound) {
+      a.chosen = true;
+      a.reason = "chosen — strongest frontal face";
+      winnerFound = true;
+    } else if (a.reason === "eligible") {
+      a.reason = "lower face score than the chosen anchor";
+    }
+  }
+  return ranked;
 }
 
 /**

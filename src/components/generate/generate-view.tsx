@@ -945,7 +945,7 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
                   <table className="text-[11px]">
                     <thead>
                       <tr className="text-muted-foreground text-left">
-                        {["#", "img", "orient", "faceQ", "frontal", "eyes", "light", "res", "prom", "conf", "score"].map(
+                        {["#", "img", "orient", "prom", "res", "frontal", "eyes", "faceQ", "sharp", "light", "conf", "score", "why"].map(
                           (h) => (
                             <th key={h} className="px-1 pb-1 font-normal">
                               {h}
@@ -958,29 +958,38 @@ function CreativeDebugPanel({ debug }: { debug: GenerationDebug }) {
                       {debug.anchorRanking.map((a, i) => (
                         <tr
                           key={a.mediaId}
-                          className={i === 0 ? "text-foreground font-semibold" : "text-muted-foreground"}
+                          className={
+                            a.chosen
+                              ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+                              : a.eligible
+                                ? "text-foreground"
+                                : "text-muted-foreground"
+                          }
                         >
-                          <td className="px-1">{i === 0 ? "★" : i + 1}</td>
+                          <td className="px-1">{a.chosen ? "✓" : i + 1}</td>
                           <td className="px-1">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={a.url} alt="" className="size-10 rounded object-cover" />
                           </td>
                           <td className="px-1">{a.orientation}</td>
-                          <td className="px-1 text-center">{Math.round(a.faceQuality * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.prominence * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.resolution * 100)}</td>
                           <td className="px-1 text-center">{Math.round(a.frontalness * 100)}</td>
                           <td className="px-1 text-center">{Math.round(a.eyeVisibility * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.faceQuality * 100)}</td>
+                          <td className="px-1 text-center">{Math.round(a.sharpness * 100)}</td>
                           <td className="px-1 text-center">{Math.round(a.lighting * 100)}</td>
-                          <td className="px-1 text-center">{Math.round(a.resolution * 100)}</td>
-                          <td className="px-1 text-center">{Math.round(a.prominence * 100)}</td>
                           <td className="px-1 text-center">{Math.round(a.confidence * 100)}</td>
                           <td className="px-1 text-center">{a.score.toFixed(3)}</td>
+                          <td className="px-1 whitespace-nowrap">{a.reason}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                   <p className="text-muted-foreground mt-1">
-                    ★ = chosen anchor. score = frontal × faceQ × conf × prominence. `res`/`prom` reflect
-                    face size (headshot ≈ 100, full-body ≈ 35) — a close-up should beat a full-body.
+                    ✓ = chosen Face anchor (green). Face‑only score = frontal × faceQ × conf × prominence.
+                    `prom`/`res` reflect face size (headshot ≈ 100, full‑body ≈ 35). A body‑cropped headshot is
+                    eligible — only the FACE matters here. `why` explains each row&apos;s outcome.
                   </p>
                 </div>
               }
