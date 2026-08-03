@@ -13,6 +13,7 @@ import {
   buildCharacterPackage,
   deriveNeededRoles,
   FACE_ANCHOR_MIN_SCORE,
+  assessPackageQuality,
   explainPackage,
   hasConfidentFace,
   hydrateAnchors,
@@ -178,6 +179,17 @@ function main() {
   const nbResolved = resolvePackage({ characterPackage: nbPkg, neededRoles: ["face", "body"], maxReferences: 4, exposureCeiling: "clothed" });
   assert(nbResolved.missingRoles.includes("body"), "nude body anchor is dropped for a clothed prompt");
   assert((nbResolved.missingRoleReasons.body ?? "").includes("exposure ceiling"), "missingRoleReasons explains the exposure drop");
+
+  // M27 Phase 3 — assessPackageQuality: predicted preservation + coverage (heuristic, pre-generation).
+  const quality = assessPackageQuality([A, B, C]);
+  assert(quality.overall >= 0 && quality.overall <= 100, "package quality overall in 0..100");
+  assert(quality.coverage.find((c) => c.role === "face")!.status === "strong", "strong frontal face → coverage strong");
+  assert(quality.predicted.face != null && quality.predicted.face > 0.7, "predicted face preservation is high for a strong face");
+  assert(quality.predicted.tattoo != null, "tattooed identity → predicted tattoo present");
+  // A tattoo-free identity omits tattoo from coverage (not a false gap).
+  const noInk = assessPackageQuality([A, cand("C2", mkMeta({ face: { orientation: "front", confidence: 0.7, q: 0.6, res: 0.6 }, hair: { color: "black" } }))]);
+  assert(!noInk.coverage.some((c) => c.role === "tattoo"), "tattoo-free identity: tattoo omitted from coverage");
+  assert(noInk.predicted.tattoo === null, "tattoo-free identity: predicted tattoo = null (excluded from overall)");
 
   // Provider projection.
   const urls = renderPackageForModel(resolved, { kind: "image_urls", max: 2 });

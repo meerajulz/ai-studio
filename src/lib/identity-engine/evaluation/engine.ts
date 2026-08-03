@@ -13,7 +13,7 @@ import { Prisma, prisma } from "@/lib/db";
 import { getGeneratedMediaByIds } from "@/lib/media/server";
 import { getIdentitySelectionCandidates } from "@/lib/identity/server";
 import { getCharacterPackage } from "@/lib/identity/package";
-import { rankIdentityAnchors } from "@/lib/selection";
+import { assessPackageQuality, rankIdentityAnchors } from "@/lib/selection";
 import { emptyEvaluation, type IdentityEvaluation } from "./IdentityEvaluator";
 import {
   getFaceSimilarityProvider,
@@ -177,6 +177,11 @@ export async function evaluateGeneration(
     results.push({ ...(await e.evaluate(ctx)), weight: e.weight });
   }
 
+  // Predicted per-dimension preservation (M27 Phase 3) — heuristic, labeled 'predicted' in the UI. Only
+  // FACE is measured (above, via AuraFace); hair/tattoo/body come from the package until evaluators exist.
+  const qualityCandidates = await getIdentitySelectionCandidates(userId, gen.identityId);
+  const predicted = qualityCandidates.length ? assessPackageQuality(qualityCandidates).predicted : null;
+
   const method = providerError ? "provider-error" : provider.version;
   const metrics = {
     provider: provider.id,
@@ -184,6 +189,8 @@ export async function evaluateGeneration(
     evalMs: Date.now() - startedAt,
     cache: { hits: cacheHits, misses: cacheMisses },
     error: providerError,
+    referenceCount: ctx.references.length,
+    predicted,
     dimensions: results.map((r) => ({ dimension: r.dimension, score: r.score, confidence: r.confidence, details: r.details ?? null })),
   } as unknown as Prisma.InputJsonValue;
 
@@ -200,6 +207,9 @@ export type EvaluationView = {
   evalMs: number | null;
   cacheHits: number | null;
   cacheMisses: number | null;
+  referenceCount: number | null;
+  /** Per-dimension breakdown — `measured` (AuraFace face) vs `predicted` (hair/tattoo/body heuristic). */
+  dimensions: { key: string; value: number; measured: boolean }[];
   anchors: { role: string; mediaId: string; sim: number }[];
 };
 
@@ -207,6 +217,8 @@ type PersistedMetrics = {
   provider?: string;
   evalMs?: number;
   cache?: { hits?: number; misses?: number };
+  referenceCount?: number;
+  predicted?: Record<string, number | null> | null;
   dimensions?: { dimension: string; score: number | null; confidence: number | null; details?: { anchorSims?: { role: string; mediaId: string; sim: number }[] } }[];
 };
 
@@ -223,6 +235,15 @@ export async function getGenerationEvaluationView(
   if (!row) return null;
   const m = (row.metrics as unknown as PersistedMetrics) ?? {};
   const faceDim = m.dimensions?.find((d) => d.dimension === "face");
+
+  // Measured face (AuraFace) + predicted hair/tattoo/body (heuristic) — tagged so the UI never fakes it.
+  const dimensions: EvaluationView["dimensions"] = [];
+  if (row.face != null) dimensions.push({ key: "face", value: row.face, measured: true });
+  for (const key of ["hair", "tattoo", "body"] as const) {
+    const v = m.predicted?.[key];
+    if (v != null) dimensions.push({ key, value: v, measured: false });
+  }
+
   return {
     face: row.face,
     overall: row.overallIdentityScore,
@@ -232,6 +253,8 @@ export async function getGenerationEvaluationView(
     evalMs: m.evalMs ?? null,
     cacheHits: m.cache?.hits ?? null,
     cacheMisses: m.cache?.misses ?? null,
+    referenceCount: m.referenceCount ?? null,
+    dimensions,
     anchors: faceDim?.details?.anchorSims ?? [],
   };
 }

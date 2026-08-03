@@ -74,6 +74,7 @@ export function IdentityDatasetReadiness({ identityId }: Props) {
 
   const m = dataset.metrics;
   const pkg = data?.characterPackage ?? null;
+  const quality = data?.packageQuality ?? null;
   return (
     <div className="grid gap-6">
     <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -123,6 +124,64 @@ export function IdentityDatasetReadiness({ identityId }: Props) {
         ) : null}
       </div>
     </div>
+
+      {quality ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-sm">
+              <span>
+                Package Quality
+                <span className="text-muted-foreground ml-2 font-normal">predicted strength before generation</span>
+              </span>
+              <span className="text-2xl font-semibold tabular-nums">{quality.overall}<span className="text-muted-foreground text-sm">/100</span></span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <p className="text-muted-foreground text-xs font-medium">Coverage</p>
+              {quality.coverage.map((c) => (
+                <div key={c.role} className="flex items-center justify-between text-xs">
+                  <span>
+                    {c.status === "strong" ? "✓" : c.status === "weak" ? "⚠" : "✗"}{" "}
+                    {ROLE_EMOJI[c.role] ?? "•"} {c.role}
+                  </span>
+                  <span
+                    className={cn(
+                      "font-mono",
+                      c.status === "strong"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : c.status === "weak"
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-destructive",
+                    )}
+                  >
+                    {c.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-1.5">
+              <p className="text-muted-foreground text-xs font-medium">Predicted preservation</p>
+              {(["face", "hair", "tattoo", "body"] as const).map((dim) => {
+                const v = quality.predicted[dim];
+                if (v == null) return null;
+                return (
+                  <div key={dim} className="grid gap-0.5 text-xs">
+                    <div className="flex justify-between">
+                      <span>{dim}</span>
+                      <span className="font-mono tabular-nums">{Math.round(v * 100)}</span>
+                    </div>
+                    <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+                      <div className="bg-foreground/60 h-full rounded-full" style={{ width: `${Math.round(v * 100)}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="text-muted-foreground mt-1 text-[10px]">heuristic prediction, not a measurement</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {pkg && pkg.anchors.length ? (
         <Card>

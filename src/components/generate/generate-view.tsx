@@ -542,7 +542,32 @@ function IdentityEvaluationPanel({
           {cacheTotal > 0 ? (
             <div className="flex justify-between"><dt className="text-muted-foreground">cache</dt><dd className="font-mono">{evaluation?.cacheHits ?? 0} hit / {evaluation?.cacheMisses ?? 0} miss</dd></div>
           ) : null}
+          {evaluation?.referenceCount != null ? (
+            <div className="flex justify-between"><dt className="text-muted-foreground">references</dt><dd className="font-mono">{evaluation.referenceCount}</dd></div>
+          ) : null}
         </dl>
+      ) : null}
+      {pct != null && evaluation?.dimensions && evaluation.dimensions.length ? (
+        <div className="mt-3 grid gap-1 text-[11px]">
+          <p className="text-muted-foreground">dimensions</p>
+          {evaluation.dimensions.map((d) => (
+            <div key={d.key} className="grid gap-0.5">
+              <div className="flex items-center justify-between">
+                <span>
+                  {d.key}{" "}
+                  <span className={cn("text-[9px]", d.measured ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
+                    {d.measured ? "measured" : "predicted"}
+                  </span>
+                </span>
+                <span className="font-mono tabular-nums">{Math.round(d.value * 100)}</span>
+              </div>
+              <div className="bg-muted h-1 overflow-hidden rounded-full">
+                <div className={cn("h-full rounded-full", d.measured ? "bg-emerald-500" : "bg-foreground/40")} style={{ width: `${Math.round(d.value * 100)}%` }} />
+              </div>
+            </div>
+          ))}
+          <p className="text-muted-foreground text-[9px]">face = measured (AuraFace); others = predicted from the package.</p>
+        </div>
       ) : null}
       {evaluation?.anchors && evaluation.anchors.length ? (
         <div className="mt-2 grid gap-0.5 text-[11px]">

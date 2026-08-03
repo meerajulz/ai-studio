@@ -21,7 +21,9 @@ import {
   type TrainingState,
 } from "@/lib/identity-engine";
 import { getIdentityAssets, type TrainedModelSummary } from "@/lib/identity-engine/assets/assets";
+import { assessPackageQuality, type PackageQuality } from "@/lib/selection";
 import { getCharacterPackage } from "./package";
+import { getIdentitySelectionCandidates } from "./server";
 
 /** Recompute + persist dataset readiness for an identity from its persisted knowledge. */
 export async function refreshIdentityDataset(userId: string, identityId: string): Promise<void> {
@@ -122,6 +124,7 @@ export type IdentityEngineOverview = {
   dataset: DatasetReadinessView | null;
   staleness: TrainingStaleness | null; // newest model vs. current dataset (retrain hint)
   characterPackage: CharacterPackageView | null; // persisted default Identity Package (M25.2 Phase D)
+  packageQuality: PackageQuality | null; // predicted package strength (M27 Phase 3); null if nothing analyzed
   trainedModels: TrainedModelSummary[];
   trainingJobs: TrainingJobView[];
 };
@@ -150,6 +153,10 @@ export async function getIdentityEngineOverview(
         scorerId: characterPkg.scorerId,
       }
     : null;
+
+  // Predicted Identity Package strength (M27 Phase 3) — pure scoring over the analyzed candidates.
+  const qualityCandidates = await getIdentitySelectionCandidates(userId, identityId);
+  const packageQuality = qualityCandidates.length ? assessPackageQuality(qualityCandidates) : null;
 
   const [row, jobs, readyModels, artifactRows, identityRow] = await Promise.all([
     prisma.identityDataset.findUnique({ where: { identityId } }),
@@ -270,6 +277,7 @@ export async function getIdentityEngineOverview(
     dataset,
     staleness,
     characterPackage,
+    packageQuality,
     trainedModels: assets.trainedModels,
     trainingJobs: jobs.map((j) => ({
       id: j.id,

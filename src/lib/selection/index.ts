@@ -58,6 +58,13 @@ export {
   type MediaContribution,
 } from "./explain";
 export {
+  assessPackageQuality,
+  type PackageQuality,
+  type RoleCoverage,
+  type CoverageStatus,
+  type PredictedDimension,
+} from "./quality";
+export {
   buildCharacterPackage,
   deriveNeededRoles,
   resolvePackage,

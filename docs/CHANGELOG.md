@@ -7,6 +7,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Milestone 27 Phase 3 — Package Quality Score + expanded evaluation (2026-08-03)
+
+- **Package Quality Score** (item 6): new pure `assessPackageQuality` (`selection/quality.ts`) turns per-role
+  anchor fitness into a **coverage checklist** (✓ strong / ⚠ weak / ✗ missing; tattoo shown only when the
+  character has tattoos) + **predicted preservation** per dimension (face/hair/tattoo/body) + an overall
+  0–100. Shown as a "Package Quality" card on the identity Dataset tab **before** any generation.
+- **Expanded evaluation output** (item 7): the Generate "Identity Evaluation" panel now shows every dimension
+  tagged **measured vs predicted** — Face is *measured* (AuraFace); hair/tattoo/body are *predicted* from the
+  package (heuristic) — plus overall · confidence · provider · time · cache · **reference count**. Honest by
+  construction: a prediction is never shown as a measurement, and each dim flips to "measured" when its
+  evaluator ships (later M26).
+- No new providers/capabilities. tsc + build green; verify-reference-package **50/50** (quality coverage +
+  predicted + tattoo-free omission), all prior verifiers unchanged.
+
 ### Milestone 27 Phase 2 — Identity Package transparency (2026-08-03)
 
 - **The package builder is now debuggable.** New pure `explainPackage` (`selection/explain.ts`) exposes, for
