@@ -7,6 +7,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Milestone 27 Phase 4 — Benchmark comparison table (2026-08-03)
+
+- The `/debug/benchmark` harness gains a **comparison table** (item 8): one row per model — **Model · 👤 Face ·
+  Overall · ⏱ Time · 💲 Cost** — ranking models by MEASURED identity preservation, with the best face
+  highlighted (★). The permanent identity regression benchmark.
+- Honest by design: since a run pins the SAME identity + source images across models, only the **measured**
+  Face/Overall vary — so hair/tattoo/body are a footnote (they light up with per-dimension evaluators, M26),
+  never faked per-model. Face shows `—` when the AuraFace provider isn't configured.
+- Data: `getBenchmarkRun` joins `overallIdentityScore` and derives Time from `updatedAt − createdAt` (no new
+  storage); `estimatedCostUsd(modelId)` gives a rough per-image cost from the registry (labeled `~est`, `—`
+  when unknown). `runBenchmarkCell` also reports live `overall` + `genMs`.
+- No new providers/capabilities. tsc + build green; verify-model-routing (+cost assertions), all prior
+  verifiers unchanged. **Milestone 27 (Phases 1–4) core complete.**
+
 ### Milestone 27 Phase 3 — Package Quality Score + expanded evaluation (2026-08-03)
 
 - **Package Quality Score** (item 6): new pure `assessPackageQuality` (`selection/quality.ts`) turns per-role

@@ -17,6 +17,8 @@ import type { BenchmarkCellOutcome, BenchmarkRunView } from "@/lib/benchmark/typ
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { estimatedCostUsd } from "@/lib/ai/model-registry";
+import { cn } from "@/lib/utils";
 
 type CellStatus = "pending" | "running" | "succeeded" | "failed";
 type CellState = { status: CellStatus; error?: string };
@@ -282,6 +284,55 @@ export function BenchmarkView() {
           </Button>
         </div>
       </section>
+
+      {/* Comparison table (M27 Phase 4) — ranks models by MEASURED identity preservation. */}
+      {grid && grid.cells.length ? (
+        (() => {
+          const bestFace = Math.max(
+            0,
+            ...grid.cells.map((c) => (c.faceScore != null ? c.faceScore : 0)),
+          );
+          const pct = (v: number | null) => (v != null ? `${Math.round(v * 100)}%` : "—");
+          const time = (ms: number | null) => (ms == null ? "—" : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`);
+          return (
+            <section className="grid gap-2">
+              <h2 className="text-sm font-medium">Comparison</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-muted-foreground border-b text-left">
+                      {["Model", "👤 Face", "Overall", "⏱ Time", "💲 Cost"].map((h) => (
+                        <th key={h} className="px-2 py-1 font-normal">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {grid.cells.map((c) => {
+                      const cost = estimatedCostUsd(c.modelId);
+                      const isBest = c.faceScore != null && c.faceScore === bestFace && bestFace > 0;
+                      return (
+                        <tr key={c.modelId} className="border-b last:border-0">
+                          <td className="px-2 py-1 font-medium">{c.modelLabel}</td>
+                          <td className={cn("px-2 py-1 font-mono tabular-nums", isBest && "text-emerald-600 dark:text-emerald-400 font-semibold")}>
+                            {isBest ? "★ " : ""}{pct(c.faceScore)}
+                          </td>
+                          <td className="px-2 py-1 font-mono tabular-nums">{pct(c.overall)}</td>
+                          <td className="text-muted-foreground px-2 py-1 font-mono tabular-nums">{time(c.genMs)}</td>
+                          <td className="text-muted-foreground px-2 py-1 font-mono tabular-nums">{cost != null ? `~$${cost.toFixed(2)}` : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-muted-foreground text-[10px]">
+                ★ best measured face similarity. Face = measured (AuraFace); cost is a rough estimate. Hair /
+                Tattoo / Body scoring lands with per‑dimension evaluators (M26).
+              </p>
+            </section>
+          );
+        })()
+      ) : null}
 
       {/* Grid */}
       {selectedModels.length ? (

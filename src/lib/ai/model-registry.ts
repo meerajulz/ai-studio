@@ -32,6 +32,8 @@ export type ModelSpec = {
    */
   autoOnly?: boolean;
   note?: string; // caveats, e.g. "may require OpenAI BYOK on the Fal account"
+  /** Rough per-image cost estimate (USD) for the benchmark's cost column — override the map below. */
+  estimatedCostUsd?: number;
 };
 
 const EDIT: ProviderCapability[] = [
@@ -222,3 +224,26 @@ export const listModels = (): ModelSpec[] => MODEL_REGISTRY;
 export const getModel = (id: string): ModelSpec | undefined => MODEL_REGISTRY.find((m) => m.id === id);
 export const modelsForProvider = (provider: string): ModelSpec[] =>
   MODEL_REGISTRY.filter((m) => m.provider === provider);
+
+/**
+ * ROUGH per-image cost estimates (USD) for the benchmark's cost column — public list prices, approximate,
+ * and shown as "~est" in the UI. Retune from real invoices; a missing entry renders as "—", never $0.
+ */
+const MODEL_COST_USD: Record<string, number> = {
+  "fal-ai/flux-pro/kontext/max/multi": 0.08,
+  "fal-ai/flux-2-pro/edit": 0.06,
+  "fal-ai/flux-pro/kontext/multi": 0.04,
+  "fal-ai/nano-banana-pro/edit": 0.1,
+  "fal-ai/gemini-25-flash-image/edit": 0.03,
+  "openai/gpt-image-2/edit": 0.12,
+  "fal-ai/bytedance/seedream/v4/edit": 0.03,
+  "fal-ai/qwen-image-edit-2509": 0.03,
+  "wan/v2.6/image-to-image": 0.03,
+  "fal-ai/flux-pro/kontext": 0.04, // single-reference Kontext
+  "fal-ai/flux-kontext-lora": 0.06, // reference + trained LoRA (autoOnly)
+};
+
+/** Rough per-image cost estimate for a model (USD), or `null` if unknown. */
+export function estimatedCostUsd(modelId: string): number | null {
+  return getModel(modelId)?.estimatedCostUsd ?? MODEL_COST_USD[modelId] ?? null;
+}

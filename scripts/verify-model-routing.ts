@@ -8,6 +8,7 @@
  * Run: `npx tsx scripts/verify-model-routing.ts`
  */
 import { chooseModel, MODEL_REGISTRY, type ProviderCapability } from "../src/lib/ai";
+import { estimatedCostUsd } from "../src/lib/ai/model-registry";
 
 const EDIT_MULTI: ProviderCapability[] = [
   "imageEditing",
@@ -49,6 +50,9 @@ const checks: [string, boolean][] = [
   ["invalid manual id falls back to auto", manualDisabledFallback.decision.mode === "auto"],
   ["a disabled model is never auto-chosen", MODEL_REGISTRY.filter((m) => !m.enabled).every((m) => m.id !== auto.model.id)],
   ["adding a model is config-only (registry non-empty, all have payloadKind)", MODEL_REGISTRY.length > 0 && MODEL_REGISTRY.every((m) => Boolean(m.payloadKind))],
+  // M27 Phase 4 — benchmark cost estimates: enabled edit models have a positive estimate; unknown → null (never 0).
+  ["enabled edit models have a positive cost estimate", MODEL_REGISTRY.filter((m) => m.enabled && m.capabilities.includes("imageEditing")).every((m) => { const c = estimatedCostUsd(m.id); return c != null && c > 0; })],
+  ["an unknown model id → null cost (not $0)", estimatedCostUsd("nope/does-not-exist") === null],
 ];
 
 console.log("\nChecks:");

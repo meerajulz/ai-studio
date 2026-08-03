@@ -51,6 +51,8 @@ export type BenchmarkCellOutcome = {
   status: "SUCCEEDED" | "FAILED";
   error?: string;
   faceScore?: number | null; // identity face similarity 0..1 (Milestone 26 auto-score), null if unmeasured
+  overall?: number | null; // measured overall identity score 0..1 (M27 Phase 4)
+  genMs?: number | null; // generation wall-time in ms (M27 Phase 4)
 };
 
 export type RunBenchmarkResult = { runId: string; cells: BenchmarkCellOutcome[] };
@@ -64,6 +66,8 @@ export type BenchmarkCellView = {
   status: GenerationStatusValue;
   media: MediaAsset | null; // the signed output; null if the cell failed or has no result yet
   faceScore: number | null; // identity face similarity 0..1 (Milestone 26), null if unmeasured
+  overall: number | null; // measured overall identity score 0..1 (M27 Phase 4)
+  genMs: number | null; // generation wall-time in ms = updatedAt − createdAt (M27 Phase 4)
 };
 
 /** A full benchmark run reassembled for the side-by-side grid. */

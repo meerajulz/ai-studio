@@ -70,6 +70,7 @@ export async function runBenchmarkCell(
   cell: RunBenchmarkCellInput,
 ): Promise<BenchmarkCellOutcome> {
   const modelLabel = getModel(cell.modelId)?.label ?? cell.modelId;
+  const startedAt = Date.now();
   try {
     const result = await generateImage(userId, projectId, {
       prompt: cell.prompt,
@@ -85,11 +86,15 @@ export async function runBenchmarkCell(
         cellIndex: cell.cellIndex,
       },
     });
-    // Auto-score identity preservation (Milestone 26). Best-effort — a measurement failure or a missing
+    const genMs = Date.now() - startedAt;
+    // Auto-score identity preservation (Milestone 26/27). Best-effort — a measurement failure or a missing
     // provider key must never fail the benchmark cell.
     let faceScore: number | null = null;
+    let overall: number | null = null;
     try {
-      faceScore = (await evaluateGeneration(userId, result.generationId)).face;
+      const evaluation = await evaluateGeneration(userId, result.generationId);
+      faceScore = evaluation.face;
+      overall = evaluation.overallIdentityScore;
     } catch {
       faceScore = null;
     }
@@ -100,6 +105,8 @@ export async function runBenchmarkCell(
       generationId: result.generationId,
       status: "SUCCEEDED",
       faceScore,
+      overall,
+      genMs,
     };
   } catch (e) {
     return {
@@ -165,6 +172,7 @@ export async function getBenchmarkRun(
       status: true,
       params: true,
       createdAt: true,
+      updatedAt: true,
       results: { select: { id: true }, orderBy: { createdAt: "asc" }, take: 1 },
     },
   });
@@ -176,12 +184,13 @@ export async function getBenchmarkRun(
   const assets = await getGeneratedMediaByIds(userId, resultIds);
   const assetById = new Map(assets.map((a) => [a.id, a]));
 
-  // Persisted identity-evaluation face scores (Milestone 26), joined by generation.
+  // Persisted identity-evaluation scores (Milestone 26/27), joined by generation.
   const evals = await prisma.identityEvaluation.findMany({
     where: { userId, generationId: { in: rows.map((r) => r.id) } },
-    select: { generationId: true, face: true },
+    select: { generationId: true, face: true, overallIdentityScore: true },
   });
   const faceByGeneration = new Map(evals.map((e) => [e.generationId, e.face]));
+  const overallByGeneration = new Map(evals.map((e) => [e.generationId, e.overallIdentityScore]));
 
   const cells: BenchmarkCellView[] = rows
     .map((r) => {
@@ -196,6 +205,8 @@ export async function getBenchmarkRun(
         status: r.status as GenerationStatusValue,
         media: resultId ? (assetById.get(resultId) ?? null) : null,
         faceScore: faceByGeneration.get(r.id) ?? null,
+        overall: overallByGeneration.get(r.id) ?? null,
+        genMs: r.updatedAt.getTime() - r.createdAt.getTime(),
       };
     })
     .sort((a, b) => a.cellIndex - b.cellIndex);
