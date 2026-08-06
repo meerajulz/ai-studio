@@ -6,6 +6,7 @@
  * Package (role-labeled) anchors, engine composition, disabled evaluators, and version-as-cache-key.
  * Run:  npx tsx scripts/verify-evaluation.ts
  */
+import { aggregateSims, headlineScore } from "../src/lib/identity-engine/evaluation/evaluators/aggregate";
 import { cosine, toSimilarity } from "../src/lib/identity-engine/evaluation/cosine";
 import { composeEvaluation } from "../src/lib/identity-engine/evaluation/engine";
 import { faceEvaluator } from "../src/lib/identity-engine/evaluation/evaluators/face";
@@ -66,6 +67,19 @@ async function main() {
   // 4. No provider capability at all → null (not-configured).
   const none = await faceEvaluator.evaluate({ identityId: "id1", generated: img("g", "1,0"), references: refs });
   assert(none.score === null && none.confidence === null, "no embed + no compare → null score");
+
+  // 4b. Multi-anchor aggregation — every stat + the default reproduces the legacy top-K mean EXACTLY.
+  const agg = aggregateSims([0.2, 0.6, 0.5, 0.3], 3);
+  assert(agg.count === 4 && agg.max === 0.6 && agg.min === 0.2, "aggregate: count/max/min");
+  assert(approx(agg.median, 0.4), "aggregate: median of 4 = mean of middle two");
+  assert(approx(agg.mean, 0.4), "aggregate: mean across all anchors");
+  assert(approx(agg.topKMean, (0.6 + 0.5 + 0.3) / 3), "aggregate: topKMean = mean of strongest K");
+  assert(approx(headlineScore(agg), (0.6 + 0.5 + 0.3) / 3), "headline default = topKMean (legacy score unchanged)");
+  assert(headlineScore(agg, "max") === 0.6, "headline 'max' = best anchor (swappable)");
+  const solo = aggregateSims([0.42], 3);
+  assert(solo.max === 0.42 && approx(solo.topKMean, 0.42) && solo.k === 1, "aggregate: single anchor — every stat = that value, k clamps");
+  const drifted2 = await faceEvaluator.evaluate(embedCtx(img("g", "0,1,0")));
+  assert((drifted2.details as { aggregate?: unknown }).aggregate != null, "face evaluator surfaces the aggregate distribution in details");
 
   // 5. Engine composition — uniform results → columns + weighted overall.
   const composed = composeEvaluation("id1", "gen1", "mock-v1", [

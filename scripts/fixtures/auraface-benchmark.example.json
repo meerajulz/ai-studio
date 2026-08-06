@@ -1,0 +1,19 @@
+{
+  "_comment": "AuraFace instrument benchmark input. Refs may be local paths, http(s) URLs, or data URLs. Copy this file, point it at your images, and run: npx tsx scripts/benchmark-auraface.ts <yourcopy>.json",
+  "reference": "/absolute/path/to/julieta-frontal-closeup.jpg",
+  "samePerson": [
+    "/absolute/path/to/IMG9779.jpg",
+    "/absolute/path/to/IMG9781.jpg",
+    "/absolute/path/to/IMG9785.jpg"
+  ],
+  "differentPerson": [
+    "/absolute/path/to/someone-else-1.jpg",
+    "/absolute/path/to/someone-else-2.jpg"
+  ],
+  "generated": [
+    "/absolute/path/to/gpt-image-output.png",
+    "/absolute/path/to/kontext-output.png",
+    "/absolute/path/to/seedream-output.png"
+  ],
+  "anchors": []
+}

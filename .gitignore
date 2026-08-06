@@ -43,3 +43,6 @@ next-env.d.ts
 
 # prisma generated client
 /src/generated/prisma
+
+# local identity photos + experiment outputs (personal data — never commit)
+/public/img/

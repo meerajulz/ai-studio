@@ -1,0 +1,15 @@
+{
+  "reference": "/Users/julianaleon/Documents/VIDEO_APP/ai-studio/public/img/IMG_9778.jpg",
+  "samePerson": [
+    "/Users/julianaleon/Documents/VIDEO_APP/ai-studio/public/img/IMG_9780.jpg",
+    "/Users/julianaleon/Documents/VIDEO_APP/ai-studio/public/img/IMG_9789.jpg"
+  ],
+  "differentPerson": [
+    "/Users/julianaleon/Documents/VIDEO_APP/ai-studio/public/img/f40e93ad-913b-4ecc-a14d-f9048c61958c.JPG"
+  ],
+  "generated": [
+    "/Users/julianaleon/Documents/VIDEO_APP/ai-studio/public/img/generate.png",
+    "/Users/julianaleon/Documents/VIDEO_APP/ai-studio/public/img/generate2.png",
+    "/Users/julianaleon/Documents/VIDEO_APP/ai-studio/public/img/generate3.png"
+  ]
+}

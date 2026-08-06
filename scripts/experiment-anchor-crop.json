@@ -1,0 +1,9 @@
+{
+  "anchorPhoto": "/Users/julianaleon/Documents/VIDEO_APP/ai-studio/public/img/IMG_9780.jpg",
+  "evalAnchors": [
+    "/Users/julianaleon/Documents/VIDEO_APP/ai-studio/public/img/IMG_9778.jpg",
+    "/Users/julianaleon/Documents/VIDEO_APP/ai-studio/public/img/IMG_9789.jpg"
+  ],
+  "prompt": "A candid full-body street-style photo of the person walking across a busy Tokyo crosswalk at night, neon signs, 35mm, natural lighting",
+  "cropMargin": 0.15
+}

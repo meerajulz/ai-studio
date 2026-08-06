@@ -91,6 +91,9 @@ class EndpointHandler:
                 return {"embedding": None}
             face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
             emb = self.np.asarray(face.normed_embedding, dtype=float)
-            return {"embedding": emb.tolist(), "dim": int(emb.shape[0])}
+            # `bbox` (pixel [x1,y1,x2,y2] of the embedded face) is additive — existing callers ignore it;
+            # the reference-package experiments use it to crop the anchor tight to the face.
+            bbox = [float(x) for x in face.bbox]
+            return {"embedding": emb.tolist(), "dim": int(emb.shape[0]), "bbox": bbox, "faces": len(faces)}
         except Exception:  # noqa: BLE001 — surface the error instead of a bare 500
             return {"embedding": None, "error": traceback.format_exc()[-1200:]}

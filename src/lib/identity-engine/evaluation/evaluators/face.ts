@@ -8,9 +8,13 @@
  * `{ score, confidence, details }` — the engine never learns how it was produced.
  */
 import { cosine, toSimilarity } from "../cosine";
+import { aggregateSims, DEFAULT_STRATEGY, headlineScore } from "./aggregate";
 import type { Evaluator, EvalContext, EvalResult } from "./types";
 
-const TOP_K = 3; // average the strongest K anchor matches
+const TOP_K = 3; // average the strongest K anchor matches (the K in `topKMean`)
+// Headline aggregation strategy. `topKMean` reproduces the legacy score; flip to `max`/`median` ONLY once
+// benchmark distributions justify it (see scripts/benchmark-auraface.ts + the multi-anchor demo).
+const STRATEGY = DEFAULT_STRATEGY;
 
 type AnchorSim = { mediaId: string; role: string; sim: number };
 
@@ -49,15 +53,24 @@ export const faceEvaluator: Evaluator = {
     if (sims == null) return { dimension: "face", score: null, confidence: null, details: { reason: "no face / no provider" } };
     if (sims.length === 0) return { dimension: "face", score: null, confidence: 0, details: { reason: "no comparable anchors" } };
 
-    const top = sims.slice().sort((a, b) => b.sim - a.sim).slice(0, TOP_K);
-    const score = top.reduce((s, x) => s + x.sim, 0) / top.length;
+    const agg = aggregateSims(sims.map((s) => s.sim), TOP_K);
+    const score = headlineScore(agg, STRATEGY);
     // Confidence = how many of the desired anchors we could actually compare against (coverage).
     const confidence = Math.min(1, sims.length / TOP_K);
+    const top = sims.slice().sort((a, b) => b.sim - a.sim).slice(0, TOP_K);
     return {
       dimension: "face",
       score,
       confidence,
-      details: { anchorSims: sims, usedAnchors: top.map((t) => ({ role: t.role, mediaId: t.mediaId })), topK: TOP_K },
+      // Full distribution is persisted so the UI/benchmark can show mean/median/best and we can re-pick the
+      // headline strategy from data without re-running any generations.
+      details: {
+        anchorSims: sims,
+        aggregate: agg,
+        strategy: STRATEGY,
+        usedAnchors: top.map((t) => ({ role: t.role, mediaId: t.mediaId })),
+        topK: TOP_K,
+      },
     };
   },
 };
