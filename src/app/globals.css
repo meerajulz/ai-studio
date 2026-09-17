@@ -128,3 +128,26 @@
     @apply font-sans;
   }
 }
+/* ---------------------------------------------------------------------------
+ * Chart series tokens.
+ *
+ * The shipped --chart-1..5 ramp is one set of values used on BOTH surfaces, which leaves
+ * its dark steps (L 0.269) nearly invisible on the dark card (L 0.205). These tokens are
+ * that ramp re-stepped per surface, so dark mode is selected rather than flipped.
+ *
+ * Steps were chosen with the palette validator: light pair separates by ΔE 20.1, dark by
+ * ΔE 15.6 (floor is 15), and every step clears 3:1 against its own surface. They stay
+ * achromatic to match the house chart ramp, so hue carries no meaning here — identity
+ * comes from the legend, direct labels and the table view, never from color alone.
+ * --------------------------------------------------------------------------- */
+:root {
+  --series-1: oklch(0.45 0 0);
+  --series-2: oklch(0.65 0 0);
+  --series-track: oklch(0.93 0 0);
+}
+
+.dark {
+  --series-1: oklch(0.67 0 0);
+  --series-2: oklch(0.515 0 0);
+  --series-track: oklch(0.32 0 0);
+}
